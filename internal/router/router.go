@@ -18,8 +18,6 @@ func New(db *supa.Client) http.Handler {
 
 	r.Route("/api/v1", func(r chi.Router) {
 
-		// ── Phase 1: 마스터 관리 ──
-
 		companyH := handler.NewCompanyHandler(db)
 		r.Route("/companies", func(r chi.Router) {
 			r.Get("/", companyH.List)
@@ -69,17 +67,13 @@ func New(db *supa.Client) http.Handler {
 			r.Put("/{id}", bankH.Update)
 		})
 
-		// ── Phase 2: 발주/결제 ──
-
 		poH := handler.NewPOHandler(db)
 		poLineH := handler.NewPOLineHandler(db)
 		r.Route("/pos", func(r chi.Router) {
-			r.Get("/", poH.List)                    // ?company_id=&manufacturer_id=&status=
+			r.Get("/", poH.List)
 			r.Post("/", poH.Create)
-			r.Get("/{id}", poH.GetByID)             // 라인아이템+LC+TT 포함
+			r.Get("/{id}", poH.GetByID)
 			r.Put("/{id}", poH.Update)
-
-			// PO 하위: 라인아이템
 			r.Route("/{poId}/lines", func(r chi.Router) {
 				r.Get("/", poLineH.ListByPO)
 				r.Post("/", poLineH.Create)
@@ -90,7 +84,7 @@ func New(db *supa.Client) http.Handler {
 
 		lcH := handler.NewLCHandler(db)
 		r.Route("/lcs", func(r chi.Router) {
-			r.Get("/", lcH.List)                    // ?company_id=&bank_id=&status=
+			r.Get("/", lcH.List)
 			r.Post("/", lcH.Create)
 			r.Get("/{id}", lcH.GetByID)
 			r.Put("/{id}", lcH.Update)
@@ -98,9 +92,24 @@ func New(db *supa.Client) http.Handler {
 
 		ttH := handler.NewTTHandler(db)
 		r.Route("/tts", func(r chi.Router) {
-			r.Get("/", ttH.List)                    // ?po_id=&status=
+			r.Get("/", ttH.List)
 			r.Post("/", ttH.Create)
 			r.Put("/{id}", ttH.Update)
+		})
+
+		blH := handler.NewBLHandler(db)
+		blLineH := handler.NewBLLineHandler(db)
+		r.Route("/bls", func(r chi.Router) {
+			r.Get("/", blH.List)
+			r.Post("/", blH.Create)
+			r.Get("/{id}", blH.GetByID)
+			r.Put("/{id}", blH.Update)
+			r.Route("/{blId}/lines", func(r chi.Router) {
+				r.Get("/", blLineH.ListByBL)
+				r.Post("/", blLineH.Create)
+				r.Put("/{id}", blLineH.Update)
+				r.Delete("/{id}", blLineH.Delete)
+			})
 		})
 	})
 
