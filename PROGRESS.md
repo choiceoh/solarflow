@@ -1,7 +1,6 @@
 # SolarFlow 진행 상황
 
-## 현재 단계: Phase 2 — Step 7 대기 (면장/원가)
-## 자동 검증 도입 작업 중 (TASK7)
+## 현재 단계: Phase 2 — Step 9 대기 (출고/판매)
 
 ## 완료된 작업
 
@@ -18,21 +17,30 @@
 | LC 핸들러 | 감리 13차 | 9/10 | 2026-03-29 |
 | TT 핸들러 | 감리 13차 | 9/10 | 2026-03-29 |
 | BL/BLLine 핸들러 | 감리 14차 | 9/10 | 2026-03-29 |
-| 설계문서 통합본 | 감리 17차 | 98점 | 2026-03-29 |
 
-### 진행 중
-- 자동 검증 (TASK7): 테스트 코드 + CI + 린터
+### Phase 2: 핵심 거래 모듈 (진행 중)
+| 작업 | 감리 차수 | 점수 | 날짜 |
+|------|----------|------|------|
+| 설계문서 통합본 | 감리 17차 | 98점 | 2026-03-29 |
+| 자동 검증 (테스트+CI+린터) | 감리 18차 | 합격 | 2026-03-29 |
+| 하네스 파일 5개 생성 | — | 커밋 | 2026-03-29 |
+| Step 7: 면장/원가 (DB+핸들러) | 감리 19차 | 9/10 | 2026-03-29 |
+| Step 8: 수주/수금 (DB+핸들러) | 감리 20차 | 9/10 | 2026-03-29 |
 
 ### 다음 작업 (순서대로)
-1. Step 7: 면장/원가 (DB 신규 + Go 핸들러)
-2. Step 8: 수주/수금
-3. Step 9: 출고/판매
-4. Step 10: 은행/LC 한도 변경이력
-5. Phase 3: Rust 계산엔진
-6. Phase 4: 프론트엔드 + 엑셀 Import/Export
+1. Step 9: 출고/판매 (DB 신규 + Go 핸들러)
+2. Step 10: 은행/LC 한도 변경이력
+3. Phase 3: Rust 계산엔진
+4. Phase 4: 프론트엔드 + 엑셀 Import/Export
+
+### 자동 검증 현황
+- 테스트: 32개 PASS (company 5 + product 10 + declaration 3 + expense 5 + order 7 + receipt 2)
+- 린터: 위반 0건
+- CI: .github/workflows/ci.yml 설정 완료
 
 ### 미해결 사항
 - SUPABASE_JWT_SECRET fly.io 등록 (Alex 수동)
 - omitempty 태그 일괄 추가 (전체 핸들러 확정 후)
 - staff allowed_modules 모듈 접근 제어 (TODO)
+- receipt_matches.outbound_id FK 추가 (Step 9에서 outbound 테이블 생성 후)
 - 상사 코드 리뷰 (3층 검증 미확보)
