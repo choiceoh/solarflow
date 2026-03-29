@@ -555,3 +555,68 @@ func (c *EngineClient) GetSupplyForecast(companyID string, prodID, mfgID *string
 	}
 	return result, nil
 }
+
+// === 수금 매칭 ===
+
+// outstandingListCalcRequest — Rust 미수금 목록 요청
+type outstandingListCalcRequest struct {
+	CompanyID  string `json:"company_id"`
+	CustomerID string `json:"customer_id"`
+}
+
+// OutstandingListCalcResponse — 미수금 목록 응답 (engine 간략)
+type OutstandingListCalcResponse struct {
+	CustomerName     string  `json:"customer_name"`
+	TotalOutstanding float64 `json:"total_outstanding"`
+	OutstandingCount int     `json:"outstanding_count"`
+	CalculatedAt     string  `json:"calculated_at"`
+}
+
+// GetOutstandingList — Rust 미수금 목록 API 호출
+func (c *EngineClient) GetOutstandingList(companyID, customerID string) (OutstandingListCalcResponse, error) {
+	req := outstandingListCalcRequest{CompanyID: companyID, CustomerID: customerID}
+	data, err := c.CallCalc("outstanding-list", req)
+	if err != nil { return OutstandingListCalcResponse{}, err }
+	var result OutstandingListCalcResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("[미수금 목록 응답 파싱 실패] %v", err)
+		return OutstandingListCalcResponse{}, fmt.Errorf("미수금 목록 응답 파싱 실패: %w", err)
+	}
+	return result, nil
+}
+
+// receiptMatchSuggestCalcRequest — Rust 매칭 추천 요청
+type receiptMatchSuggestCalcRequest struct {
+	CompanyID     string  `json:"company_id"`
+	CustomerID    string  `json:"customer_id"`
+	ReceiptAmount float64 `json:"receipt_amount"`
+}
+
+// ReceiptMatchSuggestCalcResponse — 매칭 추천 응답 (engine 간략)
+type ReceiptMatchSuggestCalcResponse struct {
+	ReceiptAmount   float64                 `json:"receipt_amount"`
+	Suggestions     []SuggestionCalcItem    `json:"suggestions"`
+	UnmatchedAmount float64                 `json:"unmatched_amount"`
+	CalculatedAt    string                  `json:"calculated_at"`
+}
+
+// SuggestionCalcItem — 추천 조합 (간략)
+type SuggestionCalcItem struct {
+	MatchType    string  `json:"match_type"`
+	TotalMatched float64 `json:"total_matched"`
+	Remainder    float64 `json:"remainder"`
+	MatchRate    float64 `json:"match_rate"`
+}
+
+// SuggestReceiptMatch — Rust 매칭 추천 API 호출
+func (c *EngineClient) SuggestReceiptMatch(companyID, customerID string, receiptAmount float64) (ReceiptMatchSuggestCalcResponse, error) {
+	req := receiptMatchSuggestCalcRequest{CompanyID: companyID, CustomerID: customerID, ReceiptAmount: receiptAmount}
+	data, err := c.CallCalc("receipt-match-suggest", req)
+	if err != nil { return ReceiptMatchSuggestCalcResponse{}, err }
+	var result ReceiptMatchSuggestCalcResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("[매칭 추천 응답 파싱 실패] %v", err)
+		return ReceiptMatchSuggestCalcResponse{}, fmt.Errorf("매칭 추천 응답 파싱 실패: %w", err)
+	}
+	return result, nil
+}

@@ -11,11 +11,13 @@ use crate::calc::landed_cost::{calculate_landed_cost, compare_exchange_rates};
 use crate::calc::lc_schedule::{calculate_lc_fees, calculate_limit_timeline, get_maturity_alerts};
 use crate::calc::margin::{calculate_margin, analyze_customers, calculate_price_trend};
 use crate::calc::forecast::calculate_forecast;
+use crate::calc::receipt_match::{get_outstanding_list, suggest_receipt_match};
 use crate::model::inventory::InventoryRequest;
 use crate::model::landed_cost::{ExchangeCompareRequest, LandedCostRequest};
 use crate::model::lc_schedule::{LcFeeRequest, LcLimitTimelineRequest, LcMaturityAlertRequest};
 use crate::model::margin::{MarginAnalysisRequest, CustomerAnalysisRequest, PriceTrendRequest};
 use crate::model::forecast::SupplyForecastRequest;
+use crate::model::receipt_match::{OutstandingListRequest, ReceiptMatchSuggestRequest};
 
 /// POST /api/calc/inventory — 재고 집계 핸들러
 pub async fn inventory_handler(
@@ -170,5 +172,30 @@ pub async fn supply_forecast_handler(State(pool): State<PgPool>, Json(req): Json
     match calculate_forecast(&pool, &req).await {
         Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap_or(json!({"error": "직렬화 실패"})))),
         Err(e) => { tracing::error!("수급 전망 실패: {}", e); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("수급 전망 실패: {}", e)}))) }
+    }
+}
+
+/// POST /api/calc/outstanding-list — 미수금 목록 핸들러
+pub async fn outstanding_list_handler(State(pool): State<PgPool>, Json(req): Json<OutstandingListRequest>) -> (StatusCode, Json<Value>) {
+    if req.company_id.is_none() { return (StatusCode::BAD_REQUEST, Json(json!({"error": "company_id는 필수 항목입니다"}))); }
+    if req.customer_id.is_none() { return (StatusCode::BAD_REQUEST, Json(json!({"error": "customer_id는 필수 항목입니다"}))); }
+    match get_outstanding_list(&pool, &req).await {
+        Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap_or(json!({"error": "직렬화 실패"})))),
+        Err(e) => { tracing::error!("미수금 목록 실패: {}", e); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("미수금 목록 실패: {}", e)}))) }
+    }
+}
+
+/// POST /api/calc/receipt-match-suggest — 수금 매칭 추천 핸들러
+pub async fn receipt_match_suggest_handler(State(pool): State<PgPool>, Json(req): Json<ReceiptMatchSuggestRequest>) -> (StatusCode, Json<Value>) {
+    if req.company_id.is_none() { return (StatusCode::BAD_REQUEST, Json(json!({"error": "company_id는 필수 항목입니다"}))); }
+    if req.customer_id.is_none() { return (StatusCode::BAD_REQUEST, Json(json!({"error": "customer_id는 필수 항목입니다"}))); }
+    match req.receipt_amount {
+        None => return (StatusCode::BAD_REQUEST, Json(json!({"error": "receipt_amount는 필수 항목입니다"}))),
+        Some(a) if a <= 0.0 => return (StatusCode::BAD_REQUEST, Json(json!({"error": "receipt_amount는 양수여야 합니다"}))),
+        _ => {}
+    }
+    match suggest_receipt_match(&pool, &req).await {
+        Ok(r) => (StatusCode::OK, Json(serde_json::to_value(r).unwrap_or(json!({"error": "직렬화 실패"})))),
+        Err(e) => { tracing::error!("매칭 추천 실패: {}", e); (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": format!("매칭 추천 실패: {}", e)}))) }
     }
 }
