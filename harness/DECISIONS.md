@@ -254,3 +254,28 @@
 - **결정**: PROGRESS.md를 "이것만 읽으면 현재 위치 즉시 파악" 가능한 영구적 앵커로 강화
 - **이유**: 새 대화창, 새 세션에서 프로젝트 상태를 파악하는 데 걸리는 시간 최소화. 현재 상태 요약 + Phase 이력 + 미해결 사항 + API 목록을 한 파일에 집약.
 - **날짜**: 2026-03-29
+
+## D-051: 프론트→Go→Rust 호출 체인
+- **결정**: 프론트엔드가 Rust 엔진을 직접 호출하지 않고, 반드시 Go를 경유
+- **이유**: (1) 인증 우회 방지 — Go AuthMiddleware를 거쳐야만 접근 가능 (2) CORS 1곳(Go)에서 관리 (3) Rust 다운 시 Go에서 graceful degradation(503 + engine_status) 처리
+- **날짜**: 2026-03-29
+
+## D-052: shadcn/ui 선택
+- **결정**: UI 프레임워크로 shadcn/ui 채택 (base-nova 스타일)
+- **이유**: 소스 복사 방식으로 완전 커스텀 가능. Radix UI 기반 접근성. 2026년 React 생태계 표준.
+- **날짜**: 2026-03-29
+
+## D-053: Zustand 상태 관리
+- **결정**: 전역 상태 관리에 Zustand 사용
+- **이유**: 전역 상태가 인증 + 법인 선택 정도로 가벼움. Redux는 이 규모에 과잉. Zustand는 보일러플레이트 최소.
+- **날짜**: 2026-03-29
+
+## D-054: CalcProxy 패턴 — 바이트 그대로 전달
+- **결정**: Go CalcProxy가 프론트 요청 바이트를 해석하지 않고 Rust에 그대로 중계
+- **이유**: Go가 Rust 요청/응답 구조를 알 필요 없음. Rust API 변경 시 Go 수정 불필요. 기존 타입 안전 메서드(GetInventory, CalcLandedCost 등)는 Go 내부 호출용으로 유지.
+- **날짜**: 2026-03-29
+
+## D-055: user_profiles 컬럼명은 실제 DB 기준
+- **결정**: user_profiles 테이블의 PK는 `id` (user_id 아님), 이름은 `full_name` (name 아님). `allowed_modules`, `company_id`는 현재 DB에 없으므로 구조체에서 제거. `department`, `phone`, `avatar_url`을 nullable로 추가.
+- **이유**: Phase 1에서 생성된 실제 테이블 스키마를 존중. 설계문서와 다르지만 DB를 정본으로 삼음. `allowed_modules`, `company_id`는 Phase 확장 시 ALTER TABLE로 추가.
+- **날짜**: 2026-03-29

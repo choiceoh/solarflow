@@ -14,13 +14,13 @@ import (
 )
 
 // UserProfile — user_profiles 테이블에서 조회한 사용자 프로필
-// 비유: 사원 인사카드 — 역할, 활성 여부, 허용 모듈이 적혀 있음
+// 비유: 사원 인사카드 — 역할, 활성 여부가 적혀 있음
+// 컬럼명은 실제 DB 기준 (D-055 참조)
 type UserProfile struct {
-	UserID         string   `json:"user_id"`
-	Role           string   `json:"role"`
-	Email          string   `json:"email"`
-	IsActive       bool     `json:"is_active"`
-	AllowedModules []string `json:"allowed_modules"`
+	ID       string `json:"id"`
+	Role     string `json:"role"`
+	Email    string `json:"email"`
+	IsActive bool   `json:"is_active"`
 }
 
 // AuthMiddleware — JWT 토큰을 검증하고 사용자 정보를 context에 저장하는 미들웨어
@@ -81,8 +81,8 @@ func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 
 			// 비유: 인사카드(user_profiles)에서 해당 사번의 역할, 활성 여부 조회
 			data, _, err := db.From("user_profiles").
-				Select("user_id, role, email, is_active, allowed_modules", "exact", false).
-				Eq("user_id", userID).
+				Select("id, role, email, is_active", "exact", false).
+				Eq("id", userID).
 				Execute()
 			if err != nil {
 				log.Printf("[인증 미들웨어] user_profiles 조회 실패: %v", err)
@@ -116,7 +116,8 @@ func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 			}
 
 			// 비유: 사원증에 역할, 이메일, 허용 구역을 기록하고 통과시킴
-			ctx := SetUserContext(r.Context(), userID, profile.Role, email, profile.AllowedModules)
+			// allowed_modules는 Phase 확장 시 추가 (D-055)
+			ctx := SetUserContext(r.Context(), userID, profile.Role, email, nil)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

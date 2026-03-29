@@ -4,16 +4,17 @@
 
 | 항목 | 상태 |
 |------|------|
-| 현재 Phase | Phase 4 전 정리 중 |
-| 다음 작업 | Phase 4 — 프론트엔드 + 연동 |
+| 현재 Phase | Phase 4 진행 중 |
+| 다음 작업 | Step 21 — 대시보드 레이아웃 |
 | Go 백엔드 | 배포 완료 (solarflow-backend.fly.dev) |
 | Rust 엔진 | 배포 완료 (solarflow-engine.fly.dev) |
-| 프론트엔드 | 미착수 |
+| 프론트엔드 | Step 20 완료 (인증 + CORS + CalcProxy) |
 | DB 테이블 | 20개 생성 완료 |
-| Go 테스트 | 78개 PASS |
+| Go 테스트 | 86개 PASS |
 | Rust 테스트 | 75개 PASS |
-| 총 테스트 | 153개 PASS |
+| 총 테스트 | 161개 PASS |
 | Rust API | 15개 엔드포인트 |
+| Go CalcProxy | 15개 엔드포인트 (프론트→Go→Rust) |
 | 감리 점수 | Phase 2: 9-10/10, Phase 3: 전부 10/10 |
 
 ### 핵심 미해결 사항
@@ -71,8 +72,13 @@
 | Step 18: 수금 매칭 추천 | 10/10 | 127개 |
 | Step 19: 자연어 검색 | 10/10 | 153개 |
 
-### Phase 4: 프론트엔드 + 연동 (미착수)
-- 대시보드 (역할별)
+### Phase 4: 프론트엔드 + 연동 (진행 중)
+| 작업 | 감리 점수 | 비고 |
+|------|----------|------|
+| Step 20: 인증 + CORS + CalcProxy | 감리 대기 | CORS, 프록시 15개, users/me, 로그인 UI |
+
+#### Phase 4 남은 작업
+- Step 21: 대시보드 레이아웃 (역할별)
 - 엑셀 Import/Export
 - 아마란스10 내보내기
 - 결재안 자동 생성 (6유형)

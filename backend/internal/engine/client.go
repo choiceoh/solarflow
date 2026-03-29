@@ -114,6 +114,57 @@ func (c *EngineClient) CallCalc(path string, reqBody interface{}) ([]byte, error
 	return body, nil
 }
 
+// CallCalcRaw — Rust 계산엔진에 프론트 요청 바이트를 그대로 전달 (프록시 전용)
+// 비유: "계산실에 서류 봉투를 열지 않고 그대로 전달하고, 답변도 그대로 가져오는 것"
+// 기존 타입 안전 메서드(GetInventory, CalcLandedCost 등)와 별개로,
+// 프론트엔드→Go→Rust 바이트 중계용.
+func (c *EngineClient) CallCalcRaw(path string, body []byte) ([]byte, int, error) {
+	url := c.BaseURL + "/api/calc/" + path
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		log.Printf("[Rust 프록시 요청 생성 실패] path=%s, err=%v", path, err)
+		return nil, 0, fmt.Errorf("프록시 요청 생성 실패: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		log.Printf("[Rust 프록시 호출 실패] path=%s, err=%v", path, err)
+		return nil, 0, fmt.Errorf("Rust 엔진 호출 실패: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Rust 프록시 응답 읽기 실패] path=%s, err=%v", path, err)
+		return nil, 0, fmt.Errorf("Rust 엔진 응답 읽기 실패: %w", err)
+	}
+
+	return respBody, resp.StatusCode, nil
+}
+
+// CallCalcRawGet — Rust 계산엔진에 GET 요청 전달 (health, ready 등)
+// 비유: "계산실 상태만 확인하고 돌아오는 것"
+func (c *EngineClient) CallCalcRawGet(path string) ([]byte, int, error) {
+	url := c.BaseURL + path
+
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		log.Printf("[Rust 프록시 GET 실패] path=%s, err=%v", path, err)
+		return nil, 0, fmt.Errorf("Rust 엔진 호출 실패: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Printf("[Rust 프록시 GET 응답 읽기 실패] path=%s, err=%v", path, err)
+		return nil, 0, fmt.Errorf("Rust 엔진 응답 읽기 실패: %w", err)
+	}
+
+	return body, resp.StatusCode, nil
+}
+
 // inventoryRequest — Rust 재고 집계 요청 구조체
 // 비유: "재고 조회 신청서" — Go에서 Rust로 보내는 요청
 type inventoryRequest struct {

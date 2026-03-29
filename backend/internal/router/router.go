@@ -5,15 +5,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"solarflow-backend/internal/engine"
 	"solarflow-backend/internal/handler"
 	"solarflow-backend/internal/middleware"
 
 	supa "github.com/supabase-community/supabase-go"
 )
 
-func New(db *supa.Client) http.Handler {
+// New — 라우터 생성 (engineClient는 nil 가능 — Rust 미사용 시)
+func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 	r := chi.NewRouter()
-	r.Use(middleware.CORS)
+	r.Use(middleware.CORSMiddleware)
 
 	// 비유: /health는 건물 밖에서도 볼 수 있는 안내판 — 인증 불필요
 	r.Get("/health", handler.HealthCheck)
@@ -185,7 +187,41 @@ func New(db *supa.Client) http.Handler {
 			r.Get("/", limitH.List)
 			r.Post("/", limitH.Create)
 		})
+
+		// 비유: "내 인사카드 보기" — 로그인한 사용자의 프로필 조회
+		userH := handler.NewUserHandler(db)
+		r.Get("/users/me", userH.GetMe)
 	})
+
+	// 비유: Rust 계산실 프록시 — 프론트→Go→Rust 중계
+	// engineClient가 전달된 경우에만 계산 프록시 라우트 등록
+	if len(engineClient) > 0 && engineClient[0] != nil {
+		ec := engineClient[0]
+		calcProxy := handler.NewCalcProxyHandler(ec)
+
+		r.Route("/api/v1/calc", func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(db))
+			r.Post("/inventory", calcProxy.Inventory)
+			r.Post("/landed-cost", calcProxy.LandedCost)
+			r.Post("/exchange-compare", calcProxy.ExchangeCompare)
+			r.Post("/lc-fee", calcProxy.LcFee)
+			r.Post("/lc-limit-timeline", calcProxy.LcLimitTimeline)
+			r.Post("/lc-maturity-alert", calcProxy.LcMaturityAlert)
+			r.Post("/margin-analysis", calcProxy.MarginAnalysis)
+			r.Post("/customer-analysis", calcProxy.CustomerAnalysis)
+			r.Post("/price-trend", calcProxy.PriceTrend)
+			r.Post("/supply-forecast", calcProxy.SupplyForecast)
+			r.Post("/outstanding-list", calcProxy.OutstandingList)
+			r.Post("/receipt-match-suggest", calcProxy.ReceiptMatchSuggest)
+			r.Post("/search", calcProxy.Search)
+		})
+
+		r.Route("/api/v1/engine", func(r chi.Router) {
+			r.Use(middleware.AuthMiddleware(db))
+			r.Get("/health", calcProxy.EngineHealth)
+			r.Get("/ready", calcProxy.EngineReady)
+		})
+	}
 
 	return r
 }
