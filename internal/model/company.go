@@ -41,9 +41,9 @@ func (req *CreateCompanyRequest) Validate() string {
 // UpdateCompanyRequest — 법인 수정 시 클라이언트가 보내는 데이터
 // 비유: "법인 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateCompanyRequest struct {
-	CompanyName    *string `json:"company_name"`
-	CompanyCode    *string `json:"company_code"`
-	BusinessNumber *string `json:"business_number"`
+	CompanyName    *string `json:"company_name,omitempty"`
+	CompanyCode    *string `json:"company_code,omitempty"`
+	BusinessNumber *string `json:"business_number,omitempty"`
 }
 
 // Validate — 법인 수정 요청의 입력값을 검증

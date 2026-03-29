@@ -166,24 +166,24 @@ func (req *CreateBLRequest) Validate() string {
 // UpdateBLRequest — B/L 수정 시 클라이언트가 보내는 데이터
 // 비유: "선적 서류 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateBLRequest struct {
-	BLNumber       *string  `json:"bl_number"`
-	POID           *string  `json:"po_id"`
-	LCID           *string  `json:"lc_id"`
-	CompanyID      *string  `json:"company_id"`
-	ManufacturerID *string  `json:"manufacturer_id"`
-	InboundType    *string  `json:"inbound_type"`
-	Currency       *string  `json:"currency"`
-	ExchangeRate   *float64 `json:"exchange_rate"`
-	ETD            *string  `json:"etd"`
-	ETA            *string  `json:"eta"`
-	ActualArrival  *string  `json:"actual_arrival"`
-	Port           *string  `json:"port"`
-	Forwarder      *string  `json:"forwarder"`
-	WarehouseID    *string  `json:"warehouse_id"`
-	InvoiceNumber  *string  `json:"invoice_number"`
-	Status         *string  `json:"status"`
-	ERPRegistered  *bool    `json:"erp_registered"`
-	Memo           *string  `json:"memo"`
+	BLNumber       *string  `json:"bl_number,omitempty"`
+	POID           *string  `json:"po_id,omitempty"`
+	LCID           *string  `json:"lc_id,omitempty"`
+	CompanyID      *string  `json:"company_id,omitempty"`
+	ManufacturerID *string  `json:"manufacturer_id,omitempty"`
+	InboundType    *string  `json:"inbound_type,omitempty"`
+	Currency       *string  `json:"currency,omitempty"`
+	ExchangeRate   *float64 `json:"exchange_rate,omitempty"`
+	ETD            *string  `json:"etd,omitempty"`
+	ETA            *string  `json:"eta,omitempty"`
+	ActualArrival  *string  `json:"actual_arrival,omitempty"`
+	Port           *string  `json:"port,omitempty"`
+	Forwarder      *string  `json:"forwarder,omitempty"`
+	WarehouseID    *string  `json:"warehouse_id,omitempty"`
+	InvoiceNumber  *string  `json:"invoice_number,omitempty"`
+	Status         *string  `json:"status,omitempty"`
+	ERPRegistered  *bool    `json:"erp_registered,omitempty"`
+	Memo           *string  `json:"memo,omitempty"`
 }
 
 // Validate — B/L 수정 요청의 입력값을 검증

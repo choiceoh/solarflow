@@ -62,13 +62,13 @@ func (req *CreateBankRequest) Validate() string {
 // UpdateBankRequest — 은행 수정 시 클라이언트가 보내는 데이터
 // 비유: "은행 거래 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateBankRequest struct {
-	CompanyID         *string  `json:"company_id"`
-	BankName          *string  `json:"bank_name"`
-	LCLimitUSD        *float64 `json:"lc_limit_usd"`
-	OpeningFeeRate    *float64 `json:"opening_fee_rate"`
-	AcceptanceFeeRate *float64 `json:"acceptance_fee_rate"`
-	FeeCalcMethod     *string  `json:"fee_calc_method"`
-	Memo              *string  `json:"memo"`
+	CompanyID         *string  `json:"company_id,omitempty"`
+	BankName          *string  `json:"bank_name,omitempty"`
+	LCLimitUSD        *float64 `json:"lc_limit_usd,omitempty"`
+	OpeningFeeRate    *float64 `json:"opening_fee_rate,omitempty"`
+	AcceptanceFeeRate *float64 `json:"acceptance_fee_rate,omitempty"`
+	FeeCalcMethod     *string  `json:"fee_calc_method,omitempty"`
+	Memo              *string  `json:"memo,omitempty"`
 }
 
 // Validate — 은행 수정 요청의 입력값을 검증

@@ -72,15 +72,15 @@ func (req *CreateExpenseRequest) Validate() string {
 // UpdateExpenseRequest — 부대비용 수정 시 클라이언트가 보내는 데이터
 // 비유: "부대비용 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateExpenseRequest struct {
-	BLID        *string  `json:"bl_id"`
-	Month       *string  `json:"month"`
-	CompanyID   *string  `json:"company_id"`
-	ExpenseType *string  `json:"expense_type"`
-	Amount      *float64 `json:"amount"`
-	Vat         *float64 `json:"vat"`
-	Total       *float64 `json:"total"`
-	Vendor      *string  `json:"vendor"`
-	Memo        *string  `json:"memo"`
+	BLID        *string  `json:"bl_id,omitempty"`
+	Month       *string  `json:"month,omitempty"`
+	CompanyID   *string  `json:"company_id,omitempty"`
+	ExpenseType *string  `json:"expense_type,omitempty"`
+	Amount      *float64 `json:"amount,omitempty"`
+	Vat         *float64 `json:"vat,omitempty"`
+	Total       *float64 `json:"total,omitempty"`
+	Vendor      *string  `json:"vendor,omitempty"`
+	Memo        *string  `json:"memo,omitempty"`
 }
 
 // Validate — 부대비용 수정 요청의 입력값을 검증

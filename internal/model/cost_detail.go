@@ -92,30 +92,30 @@ func (req *CreateCostDetailRequest) Validate() string {
 // UpdateCostDetailRequest — 원가 명세 수정 시 클라이언트가 보내는 데이터
 // 비유: "원가 계산서 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateCostDetailRequest struct {
-	ProductID       *string  `json:"product_id"`
-	Quantity        *int     `json:"quantity"`
-	CapacityKw      *float64 `json:"capacity_kw"`
+	ProductID       *string  `json:"product_id,omitempty"`
+	Quantity        *int     `json:"quantity,omitempty"`
+	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
 
-	FobUnitUsd      *float64 `json:"fob_unit_usd"`
-	FobTotalUsd     *float64 `json:"fob_total_usd"`
-	FobWpKrw        *float64 `json:"fob_wp_krw"`
+	FobUnitUsd      *float64 `json:"fob_unit_usd,omitempty"`
+	FobTotalUsd     *float64 `json:"fob_total_usd,omitempty"`
+	FobWpKrw        *float64 `json:"fob_wp_krw,omitempty"`
 
-	ExchangeRate    *float64 `json:"exchange_rate"`
-	CifUnitUsd      *float64 `json:"cif_unit_usd"`
-	CifTotalUsd     *float64 `json:"cif_total_usd"`
-	CifTotalKrw     *float64 `json:"cif_total_krw"`
-	CifWpKrw        *float64 `json:"cif_wp_krw"`
+	ExchangeRate    *float64 `json:"exchange_rate,omitempty"`
+	CifUnitUsd      *float64 `json:"cif_unit_usd,omitempty"`
+	CifTotalUsd     *float64 `json:"cif_total_usd,omitempty"`
+	CifTotalKrw     *float64 `json:"cif_total_krw,omitempty"`
+	CifWpKrw        *float64 `json:"cif_wp_krw,omitempty"`
 
-	TariffRate      *float64 `json:"tariff_rate"`
-	TariffAmount    *float64 `json:"tariff_amount"`
-	VatAmount       *float64 `json:"vat_amount"`
+	TariffRate      *float64 `json:"tariff_rate,omitempty"`
+	TariffAmount    *float64 `json:"tariff_amount,omitempty"`
+	VatAmount       *float64 `json:"vat_amount,omitempty"`
 
-	CustomsFee      *float64 `json:"customs_fee"`
-	IncidentalCost  *float64 `json:"incidental_cost"`
-	LandedTotalKrw  *float64 `json:"landed_total_krw"`
-	LandedWpKrw     *float64 `json:"landed_wp_krw"`
+	CustomsFee      *float64 `json:"customs_fee,omitempty"`
+	IncidentalCost  *float64 `json:"incidental_cost,omitempty"`
+	LandedTotalKrw  *float64 `json:"landed_total_krw,omitempty"`
+	LandedWpKrw     *float64 `json:"landed_wp_krw,omitempty"`
 
-	Memo            *string  `json:"memo"`
+	Memo            *string  `json:"memo,omitempty"`
 }
 
 // Validate — 원가 명세 수정 요청의 입력값을 검증

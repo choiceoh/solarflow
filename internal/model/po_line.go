@@ -56,11 +56,11 @@ func (req *CreatePOLineRequest) Validate() string {
 // UpdatePOLineRequest — 라인아이템 수정 시 클라이언트가 보내는 데이터
 // 비유: "품목 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdatePOLineRequest struct {
-	ProductID      *string  `json:"product_id"`
-	Quantity       *int     `json:"quantity"`
-	UnitPriceUSD   *float64 `json:"unit_price_usd"`
-	TotalAmountUSD *float64 `json:"total_amount_usd"`
-	Memo           *string  `json:"memo"`
+	ProductID      *string  `json:"product_id,omitempty"`
+	Quantity       *int     `json:"quantity,omitempty"`
+	UnitPriceUSD   *float64 `json:"unit_price_usd,omitempty"`
+	TotalAmountUSD *float64 `json:"total_amount_usd,omitempty"`
+	Memo           *string  `json:"memo,omitempty"`
 }
 
 // Validate — 라인아이템 수정 요청의 입력값을 검증

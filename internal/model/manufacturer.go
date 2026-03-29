@@ -49,10 +49,10 @@ func (req *CreateManufacturerRequest) Validate() string {
 // UpdateManufacturerRequest — 제조사 수정 시 클라이언트가 보내는 데이터
 // 비유: "제조사 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateManufacturerRequest struct {
-	NameKR          *string `json:"name_kr"`
-	NameEN          *string `json:"name_en"`
-	Country         *string `json:"country"`
-	DomesticForeign *string `json:"domestic_foreign"`
+	NameKR          *string `json:"name_kr,omitempty"`
+	NameEN          *string `json:"name_en,omitempty"`
+	Country         *string `json:"country,omitempty"`
+	DomesticForeign *string `json:"domestic_foreign,omitempty"`
 }
 
 // Validate — 제조사 수정 요청의 입력값을 검증

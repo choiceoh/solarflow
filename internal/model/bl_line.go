@@ -119,16 +119,16 @@ func (req *CreateBLLineRequest) Validate() string {
 // UpdateBLLineRequest — B/L 라인아이템 수정 시 클라이언트가 보내는 데이터
 // 비유: "화물 품목 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateBLLineRequest struct {
-	ProductID        *string  `json:"product_id"`
-	Quantity         *int     `json:"quantity"`
-	CapacityKW       *float64 `json:"capacity_kw"`
-	ItemType         *string  `json:"item_type"`
-	PaymentType      *string  `json:"payment_type"`
-	InvoiceAmountUSD *float64 `json:"invoice_amount_usd"`
-	UnitPriceUSDWp   *float64 `json:"unit_price_usd_wp"`
-	UnitPriceKRWWp   *float64 `json:"unit_price_krw_wp"`
-	UsageCategory    *string  `json:"usage_category"`
-	Memo             *string  `json:"memo"`
+	ProductID        *string  `json:"product_id,omitempty"`
+	Quantity         *int     `json:"quantity,omitempty"`
+	CapacityKW       *float64 `json:"capacity_kw,omitempty"`
+	ItemType         *string  `json:"item_type,omitempty"`
+	PaymentType      *string  `json:"payment_type,omitempty"`
+	InvoiceAmountUSD *float64 `json:"invoice_amount_usd,omitempty"`
+	UnitPriceUSDWp   *float64 `json:"unit_price_usd_wp,omitempty"`
+	UnitPriceKRWWp   *float64 `json:"unit_price_krw_wp,omitempty"`
+	UsageCategory    *string  `json:"usage_category,omitempty"`
+	Memo             *string  `json:"memo,omitempty"`
 }
 
 // Validate — B/L 라인아이템 수정 요청의 입력값을 검증

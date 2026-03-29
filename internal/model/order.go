@@ -112,27 +112,27 @@ func (req *CreateOrderRequest) Validate() string {
 // UpdateOrderRequest — 수주 수정 시 클라이언트가 보내는 데이터
 // 비유: "수주 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateOrderRequest struct {
-	OrderNumber   *string  `json:"order_number"`
-	CompanyID     *string  `json:"company_id"`
-	CustomerID    *string  `json:"customer_id"`
-	OrderDate     *string  `json:"order_date"`
-	ReceiptMethod *string  `json:"receipt_method"`
-	ProductID     *string  `json:"product_id"`
-	Quantity      *int     `json:"quantity"`
-	CapacityKw    *float64 `json:"capacity_kw"`
-	UnitPriceWp   *float64 `json:"unit_price_wp"`
-	SiteName      *string  `json:"site_name"`
-	SiteAddress   *string  `json:"site_address"`
-	SiteContact   *string  `json:"site_contact"`
-	SitePhone     *string  `json:"site_phone"`
-	PaymentTerms  *string  `json:"payment_terms"`
-	DepositRate   *float64 `json:"deposit_rate"`
-	DeliveryDue   *string  `json:"delivery_due"`
-	ShippedQty    *int     `json:"shipped_qty"`
-	RemainingQty  *int     `json:"remaining_qty"`
-	Status        *string  `json:"status"`
-	SpareQty      *int     `json:"spare_qty"`
-	Memo          *string  `json:"memo"`
+	OrderNumber   *string  `json:"order_number,omitempty"`
+	CompanyID     *string  `json:"company_id,omitempty"`
+	CustomerID    *string  `json:"customer_id,omitempty"`
+	OrderDate     *string  `json:"order_date,omitempty"`
+	ReceiptMethod *string  `json:"receipt_method,omitempty"`
+	ProductID     *string  `json:"product_id,omitempty"`
+	Quantity      *int     `json:"quantity,omitempty"`
+	CapacityKw    *float64 `json:"capacity_kw,omitempty"`
+	UnitPriceWp   *float64 `json:"unit_price_wp,omitempty"`
+	SiteName      *string  `json:"site_name,omitempty"`
+	SiteAddress   *string  `json:"site_address,omitempty"`
+	SiteContact   *string  `json:"site_contact,omitempty"`
+	SitePhone     *string  `json:"site_phone,omitempty"`
+	PaymentTerms  *string  `json:"payment_terms,omitempty"`
+	DepositRate   *float64 `json:"deposit_rate,omitempty"`
+	DeliveryDue   *string  `json:"delivery_due,omitempty"`
+	ShippedQty    *int     `json:"shipped_qty,omitempty"`
+	RemainingQty  *int     `json:"remaining_qty,omitempty"`
+	Status        *string  `json:"status,omitempty"`
+	SpareQty      *int     `json:"spare_qty,omitempty"`
+	Memo          *string  `json:"memo,omitempty"`
 }
 
 // Validate — 수주 수정 요청의 입력값을 검증

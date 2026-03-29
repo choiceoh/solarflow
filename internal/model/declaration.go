@@ -57,16 +57,16 @@ func (req *CreateDeclarationRequest) Validate() string {
 // UpdateDeclarationRequest — 면장 수정 시 클라이언트가 보내는 데이터
 // 비유: "수입신고서 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateDeclarationRequest struct {
-	DeclarationNumber *string `json:"declaration_number"`
-	BLID              *string `json:"bl_id"`
-	CompanyID         *string `json:"company_id"`
-	DeclarationDate   *string `json:"declaration_date"`
-	ArrivalDate       *string `json:"arrival_date"`
-	ReleaseDate       *string `json:"release_date"`
-	HSCode            *string `json:"hs_code"`
-	CustomsOffice     *string `json:"customs_office"`
-	Port              *string `json:"port"`
-	Memo              *string `json:"memo"`
+	DeclarationNumber *string `json:"declaration_number,omitempty"`
+	BLID              *string `json:"bl_id,omitempty"`
+	CompanyID         *string `json:"company_id,omitempty"`
+	DeclarationDate   *string `json:"declaration_date,omitempty"`
+	ArrivalDate       *string `json:"arrival_date,omitempty"`
+	ReleaseDate       *string `json:"release_date,omitempty"`
+	HSCode            *string `json:"hs_code,omitempty"`
+	CustomsOffice     *string `json:"customs_office,omitempty"`
+	Port              *string `json:"port,omitempty"`
+	Memo              *string `json:"memo,omitempty"`
 }
 
 // Validate — 면장 수정 요청의 입력값을 검증

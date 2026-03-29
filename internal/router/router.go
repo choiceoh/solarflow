@@ -163,6 +163,28 @@ func New(db *supa.Client) http.Handler {
 			r.Post("/", matchH.Create)
 			r.Delete("/{id}", matchH.Delete)
 		})
+
+		outboundH := handler.NewOutboundHandler(db)
+		r.Route("/outbounds", func(r chi.Router) {
+			r.Get("/", outboundH.List)
+			r.Post("/", outboundH.Create)
+			r.Get("/{id}", outboundH.GetByID)
+			r.Put("/{id}", outboundH.Update)
+		})
+
+		saleH := handler.NewSaleHandler(db)
+		r.Route("/sales", func(r chi.Router) {
+			r.Get("/", saleH.List)
+			r.Post("/", saleH.Create)
+			r.Get("/{id}", saleH.GetByID)
+			r.Put("/{id}", saleH.Update)
+		})
+
+		limitH := handler.NewLimitChangeHandler(db)
+		r.Route("/limit-changes", func(r chi.Router) {
+			r.Get("/", limitH.List)
+			r.Post("/", limitH.Create)
+		})
 	})
 
 	return r

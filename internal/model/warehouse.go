@@ -63,11 +63,11 @@ func (req *CreateWarehouseRequest) Validate() string {
 // UpdateWarehouseRequest — 창고 수정 시 클라이언트가 보내는 데이터
 // 비유: "창고 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateWarehouseRequest struct {
-	WarehouseCode *string `json:"warehouse_code"`
-	WarehouseName *string `json:"warehouse_name"`
-	WarehouseType *string `json:"warehouse_type"`
-	LocationCode  *string `json:"location_code"`
-	LocationName  *string `json:"location_name"`
+	WarehouseCode *string `json:"warehouse_code,omitempty"`
+	WarehouseName *string `json:"warehouse_name,omitempty"`
+	WarehouseType *string `json:"warehouse_type,omitempty"`
+	LocationCode  *string `json:"location_code,omitempty"`
+	LocationName  *string `json:"location_name,omitempty"`
 }
 
 // Validate — 창고 수정 요청의 입력값을 검증

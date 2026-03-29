@@ -131,19 +131,19 @@ func (req *CreateLCRequest) Validate() string {
 // UpdateLCRequest — LC 수정 시 클라이언트가 보내는 데이터
 // 비유: "LC 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateLCRequest struct {
-	LCNumber       *string  `json:"lc_number"`
-	BankID         *string  `json:"bank_id"`
-	CompanyID      *string  `json:"company_id"`
-	OpenDate       *string  `json:"open_date"`
-	AmountUSD      *float64 `json:"amount_usd"`
-	TargetQty      *int     `json:"target_qty"`
-	TargetMW       *float64 `json:"target_mw"`
-	UsanceDays     *int     `json:"usance_days"`
-	UsanceType     *string  `json:"usance_type"`
-	MaturityDate   *string  `json:"maturity_date"`
-	SettlementDate *string  `json:"settlement_date"`
-	Status         *string  `json:"status"`
-	Memo           *string  `json:"memo"`
+	LCNumber       *string  `json:"lc_number,omitempty"`
+	BankID         *string  `json:"bank_id,omitempty"`
+	CompanyID      *string  `json:"company_id,omitempty"`
+	OpenDate       *string  `json:"open_date,omitempty"`
+	AmountUSD      *float64 `json:"amount_usd,omitempty"`
+	TargetQty      *int     `json:"target_qty,omitempty"`
+	TargetMW       *float64 `json:"target_mw,omitempty"`
+	UsanceDays     *int     `json:"usance_days,omitempty"`
+	UsanceType     *string  `json:"usance_type,omitempty"`
+	MaturityDate   *string  `json:"maturity_date,omitempty"`
+	SettlementDate *string  `json:"settlement_date,omitempty"`
+	Status         *string  `json:"status,omitempty"`
+	Memo           *string  `json:"memo,omitempty"`
 }
 
 // Validate — LC 수정 요청의 입력값을 검증

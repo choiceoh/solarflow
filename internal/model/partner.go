@@ -49,13 +49,13 @@ func (req *CreatePartnerRequest) Validate() string {
 // UpdatePartnerRequest — 거래처 수정 시 클라이언트가 보내는 데이터
 // 비유: "거래처 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdatePartnerRequest struct {
-	PartnerName  *string `json:"partner_name"`
-	PartnerType  *string `json:"partner_type"`
-	ERPCode      *string `json:"erp_code"`
-	PaymentTerms *string `json:"payment_terms"`
-	ContactName  *string `json:"contact_name"`
-	ContactPhone *string `json:"contact_phone"`
-	ContactEmail *string `json:"contact_email"`
+	PartnerName  *string `json:"partner_name,omitempty"`
+	PartnerType  *string `json:"partner_type,omitempty"`
+	ERPCode      *string `json:"erp_code,omitempty"`
+	PaymentTerms *string `json:"payment_terms,omitempty"`
+	ContactName  *string `json:"contact_name,omitempty"`
+	ContactPhone *string `json:"contact_phone,omitempty"`
+	ContactEmail *string `json:"contact_email,omitempty"`
 }
 
 // Validate — 거래처 수정 요청의 입력값을 검증

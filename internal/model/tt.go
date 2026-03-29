@@ -88,14 +88,14 @@ func (req *CreateTTRequest) Validate() string {
 // UpdateTTRequest — TT 수정 시 클라이언트가 보내는 데이터
 // 비유: "TT 송금 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateTTRequest struct {
-	RemitDate    *string  `json:"remit_date"`
-	AmountUSD    *float64 `json:"amount_usd"`
-	AmountKRW    *float64 `json:"amount_krw"`
-	ExchangeRate *float64 `json:"exchange_rate"`
-	Purpose      *string  `json:"purpose"`
-	Status       *string  `json:"status"`
-	BankName     *string  `json:"bank_name"`
-	Memo         *string  `json:"memo"`
+	RemitDate    *string  `json:"remit_date,omitempty"`
+	AmountUSD    *float64 `json:"amount_usd,omitempty"`
+	AmountKRW    *float64 `json:"amount_krw,omitempty"`
+	ExchangeRate *float64 `json:"exchange_rate,omitempty"`
+	Purpose      *string  `json:"purpose,omitempty"`
+	Status       *string  `json:"status,omitempty"`
+	BankName     *string  `json:"bank_name,omitempty"`
+	Memo         *string  `json:"memo,omitempty"`
 }
 
 // Validate — TT 수정 요청의 입력값을 검증

@@ -134,19 +134,19 @@ func (req *CreatePurchaseOrderRequest) Validate() string {
 // UpdatePurchaseOrderRequest — 발주 수정 시 클라이언트가 보내는 데이터
 // 비유: "발주 계약 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdatePurchaseOrderRequest struct {
-	PONumber            *string  `json:"po_number"`
-	CompanyID           *string  `json:"company_id"`
-	ManufacturerID      *string  `json:"manufacturer_id"`
-	ContractType        *string  `json:"contract_type"`
-	ContractDate        *string  `json:"contract_date"`
-	Incoterms           *string  `json:"incoterms"`
-	PaymentTerms        *string  `json:"payment_terms"`
-	TotalQty            *int     `json:"total_qty"`
-	TotalMW             *float64 `json:"total_mw"`
-	ContractPeriodStart *string  `json:"contract_period_start"`
-	ContractPeriodEnd   *string  `json:"contract_period_end"`
-	Status              *string  `json:"status"`
-	Memo                *string  `json:"memo"`
+	PONumber            *string  `json:"po_number,omitempty"`
+	CompanyID           *string  `json:"company_id,omitempty"`
+	ManufacturerID      *string  `json:"manufacturer_id,omitempty"`
+	ContractType        *string  `json:"contract_type,omitempty"`
+	ContractDate        *string  `json:"contract_date,omitempty"`
+	Incoterms           *string  `json:"incoterms,omitempty"`
+	PaymentTerms        *string  `json:"payment_terms,omitempty"`
+	TotalQty            *int     `json:"total_qty,omitempty"`
+	TotalMW             *float64 `json:"total_mw,omitempty"`
+	ContractPeriodStart *string  `json:"contract_period_start,omitempty"`
+	ContractPeriodEnd   *string  `json:"contract_period_end,omitempty"`
+	Status              *string  `json:"status,omitempty"`
+	Memo                *string  `json:"memo,omitempty"`
 }
 
 // Validate — 발주 수정 요청의 입력값을 검증

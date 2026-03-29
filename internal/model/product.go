@@ -90,19 +90,19 @@ func (req *CreateProductRequest) Validate() string {
 // UpdateProductRequest — 품번 수정 시 클라이언트가 보내는 데이터
 // 비유: "모듈 규격 변경 신청서" — 바꾸고 싶은 사양만 적어서 제출
 type UpdateProductRequest struct {
-	ProductCode    *string  `json:"product_code"`
-	ProductName    *string  `json:"product_name"`
-	ManufacturerID *string  `json:"manufacturer_id"`
-	SpecWP         *int     `json:"spec_wp"`
-	WattageKW      *float64 `json:"wattage_kw"`
-	ModuleWidthMM  *int     `json:"module_width_mm"`
-	ModuleHeightMM *int     `json:"module_height_mm"`
-	ModuleDepthMM  *int     `json:"module_depth_mm"`
-	WeightKG       *float64 `json:"weight_kg"`
-	WaferPlatform  *string  `json:"wafer_platform"`
-	CellConfig     *string  `json:"cell_config"`
-	SeriesName     *string  `json:"series_name"`
-	Memo           *string  `json:"memo"`
+	ProductCode    *string  `json:"product_code,omitempty"`
+	ProductName    *string  `json:"product_name,omitempty"`
+	ManufacturerID *string  `json:"manufacturer_id,omitempty"`
+	SpecWP         *int     `json:"spec_wp,omitempty"`
+	WattageKW      *float64 `json:"wattage_kw,omitempty"`
+	ModuleWidthMM  *int     `json:"module_width_mm,omitempty"`
+	ModuleHeightMM *int     `json:"module_height_mm,omitempty"`
+	ModuleDepthMM  *int     `json:"module_depth_mm,omitempty"`
+	WeightKG       *float64 `json:"weight_kg,omitempty"`
+	WaferPlatform  *string  `json:"wafer_platform,omitempty"`
+	CellConfig     *string  `json:"cell_config,omitempty"`
+	SeriesName     *string  `json:"series_name,omitempty"`
+	Memo           *string  `json:"memo,omitempty"`
 }
 
 // Validate — 품번 수정 요청의 입력값을 검증
