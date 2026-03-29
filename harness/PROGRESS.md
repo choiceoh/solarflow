@@ -5,10 +5,10 @@
 | 항목 | 상태 |
 |------|------|
 | 현재 Phase | Phase 4 진행 중 |
-| 다음 작업 | Step 23 — 입고 관리 |
+| 다음 작업 | Step 24 — 발주/결제 |
 | Go 백엔드 | 배포 완료 (solarflow-backend.fly.dev) |
 | Rust 엔진 | 배포 완료 (solarflow-engine.fly.dev) |
-| 프론트엔드 | Step 20 완료 (인증 + CORS + CalcProxy) |
+| 프론트엔드 | Step 23 완료 (재고+입고) |
 | DB 테이블 | 20개 생성 완료 |
 | Go 테스트 | 86개 PASS |
 | Rust 테스트 | 75개 PASS |
@@ -78,6 +78,7 @@
 | Step 20: 인증 + CORS + CalcProxy | 감리 대기 | CORS, 프록시 15개, users/me, 로그인 UI |
 | Step 21: 레이아웃 + 마스터 CRUD 6개 | 감리 대기 | AppLayout, Sidebar(역할별), DataTable, 6개 마스터 페이지+폼 |
 | Step 22: 재고 화면 + 수급 전망 | 감리 대기 | 3탭(재고/미착품/수급전망), 요약카드, 장기재고Badge, insufficient경고 |
+| Step 23: 입고 관리 (B/L+라인) | 감리 대기 | 목록/상세/생성/수정, 상태6단계, 입고유형4종, 라인아이템CRUD |
 
 #### Phase 4 남은 작업
 - Step 21: 대시보드 레이아웃 (역할별)
