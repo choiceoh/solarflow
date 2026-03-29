@@ -1,7 +1,7 @@
 pub mod inventory;
+pub mod landed_cost;
 
 // 추후 추가 예정:
-// pub mod landed_cost;   — Landed Cost 계산 + 환율 환산
 // pub mod margin;        — 마진/이익률 분석 + 단가 추이
 // pub mod lc_schedule;   — LC 만기 + 수수료 + 한도 복원 타임라인
 // pub mod supply_forecast; — 월별 수급 전망

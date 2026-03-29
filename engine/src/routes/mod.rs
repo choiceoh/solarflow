@@ -16,5 +16,13 @@ pub fn create_router(pool: PgPool) -> Router {
             "/api/calc/inventory",
             axum::routing::post(calc::inventory_handler),
         )
+        .route(
+            "/api/calc/landed-cost",
+            axum::routing::post(calc::landed_cost_handler),
+        )
+        .route(
+            "/api/calc/exchange-compare",
+            axum::routing::post(calc::exchange_compare_handler),
+        )
         .with_state(pool)
 }
