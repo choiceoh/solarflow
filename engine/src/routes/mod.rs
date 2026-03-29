@@ -24,5 +24,17 @@ pub fn create_router(pool: PgPool) -> Router {
             "/api/calc/exchange-compare",
             axum::routing::post(calc::exchange_compare_handler),
         )
+        .route(
+            "/api/calc/lc-fee",
+            axum::routing::post(calc::lc_fee_handler),
+        )
+        .route(
+            "/api/calc/lc-limit-timeline",
+            axum::routing::post(calc::lc_limit_timeline_handler),
+        )
+        .route(
+            "/api/calc/lc-maturity-alert",
+            axum::routing::post(calc::lc_maturity_alert_handler),
+        )
         .with_state(pool)
 }

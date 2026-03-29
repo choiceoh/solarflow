@@ -289,3 +289,123 @@ func (c *EngineClient) CompareExchangeRates(companyID string, productID, manufac
 
 	return result, nil
 }
+
+// === LC 수수료/한도/만기 ===
+
+// lcFeeCalcRequest — Rust LC 수수료 요청
+type lcFeeCalcRequest struct {
+	LCID         *string  `json:"lc_id,omitempty"`
+	CompanyID    *string  `json:"company_id,omitempty"`
+	StatusFilter []string `json:"status_filter,omitempty"`
+}
+
+// LcFeeCalcResponse — Rust LC 수수료 응답 (engine 패키지)
+type LcFeeCalcResponse struct {
+	Items        []LcFeeCalcItem  `json:"items"`
+	Summary      LcFeeCalcSummary `json:"summary"`
+	FeeNote      string           `json:"fee_note"`
+	CalculatedAt string           `json:"calculated_at"`
+}
+
+// LcFeeCalcItem — LC 수수료 라인아이템 (간략)
+type LcFeeCalcItem struct {
+	LCID        string  `json:"lc_id"`
+	LCNumber    *string `json:"lc_number"`
+	BankName    string  `json:"bank_name"`
+	AmountUSD   float64 `json:"amount_usd"`
+	TotalFeeKRW float64 `json:"total_fee_krw"`
+}
+
+// LcFeeCalcSummary — 수수료 합계
+type LcFeeCalcSummary struct {
+	TotalFeeKRW float64 `json:"total_fee_krw"`
+}
+
+// CalcLcFees — Rust LC 수수료 API 호출
+func (c *EngineClient) CalcLcFees(lcID, companyID *string, statusFilter []string) (LcFeeCalcResponse, error) {
+	req := lcFeeCalcRequest{LCID: lcID, CompanyID: companyID, StatusFilter: statusFilter}
+	data, err := c.CallCalc("lc-fee", req)
+	if err != nil {
+		return LcFeeCalcResponse{}, err
+	}
+	var result LcFeeCalcResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("[LC 수수료 응답 파싱 실패] %v", err)
+		return LcFeeCalcResponse{}, fmt.Errorf("LC 수수료 응답 파싱 실패: %w", err)
+	}
+	return result, nil
+}
+
+// lcLimitTimelineCalcRequest — Rust 한도 복원 타임라인 요청
+type lcLimitTimelineCalcRequest struct {
+	CompanyID   *string `json:"company_id,omitempty"`
+	MonthsAhead int     `json:"months_ahead"`
+}
+
+// LcLimitTimelineCalcResponse — 한도 타임라인 응답 (간략)
+type LcLimitTimelineCalcResponse struct {
+	Banks        []BankTimelineCalc `json:"banks"`
+	CalculatedAt string             `json:"calculated_at"`
+}
+
+// BankTimelineCalc — 은행 타임라인 (간략)
+type BankTimelineCalc struct {
+	BankID              string  `json:"bank_id"`
+	BankName            string  `json:"bank_name"`
+	LCLimitUSD          float64 `json:"lc_limit_usd"`
+	CurrentAvailableUSD float64 `json:"current_available_usd"`
+	UsageRate           float64 `json:"usage_rate"`
+}
+
+// GetLcLimitTimeline — Rust 한도 복원 타임라인 API 호출
+func (c *EngineClient) GetLcLimitTimeline(companyID *string, monthsAhead int) (LcLimitTimelineCalcResponse, error) {
+	req := lcLimitTimelineCalcRequest{CompanyID: companyID, MonthsAhead: monthsAhead}
+	data, err := c.CallCalc("lc-limit-timeline", req)
+	if err != nil {
+		return LcLimitTimelineCalcResponse{}, err
+	}
+	var result LcLimitTimelineCalcResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("[한도 타임라인 응답 파싱 실패] %v", err)
+		return LcLimitTimelineCalcResponse{}, fmt.Errorf("한도 타임라인 응답 파싱 실패: %w", err)
+	}
+	return result, nil
+}
+
+// lcMaturityAlertCalcRequest — Rust 만기 알림 요청
+type lcMaturityAlertCalcRequest struct {
+	CompanyID *string `json:"company_id,omitempty"`
+	DaysAhead int     `json:"days_ahead"`
+}
+
+// LcMaturityAlertCalcResponse — 만기 알림 응답 (간략)
+type LcMaturityAlertCalcResponse struct {
+	Alerts       []MaturityAlertCalc `json:"alerts"`
+	Count        int                 `json:"count"`
+	CalculatedAt string              `json:"calculated_at"`
+}
+
+// MaturityAlertCalc — 만기 알림 항목 (간략)
+type MaturityAlertCalc struct {
+	LCID          string  `json:"lc_id"`
+	LCNumber      *string `json:"lc_number"`
+	BankName      string  `json:"bank_name"`
+	AmountUSD     float64 `json:"amount_usd"`
+	DaysRemaining int64   `json:"days_remaining"`
+	Severity      string  `json:"severity"`
+}
+
+// GetLcMaturityAlerts — Rust 만기 알림 API 호출
+func (c *EngineClient) GetLcMaturityAlerts(companyID *string, daysAhead int) (LcMaturityAlertCalcResponse, error) {
+	req := lcMaturityAlertCalcRequest{CompanyID: companyID, DaysAhead: daysAhead}
+	data, err := c.CallCalc("lc-maturity-alert", req)
+	if err != nil {
+		return LcMaturityAlertCalcResponse{}, err
+	}
+	var result LcMaturityAlertCalcResponse
+	if err := json.Unmarshal(data, &result); err != nil {
+		log.Printf("[만기 알림 응답 파싱 실패] %v", err)
+		return LcMaturityAlertCalcResponse{}, fmt.Errorf("만기 알림 응답 파싱 실패: %w", err)
+	}
+	return result, nil
+}
