@@ -188,6 +188,14 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", limitH.Create)
 		})
 
+		priceH := handler.NewPriceHistoryHandler(db)
+		r.Route("/price-histories", func(r chi.Router) {
+			r.Get("/", priceH.List)
+			r.Post("/", priceH.Create)
+			r.Get("/{id}", priceH.GetByID)
+			r.Put("/{id}", priceH.Update)
+		})
+
 		// 비유: "내 인사카드 보기" — 로그인한 사용자의 프로필 조회
 		userH := handler.NewUserHandler(db)
 		r.Get("/users/me", userH.GetMe)
