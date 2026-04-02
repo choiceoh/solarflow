@@ -5,14 +5,14 @@
 | 항목 | 상태 |
 |------|------|
 | 현재 Phase | Phase 4 진행 중 |
-| 다음 작업 | Step 29C — 아마란스 내보내기 |
+| 다음 작업 | Step 30 — 결재안 자동 생성 |
 | Go 백엔드 | 배포 완료 (solarflow-backend.fly.dev) |
 | Rust 엔진 | 배포 완료 (solarflow-engine.fly.dev) |
-| 프론트엔드 | Step 29B 완료 (재고+입고+발주+출고+수주수금+면장원가+은행LC+대시보드+엑셀7종+Import확정등록) |
+| 프론트엔드 | Step 29C 완료 (재고+입고+발주+출고+수주수금+면장원가+은행LC+대시보드+엑셀7종+Import확정등록+아마란스내보내기) |
 | DB 테이블 | 20개 생성 완료 |
-| Go 테스트 | 86개 PASS |
+| Go 테스트 | 108개 PASS |
 | Rust 테스트 | 75개 PASS |
-| 총 테스트 | 161개 PASS |
+| 총 테스트 | 183개 PASS |
 | Rust API | 15개 엔드포인트 |
 | Go CalcProxy | 15개 엔드포인트 (프론트→Go→Rust) |
 | 감리 점수 | Phase 2: 9-10/10, Phase 3: 전부 10/10 |
@@ -87,6 +87,7 @@
 | Step 28B: 대시보드 | 감리 대기 | 역할별분기(admin=Manager/executive=Executive), 카드6개, BarChart+LineChart, 알림9가지, 미착품/수주잔량/미수금프리뷰, Promise.allSettled 섹션별 독립로딩, 장기재고경고 |
 | Step 29A: 엑셀 양식 다운로드+업로드 미리보기 | 감리 대기 | 양식7종(입고/출고/매출/면장/부대비용/수주/수금), ExcelJS dynamic import(별도chunk 930KB), 드롭다운+코드표, 업로드파싱→검증→미리보기, 면장2시트탭, 에러행다운로드, 확정등록비활성(29B), D-063/D-064 |
 | Step 29B: 엑셀 확정 등록 + Import API 7개 | 감리 대기 | 29A즉시수정(통화하드코딩), 지적1(매출outbound_id), 지적2(면장+원가한번에전송), 지적3(B/L기본정보불일치경고), Go Import핸들러7개(inbound/outbound/sales/declarations/expenses/orders/receipts), FK해소+자동계산, ImportResultDialog, ConfirmDialog, 테스트13개PASS |
+| Step 29C: 아마란스10 내보내기 | 감리 대기 | 입고34컬럼+출고35컬럼 excelize, GET /export/amaranth/inbound·outbound, 거래구분/과세구분 매핑, 외화단가/원화단가 자동계산, 기간선택 AmaranthExportDialog, D-067/D-068 |
 
 #### Phase 4 남은 작업
 - Step 21: 대시보드 레이아웃 (역할별)

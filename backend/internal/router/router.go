@@ -196,6 +196,13 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Put("/{id}", priceH.Update)
 		})
 
+		// 비유: 아마란스10 ERP 내보내기 — 입고/출고 .xlsx (Step 29C)
+		exportH := handler.NewExportHandler(db)
+		r.Route("/export/amaranth", func(r chi.Router) {
+			r.Get("/inbound", exportH.AmaranthInbound)
+			r.Get("/outbound", exportH.AmaranthOutbound)
+		})
+
 		// 비유: 엑셀 일괄 등록 창구 — 7종 Import API (Step 29B)
 		importH := handler.NewImportHandler(db)
 		r.Route("/import", func(r chi.Router) {
