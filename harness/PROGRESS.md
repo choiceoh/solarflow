@@ -1,28 +1,33 @@
 # SolarFlow 진행 상황
 
-## 현재 상태 요약 (최종 업데이트: 2026-04-01)
+## 현재 상태 요약 (최종 업데이트: 2026-04-03)
 
 | 항목 | 상태 |
 |------|------|
-| 현재 Phase | Phase 4 진행 중 |
-| 다음 작업 | Step 32 — 배포 + 실데이터 검증 |
+| 현재 Phase | **Phase 4 완료** |
+| 다음 작업 | Phase 확장 — 실데이터 기반 개선 |
 | Go 백엔드 | 배포 완료 (solarflow-backend.fly.dev) |
 | Rust 엔진 | 배포 완료 (solarflow-engine.fly.dev) |
-| 프론트엔드 | Step 31 완료 (재고+입고+발주+출고+수주수금+면장원가+은행LC+대시보드+엑셀7종+Import확정등록+아마란스+결재안+메모+검색+알림) |
-| DB 테이블 | 20개 생성 완료 |
+| 프론트엔드 | 배포 완료 (solarflow-3-frontend.pages.dev) |
+| DB 테이블 | 22개 생성 완료 (user_profiles, notes 포함) |
 | Go 테스트 | 116개 PASS |
 | Rust 테스트 | 75개 PASS |
 | 총 테스트 | 191개 PASS |
 | Rust API | 15개 엔드포인트 |
 | Go CalcProxy | 15개 엔드포인트 (프론트→Go→Rust) |
+| 인증 | ES256 JWKS + HMAC 폴백 (D-069) |
+| RLS | 전체 비활성화 (D-070) |
 | 감리 점수 | Phase 2: 9-10/10, Phase 3: 전부 10/10 |
 
-### 핵심 미해결 사항
-1. 수금매칭 outbound 기준 -> Phase 4에서 sale 기준 스키마 개선 (D-042)
-2. LC 수수료 수동 보정 기능 -> Phase 4 (D-030)
-3. 제조사/거래처 별칭 DB 테이블 이동 -> Phase 확장 (D-043)
-4. FIFO 원가 매칭 -> Phase 확장 (D-022, D-031)
-5. 실시간 환율 API -> Phase 확장 (D-024)
+### Phase 확장 미해결 사항
+1. 수금매칭 outbound 기준 → 현재 정상 동작 (D-042)
+2. LC 수수료 수동 보정 기능 (D-030)
+3. 제조사/거래처 별칭 DB 테이블 이동 (D-043)
+4. FIFO 원가 매칭 (D-022, D-031)
+5. 실시간 환율 API (D-024)
+6. PDF 자동 데이터 입력 (D-064)
+7. 아마란스 매출마감 내보내기 (D-067)
+8. 아마란스 관리구분 매핑 (D-068)
 
 ### Rust API 엔드포인트 (15개)
 - /health, /health/ready
@@ -72,7 +77,7 @@
 | Step 18: 수금 매칭 추천 | 10/10 | 127개 |
 | Step 19: 자연어 검색 | 10/10 | 153개 |
 
-### Phase 4: 프론트엔드 + 연동 (진행 중)
+### Phase 4: 프론트엔드 + 연동 + 배포 (완료)
 | 작업 | 감리 점수 | 비고 |
 |------|----------|------|
 | Step 20: 인증 + CORS + CalcProxy | 감리 대기 | CORS, 프록시 15개, users/me, 로그인 UI |
@@ -90,9 +95,4 @@
 | Step 29C: 아마란스10 내보내기 | 감리 대기 | 입고34컬럼+출고35컬럼 excelize, GET /export/amaranth/inbound·outbound, 거래구분/과세구분 매핑, 외화단가/원화단가 자동계산, 기간선택 AmaranthExportDialog, D-067/D-068 |
 | Step 30: 결재안 자동 생성 6유형 | 감리 대기 | 6유형카드선택, LC/BL/PO/거래처 기반 데이터조회, 수입통관부가세(CIF×0.1), approvalTemplates 텍스트생성, 미리보기Textarea수정, 클립보드복사, 수동입력(노란배경), Go변경없음 |
 | Step 31: 메모+검색+알림 | 감리 대기 | Go Note CRUD(소유권검사), 포스트잇 MemoPage+LinkedMemoWidget, Ctrl+K GlobalSearchBar(500ms디바운스), Rust search API연동, SearchPage(이력+예시), useAlerts 분리(useDashboard에서 추출), AlertBell+AlertDropdown, 5분자동갱신, 테스트8개 |
-
-#### Phase 4 남은 작업
-- 아마란스10 내보내기
-- 결재안 자동 생성 (6유형)
-- 메모 + 검색 UI
-- 수금 매칭 UI (체크박스 + 실시간 합계)
+| Step 32: 배포+검증 | ✅ 완료 | ES256 JWKS인증(D-069), RLS비활성화(D-070), 전체법인합산(D-071), user_profiles 컬럼명 정렬, 구형파일삭제, 프론트Cloudflare+Go/Rust fly.io 3레이어 배포완료 |

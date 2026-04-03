@@ -346,3 +346,23 @@
 ## D-068: 아마란스 관리구분(MGMT_CD) 빈값 내보내기
 - **결정**: usage_category → 아마란스 관리구분 코드 매핑을 현재 모르므로 빈값으로 내보내기. 실무자가 ERP에서 수동 입력. Phase 확장 시 매핑 테이블 추가.
 - **날짜**: 2026-04-02
+
+## D-069: ES256 JWKS 인증 지원
+- **결정**: Supabase JWT가 ES256(ECDSA)인데 Go AuthMiddleware가 HMAC만 허용하여 모든 로그인 401 거부됨. keyfunc/v2 라이브러리로 JWKS 엔드포인트에서 공개키 자동 로드(1시간 갱신). ES256 우선, HMAC 폴백 유지.
+- **이유**: Supabase가 ES256으로 JWT 서명. HMAC 전용 검증으로는 모든 토큰이 signature invalid. JWKS는 키 로테이션에도 자동 대응.
+- **범위**: middleware/auth.go — getJWKS() lazy init, jwt.Parse에서 SigningMethodECDSA/SigningMethodHMAC 분기.
+- **환경변수**: SUPABASE_URL에서 JWKS URL 자동 유도 ({URL}/auth/v1/.well-known/jwks.json). 또는 SUPABASE_JWKS_URL 직접 지정.
+- **날짜**: 2026-04-03
+
+## D-070: 배포 시 RLS 비활성화 (Phase 확장 시 service_role key 전환)
+- **결정**: 전체 22개 테이블 RLS DISABLE. Go가 anon key로 Supabase 접속하므로 RLS 활성 시 빈 결과 반환됨.
+- **이유**: (1) RLS 정책이 auth.uid() 기준인데, Go 서버는 서비스 역할로 접근해야 함 (2) Go AuthMiddleware에서 이미 JWT 검증+역할 확인을 수행하므로 행 수준 보안은 이중 (3) Phase 확장 시 service_role key로 전환하면 RLS 재활성화 가능.
+- **대상**: companies, manufacturers, products, partners, warehouses, banks, purchase_orders, po_line_items, lc_records, tt_remittances, bl_shipments, bl_line_items, outbounds, sales, orders, receipts, receipt_matches, declarations, declaration_costs, expenses, price_histories, bank_limit_changes, notes, user_profiles.
+- **날짜**: 2026-04-03
+
+## D-071: 전체 법인(all) 선택 시 법인별 호출 합산 방식
+- **결정**: "전체(all)" 법인 선택 시 Rust Calc API는 법인 목록 조회 → Promise.all 병렬 호출 → 결과 merge. CRUD API는 company_id 파라미터 생략으로 전체 반환.
+- **이유**: (1) Rust Calc API는 company_id 필수 — "all"을 직접 보내면 에러 (2) 법인별 호출 후 합산이 가장 정확 (3) CRUD API는 Go에서 company_id 쿼리 없으면 전체 반환하도록 이미 구현됨.
+- **범위**: lib/companyUtils.ts (fetchCalc, companyParams, companyQueryUrl), useDashboard, useAlerts, useInventory, useBanking, useForecast, useLCDemand, useSearch + CRUD hooks 10개.
+- **법인 캐시**: 5분 TTL. getActiveCompanyIds()에서 GET /api/v1/companies 호출 결과 캐시.
+- **날짜**: 2026-04-03
