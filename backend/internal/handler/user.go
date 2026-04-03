@@ -15,9 +15,9 @@ import (
 // 비유: "내 인사카드" — 로그인한 사용자의 프로필 정보
 // 컬럼명은 실제 DB 기준 (D-055 참조)
 type UserProfileResponse struct {
-	ID         string  `json:"id"`
+	UserID     string  `json:"user_id"`
 	Email      string  `json:"email"`
-	FullName   string  `json:"full_name"`
+	Name       string  `json:"name"`
 	Role       string  `json:"role"`
 	Department *string `json:"department"`
 	Phone      *string `json:"phone"`
@@ -46,8 +46,8 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data, _, err := h.DB.From("user_profiles").
-		Select("id, email, full_name, role, department, phone, avatar_url, is_active", "exact", false).
-		Eq("id", userID).
+		Select("user_id, email, name, role, department, phone, avatar_url, is_active", "exact", false).
+		Eq("user_id", userID).
 		Execute()
 	if err != nil {
 		log.Printf("[users/me] user_profiles 조회 실패: id=%s, err=%v", userID, err)
