@@ -60,10 +60,11 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ session });
 
       if (session) {
+        // me와 loadCompanies 동시 시작 — loadCompanies 실패해도 대시보드 표시
+        useAppStore.getState().loadCompanies();
         try {
           const profile = await fetchWithAuth<UserProfile>('/api/v1/users/me');
           set({ user: profile, isLoading: false });
-          useAppStore.getState().loadCompanies();
         } catch {
           console.warn('[authStore] 프로필 조회 실패 — 세션 초기화 후 로그인으로 이동');
           await supabase.auth.signOut();
