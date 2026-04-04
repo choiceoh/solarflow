@@ -4,3 +4,9 @@
         reverse_proxy localhost:3000
     }
 }
+
+:5173 {
+    root * /Users/chnops.ak/solarflow-3/frontend/dist
+    file_server
+    try_files {path} /index.html
+}
