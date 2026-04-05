@@ -49,7 +49,7 @@ export default function ManufacturerPage() {
     { key: 'name_kr', label: '제조사명(한)', sortable: true },
     { key: 'name_en', label: '제조사명(영)', sortable: true },
     { key: 'country', label: '국가', sortable: true },
-    { key: 'domestic_foreign', label: '국내/해외', render: (r) => r.domestic_foreign === 'domestic' ? '국내' : '해외' },
+    { key: 'domestic_foreign', label: '국내/해외', sortable: true },
     { key: 'is_active', label: '활성', render: (r) => <StatusBadge isActive={r.is_active} /> },
   ];
 
