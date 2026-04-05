@@ -381,3 +381,28 @@
 - **결정**: Caddy를 api.solarflow3.com의 리버스 프록시로 사용. HTTPS 자동 발급/갱신.
 - **이유**: (1) Let's Encrypt 인증서를 자동 발급/갱신 — 수동 관리 불필요 (2) 설정 파일 2-3줄로 리버스 프록시 완성 (3) Nginx 대비 설정 복잡도 1/10 (4) HTTP/2, OCSP stapling 기본 지원.
 - **날짜**: 2026-04-04
+
+## D-075: PostgREST 로컬 도입
+- **결정**: Go 백엔드가 supabase-go(PostgREST HTTP 방식)를 사용하므로, 로컬 PostgreSQL 앞에 PostgREST를 배치. Go 코드 변경 0줄.
+- **이유**: Go 핸들러 30개+ 전면 수정(pgx 전환)은 리스크가 높고, PostgREST 로컬 설치가 코드 변경 없이 동일 효과.
+- **날짜**: 2026-04-05
+
+## D-076: Caddy 경로 변환 (server-root-path 대체)
+- **결정**: PostgREST의 server-root-path="/rest/v1"이 예상대로 동작하지 않아, Caddy로 /rest/v1/* prefix를 strip한 후 PostgREST로 전달.
+- **이유**: 실측 테스트에서 확인. PostgREST는 /companies로 서빙하지만 supabase-go는 /rest/v1/companies로 요청.
+- **날짜**: 2026-04-05
+
+## D-077: auto-provision (신규 사용자 자동 프로필 생성)
+- **결정**: Go 인증 미들웨어 + /users/me 핸들러에서 JWT user_id로 user_profiles 조회, 없으면 자동 INSERT. 기본 role: viewer.
+- **이유**: Supabase Auth에서 계정 생성 + 로컬 DB 수동 추가 = 두 곳 작업 필요. auto-provision으로 계정 생성만 하면 첫 로그인 시 자동 등록.
+- **날짜**: 2026-04-05
+
+## D-078: Tailscale 외부 접속
+- **결정**: 도메인/SSL 없이 Tailscale VPN으로 외부 접속. Mac mini IP 100.123.70.19:5173.
+- **이유**: 비용 $0, 설치 간편, 5-10명 규모에 충분. 도메인 불필요.
+- **날짜**: 2026-04-05
+
+## D-079: 프론트엔드 정적 서빙 (Caddy)
+- **결정**: npm run dev 대신 Caddy가 빌드된 dist/ 폴더를 직접 서빙. /api/* 요청은 Go로 프록시.
+- **이유**: 터미널 수동 실행 불필요. launchd 자동 시작과 결합하여 재부팅 후 즉시 서비스 가능.
+- **날짜**: 2026-04-05

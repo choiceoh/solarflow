@@ -1,25 +1,26 @@
 # SolarFlow 진행 상황
 
-## 현재 상태 요약 (최종 업데이트: 2026-04-04)
+## 현재 상태 요약 (최종 업데이트: 2026-04-05)
 
 | 항목 | 상태 |
 |------|------|
-| 현재 Phase | **Phase 4 완료 + 인프라 이전 완료** |
-| 다음 작업 | Phase 확장 — 실데이터 기반 개선 |
-| Go 백엔드 | AWS Lightsail 서울 (api.solarflow3.com) |
-| Rust 엔진 | AWS Lightsail 서울 (api.solarflow3.com) |
-| 프론트엔드 | Cloudflare Pages (app.solarflow3.com) |
-| 인프라 | 직접 바이너리 + systemd + Caddy 리버스 프록시 (D-072~D-074) |
+| 현재 Phase | **Phase 4 완료 + Mac mini 로컬 완전 이전 완료** |
+| 다음 작업 | 실데이터 이관 + 기능 검증 |
+| 인프라 | Mac mini (Go+Rust+PostgREST+Caddy+PostgreSQL) + Supabase Auth(인증만) + Tailscale(외부접속) |
+| 프론트엔드 | Caddy 정적 서빙 (dist/) — localhost:5173, Tailscale 100.123.70.19:5173 |
+| DB | 로컬 PostgreSQL + PostgREST (D-075, D-076) |
 | DB 테이블 | 22개 생성 완료 (user_profiles, notes 포함) |
 | Go 테스트 | 116개 PASS |
 | Rust 테스트 | 75개 PASS |
 | 총 테스트 | 191개 PASS |
 | Rust API | 15개 엔드포인트 |
 | Go CalcProxy | 15개 엔드포인트 (프론트→Go→Rust) |
-| 인증 | ES256 JWKS + HMAC 폴백 (D-069) |
+| 인증 | ES256 JWKS + HMAC 폴백 (D-069) + auto-provision (D-077) |
 | RLS | 전체 비활성화 (D-070) |
 | 대시보드 로딩 | 6초 → 2초 (companies 중복제거 + API 병렬화) |
 | 감리 점수 | Phase 2: 9-10/10, Phase 3: 전부 10/10 |
+| DECISIONS | D-001~D-079 (79개) |
+| launchd | 5개 서비스 자동 시작 — 재부팅 테스트 성공 |
 
 ### Phase 확장 미해결 사항
 1. 수금매칭 outbound 기준 → 현재 정상 동작 (D-042)
@@ -99,3 +100,4 @@
 | Step 31: 메모+검색+알림 | 감리 대기 | Go Note CRUD(소유권검사), 포스트잇 MemoPage+LinkedMemoWidget, Ctrl+K GlobalSearchBar(500ms디바운스), Rust search API연동, SearchPage(이력+예시), useAlerts 분리(useDashboard에서 추출), AlertBell+AlertDropdown, 5분자동갱신, 테스트8개 |
 | Step 32: 배포+검증 | ✅ 완료 | ES256 JWKS인증(D-069), RLS비활성화(D-070), 전체법인합산(D-071), user_profiles 컬럼명 정렬, 구형파일삭제, 프론트Cloudflare+Go/Rust fly.io 3레이어 배포완료 |
 | Step 33: Lightsail 서울 이전 | ✅ 완료 | Fly.io 도쿄→AWS Lightsail 서울(D-072), solarflow3.com 도메인(D-073), Caddy 리버스프록시+자동SSL(D-074), 직접바이너리+systemd, Docker미사용, 대시보드6초→2초 |
+| Step 34: Mac mini 로컬 이전 | ✅ 완료 | PostgREST 로컬(D-075), Caddy 경로변환(D-076), auto-provision(D-077), Tailscale 외부접속(D-078), 프론트 정적서빙(D-079), launchd 5개 서비스, 재부팅테스트 성공 |
