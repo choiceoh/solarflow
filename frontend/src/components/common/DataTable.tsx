@@ -94,7 +94,7 @@ export default function DataTable<T extends Record<string, any>>({
                   {col.sortable && <SortIcon col={col.key} />}
                 </TableHead>
               ))}
-              {actions && <TableHead className="w-20">작업</TableHead>}
+              {actions && <TableHead className="w-20">수정</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>

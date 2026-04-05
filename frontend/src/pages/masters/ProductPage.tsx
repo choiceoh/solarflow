@@ -8,14 +8,14 @@ import { fetchWithAuth } from '@/lib/api';
 import { formatWp, formatSize } from '@/lib/utils';
 import type { Product, Manufacturer } from '@/types/masters';
 
-// 감리 지적 2번: 제조사→크기→규격 다중 키 정렬
+// 기본 정렬: 제조사→규격(Wp)→크기(mm) ascending
 function sortProducts(items: Product[]): Product[] {
   return [...items].sort((a, b) => {
-    if ((a.manufacturer_name ?? '') !== (b.manufacturer_name ?? ''))
-      return (a.manufacturer_name ?? '').localeCompare(b.manufacturer_name ?? '', 'ko');
+    const mfgCmp = (a.manufacturer_name ?? '').localeCompare(b.manufacturer_name ?? '', 'ko');
+    if (mfgCmp !== 0) return mfgCmp;
+    if (a.spec_wp !== b.spec_wp) return a.spec_wp - b.spec_wp;
     if (a.module_width_mm !== b.module_width_mm) return a.module_width_mm - b.module_width_mm;
-    if (a.module_height_mm !== b.module_height_mm) return a.module_height_mm - b.module_height_mm;
-    return a.spec_wp - b.spec_wp;
+    return a.module_height_mm - b.module_height_mm;
   });
 }
 
@@ -74,10 +74,10 @@ export default function ProductPage() {
 
   const columns: Column<Product>[] = [
     { key: 'product_code', label: '품번코드', sortable: true },
-    { key: 'product_name', label: '품명', sortable: true },
     { key: 'manufacturer_name', label: '제조사', sortable: true },
+    { key: 'product_name', label: '품명', sortable: true },
     { key: 'spec_wp', label: '규격(Wp)', sortable: true, render: (r) => formatWp(r.spec_wp) },
-    { key: 'module_width_mm', label: '크기(mm)', render: (r) => formatSize(r.module_width_mm, r.module_height_mm) },
+    { key: 'module_width_mm', label: '크기(mm)', sortable: true, render: (r) => formatSize(r.module_width_mm, r.module_height_mm) },
     { key: 'is_active', label: '활성', render: (r) => <StatusBadge isActive={r.is_active} /> },
   ];
 

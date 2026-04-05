@@ -71,8 +71,8 @@ export default function ManufacturerForm({ open, onOpenChange, onSubmit, editDat
             <Select value={watch('domestic_foreign') ?? ''} onValueChange={(v) => setValue('domestic_foreign', v ?? '')}>
               <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="domestic">국내</SelectItem>
-                <SelectItem value="foreign">해외</SelectItem>
+                <SelectItem value="국내">국내</SelectItem>
+                <SelectItem value="해외">해외</SelectItem>
               </SelectContent>
             </Select>
             {errors.domestic_foreign && <p className="text-xs text-destructive">{errors.domestic_foreign.message}</p>}
