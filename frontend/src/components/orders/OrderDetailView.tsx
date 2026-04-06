@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -36,6 +37,9 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
   const { data: order, loading, reload } = useOrderDetail(orderId);
   const { data: outbounds, loading: obLoading } = useOrderOutbounds(orderId);
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   if (loading || !order) return <LoadingSpinner />;
 
@@ -45,6 +49,19 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
   const handleUpdate = async (data: Record<string, unknown>) => {
     await fetchWithAuth(`/api/v1/orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
     reload();
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      await fetchWithAuth(`/api/v1/orders/${orderId}`, { method: 'DELETE' });
+      setDeleteOpen(false);
+      onBack();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '삭제에 실패했습니다');
+    }
+    setDeleting(false);
   };
 
   return (
@@ -57,7 +74,11 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="mr-1 h-3.5 w-3.5" />수정
         </Button>
+        <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)} className="text-destructive hover:text-destructive">
+          <Trash2 className="mr-1 h-3.5 w-3.5" />삭제
+        </Button>
       </div>
+      {deleteError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{deleteError}</div>}
 
       <Card>
         <CardHeader className="pb-2 pt-4">
@@ -153,6 +174,14 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
       <LinkedMemoWidget linkedTable="orders" linkedId={orderId} />
 
       <OrderForm open={editOpen} onOpenChange={setEditOpen} onSubmit={handleUpdate} editData={order} />
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="수주 삭제"
+        description={`수주 "${order.order_number || order.order_id.slice(0, 8)}"을(를) 삭제합니다. 연결된 출고가 있으면 먼저 삭제해야 합니다.`}
+        onConfirm={handleDelete}
+        loading={deleting}
+      />
     </div>
   );
 }

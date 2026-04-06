@@ -161,3 +161,29 @@ func (h *ReceiptHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
+
+// Delete — DELETE /api/v1/receipts/{id} — 수금 삭제
+// 비유: 수금 전표를 파기하는 것 — 연결된 매칭(receipt_matches)을 먼저 정리
+func (h *ReceiptHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// 매칭 먼저 삭제 (FK 제약)
+	_, _, _ = h.DB.From("receipt_matches").
+		Delete("", "").
+		Eq("receipt_id", id).
+		Execute()
+
+	_, _, err := h.DB.From("receipts").
+		Delete("", "").
+		Eq("receipt_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[수금 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "수금 삭제에 실패했습니다")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, struct {
+		Status string `json:"status"`
+	}{Status: "deleted"})
+}

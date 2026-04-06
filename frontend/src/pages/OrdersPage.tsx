@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useAppStore } from '@/stores/appStore';
 import { useOrderList } from '@/hooks/useOrders';
 import { useReceiptList } from '@/hooks/useReceipts';
@@ -16,10 +17,14 @@ import ReceiptForm from '@/components/orders/ReceiptForm';
 import ReceiptMatchingPanel from '@/components/orders/ReceiptMatchingPanel';
 import {
   ORDER_STATUS_LABEL, MANAGEMENT_CATEGORY_LABEL,
-  type OrderStatus, type ManagementCategory,
+  type OrderStatus, type ManagementCategory, type Receipt,
 } from '@/types/orders';
 import type { Partner } from '@/types/masters';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
+
+function FT({ text }: { text: string }) {
+  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
+}
 
 export default function OrdersPage() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
@@ -35,6 +40,10 @@ export default function OrdersPage() {
   const [receiptCustomerFilter, setReceiptCustomerFilter] = useState('');
   const [receiptMonthFilter, setReceiptMonthFilter] = useState('');
   const [receiptFormOpen, setReceiptFormOpen] = useState(false);
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [deletingReceipt, setDeletingReceipt] = useState<Receipt | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   // 마스터 데이터
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -79,9 +88,27 @@ export default function OrdersPage() {
     reloadOrders();
   };
 
-  const handleCreateReceipt = async (formData: Record<string, unknown>) => {
-    await fetchWithAuth('/api/v1/receipts', { method: 'POST', body: JSON.stringify(formData) });
+  const handleSubmitReceipt = async (formData: Record<string, unknown>) => {
+    if (editingReceipt) {
+      await fetchWithAuth(`/api/v1/receipts/${editingReceipt.receipt_id}`, { method: 'PUT', body: JSON.stringify(formData) });
+    } else {
+      await fetchWithAuth('/api/v1/receipts', { method: 'POST', body: JSON.stringify(formData) });
+    }
     reloadReceipts();
+  };
+
+  const handleDeleteReceipt = async () => {
+    if (!deletingReceipt) return;
+    setDeleteLoading(true);
+    setDeleteError('');
+    try {
+      await fetchWithAuth(`/api/v1/receipts/${deletingReceipt.receipt_id}`, { method: 'DELETE' });
+      setDeletingReceipt(null);
+      reloadReceipts();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '삭제에 실패했습니다');
+    }
+    setDeleteLoading(false);
   };
 
   // 월 목록 (최근 12개월)
@@ -108,7 +135,7 @@ export default function OrdersPage() {
           <div className="flex items-center justify-between">
             <div className="flex gap-2">
               <Select value={orderStatusFilter || 'all'} onValueChange={(v) => setOrderStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="상태" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-28 text-xs"><FT text={orderStatusFilter ? (ORDER_STATUS_LABEL[orderStatusFilter as OrderStatus] ?? '') : '전체 상태'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 상태</SelectItem>
                   {(Object.entries(ORDER_STATUS_LABEL) as [OrderStatus, string][]).map(([k, v]) => (
@@ -117,7 +144,7 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
               <Select value={orderCustomerFilter || 'all'} onValueChange={(v) => setOrderCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="거래처" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-36 text-xs"><FT text={orderCustomerFilter ? (partners.find(p => p.partner_id === orderCustomerFilter)?.partner_name ?? '') : '전체 거래처'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 거래처</SelectItem>
                   {partners.map((p) => (
@@ -126,7 +153,7 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
               <Select value={orderCategoryFilter || 'all'} onValueChange={(v) => setOrderCategoryFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-32 text-xs"><SelectValue placeholder="관리구분" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-32 text-xs"><FT text={orderCategoryFilter ? (MANAGEMENT_CATEGORY_LABEL[orderCategoryFilter as ManagementCategory] ?? '') : '전체 구분'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 구분</SelectItem>
                   {(Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => (
@@ -157,7 +184,7 @@ export default function OrdersPage() {
           <div className="flex items-center justify-between">
             <div className="flex gap-2">
               <Select value={receiptCustomerFilter || 'all'} onValueChange={(v) => setReceiptCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><SelectValue placeholder="거래처" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-36 text-xs"><FT text={receiptCustomerFilter ? (partners.find(p => p.partner_id === receiptCustomerFilter)?.partner_name ?? '') : '전체 거래처'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 거래처</SelectItem>
                   {partners.map((p) => (
@@ -166,7 +193,7 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
               <Select value={receiptMonthFilter || 'all'} onValueChange={(v) => setReceiptMonthFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><SelectValue placeholder="월" /></SelectTrigger>
+                <SelectTrigger className="h-8 w-28 text-xs"><FT text={receiptMonthFilter || '전체 기간'} /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">전체 기간</SelectItem>
                   {months.map((m) => (
@@ -184,8 +211,14 @@ export default function OrdersPage() {
           </div>
 
           {receiptsLoading ? <LoadingSpinner /> : (
-            <ReceiptListTable items={receipts} onNew={() => setReceiptFormOpen(true)} />
+            <ReceiptListTable
+              items={receipts}
+              onNew={() => setReceiptFormOpen(true)}
+              onEdit={(r) => { setEditingReceipt(r); setReceiptFormOpen(true); }}
+              onDelete={(r) => { setDeleteError(''); setDeletingReceipt(r); }}
+            />
           )}
+          {deleteError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{deleteError}</div>}
         </TabsContent>
 
         {/* 탭 3: 수금 매칭 */}
@@ -195,7 +228,20 @@ export default function OrdersPage() {
       </Tabs>
 
       <OrderForm open={orderFormOpen} onOpenChange={setOrderFormOpen} onSubmit={handleCreateOrder} />
-      <ReceiptForm open={receiptFormOpen} onOpenChange={setReceiptFormOpen} onSubmit={handleCreateReceipt} />
+      <ReceiptForm
+        open={receiptFormOpen}
+        onOpenChange={(o) => { setReceiptFormOpen(o); if (!o) setEditingReceipt(null); }}
+        onSubmit={handleSubmitReceipt}
+        editData={editingReceipt}
+      />
+      <ConfirmDialog
+        open={!!deletingReceipt}
+        onOpenChange={(o) => { if (!o) setDeletingReceipt(null); }}
+        title="수금 삭제"
+        description={deletingReceipt ? `${deletingReceipt.customer_name ?? ''} ${deletingReceipt.amount.toLocaleString()}원 수금을 삭제합니다. 연결된 매칭도 함께 제거됩니다.` : ''}
+        onConfirm={handleDeleteReceipt}
+        loading={deleteLoading}
+      />
     </div>
   );
 }

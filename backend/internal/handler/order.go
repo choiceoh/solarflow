@@ -196,3 +196,23 @@ func (h *OrderHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
+
+// Delete — DELETE /api/v1/orders/{id} — 수주 삭제
+// 비유: 수주 주문서를 파기하는 것 — 연결된 출고가 있으면 DB FK 제약으로 막힘
+func (h *OrderHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	_, _, err := h.DB.From("orders").
+		Delete("", "").
+		Eq("order_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[수주 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "수주 삭제에 실패했습니다 (연결된 출고가 있으면 먼저 삭제해야 합니다)")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, struct {
+		Status string `json:"status"`
+	}{Status: "deleted"})
+}

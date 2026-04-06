@@ -1,4 +1,6 @@
+import { Pencil, Trash2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import EmptyState from '@/components/common/EmptyState';
 import { formatDate, formatNumber } from '@/lib/utils';
 import type { Receipt } from '@/types/orders';
@@ -6,6 +8,8 @@ import type { Receipt } from '@/types/orders';
 interface Props {
   items: Receipt[];
   onNew: () => void;
+  onEdit?: (r: Receipt) => void;
+  onDelete?: (r: Receipt) => void;
 }
 
 type MatchStatus = 'full' | 'partial' | 'none';
@@ -33,7 +37,7 @@ function MatchBadge({ receipt }: { receipt: Receipt }) {
   return <span className="rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-[10px] font-medium">미매칭</span>;
 }
 
-export default function ReceiptListTable({ items, onNew }: Props) {
+export default function ReceiptListTable({ items, onNew, onEdit, onDelete }: Props) {
   if (items.length === 0) return <EmptyState message="등록된 수금이 없습니다" actionLabel="새로 등록" onAction={onNew} />;
 
   return (
@@ -47,6 +51,7 @@ export default function ReceiptListTable({ items, onNew }: Props) {
             <TableHead>입금계좌</TableHead>
             <TableHead>매칭상태</TableHead>
             <TableHead>메모</TableHead>
+            <TableHead className="text-right">작업</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -58,6 +63,20 @@ export default function ReceiptListTable({ items, onNew }: Props) {
               <TableCell>{r.bank_account ?? '—'}</TableCell>
               <TableCell><MatchBadge receipt={r} /></TableCell>
               <TableCell className="max-w-[200px] truncate">{r.memo ?? '—'}</TableCell>
+              <TableCell className="text-right">
+                <div className="flex items-center justify-end gap-1">
+                  {onEdit && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEdit(r)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                  {onDelete && (
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => onDelete(r)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
+                </div>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>

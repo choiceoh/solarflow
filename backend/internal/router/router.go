@@ -153,6 +153,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", orderH.Create)
 			r.Get("/{id}", orderH.GetByID)
 			r.Put("/{id}", orderH.Update)
+			r.Delete("/{id}", orderH.Delete)
 		})
 
 		receiptH := handler.NewReceiptHandler(db)
@@ -161,6 +162,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", receiptH.Create)
 			r.Get("/{id}", receiptH.GetByID)
 			r.Put("/{id}", receiptH.Update)
+			r.Delete("/{id}", receiptH.Delete)
 		})
 
 		matchH := handler.NewReceiptMatchHandler(db)

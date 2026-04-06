@@ -7,11 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import type { Receipt } from '@/types/orders';
 import type { Partner } from '@/types/masters';
+
+function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
+  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
+}
 
 const schema = z.object({
   customer_id: z.string().min(1, '거래처는 필수입니다'),
@@ -32,6 +36,7 @@ interface Props {
 export default function ReceiptForm({ open, onOpenChange, onSubmit, editData }: Props) {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [submitError, setSubmitError] = useState('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -46,6 +51,7 @@ export default function ReceiptForm({ open, onOpenChange, onSubmit, editData }: 
 
   useEffect(() => {
     if (open) {
+      setSubmitError('');
       if (editData) {
         reset({
           customer_id: editData.customer_id,
@@ -62,9 +68,14 @@ export default function ReceiptForm({ open, onOpenChange, onSubmit, editData }: 
   }, [open, editData, reset]);
 
   const handle = async (data: FormData) => {
+    setSubmitError('');
     const payload: Record<string, unknown> = { ...data, company_id: selectedCompanyId };
-    await onSubmit(payload);
-    onOpenChange(false);
+    try {
+      await onSubmit(payload);
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다');
+    }
   };
 
   return (
@@ -73,11 +84,12 @@ export default function ReceiptForm({ open, onOpenChange, onSubmit, editData }: 
         <DialogHeader>
           <DialogTitle>{editData ? '수금 수정' : '수금 등록'}</DialogTitle>
         </DialogHeader>
+        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="space-y-1.5">
             <Label>거래처 *</Label>
             <Select value={watch('customer_id') ?? ''} onValueChange={(v) => setValue('customer_id', v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <SelectTrigger><Txt text={partners.find(p => p.partner_id === watch('customer_id'))?.partner_name ?? ''} /></SelectTrigger>
               <SelectContent>
                 {partners.map((p) => (
                   <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>

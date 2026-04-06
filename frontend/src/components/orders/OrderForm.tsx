@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import {
@@ -15,6 +15,10 @@ import {
   type Order, type ReceiptMethod, type ManagementCategory, type FulfillmentSource,
 } from '@/types/orders';
 import type { Product, Partner } from '@/types/masters';
+
+function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
+  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
+}
 
 const schema = z.object({
   order_number: z.string().optional(),
@@ -50,6 +54,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
   const [products, setProducts] = useState<Product[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [inventoryInfo, setInventoryInfo] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -87,6 +92,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
 
   useEffect(() => {
     if (open) {
+      setSubmitError('');
       if (editData) {
         reset({
           order_number: editData.order_number ?? '',
@@ -122,6 +128,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
   }, [open, editData, reset]);
 
   const handle = async (data: FormData) => {
+    setSubmitError('');
     const payload: Record<string, unknown> = {
       ...data,
       company_id: selectedCompanyId,
@@ -131,8 +138,12 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
     if (data.deposit_rate === '' || data.deposit_rate === undefined) delete payload.deposit_rate;
     if (data.spare_qty === '' || data.spare_qty === undefined) delete payload.spare_qty;
     if (!data.delivery_due) delete payload.delivery_due;
-    await onSubmit(payload);
-    onOpenChange(false);
+    try {
+      await onSubmit(payload);
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다');
+    }
   };
 
   return (
@@ -141,6 +152,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
         <DialogHeader>
           <DialogTitle>{editData ? '수주 수정' : '수주 등록'}</DialogTitle>
         </DialogHeader>
+        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -157,7 +169,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
           <div className="space-y-1.5">
             <Label>거래처 *</Label>
             <Select value={watch('customer_id') ?? ''} onValueChange={(v) => setValue('customer_id', v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <SelectTrigger><Txt text={partners.find(p => p.partner_id === watch('customer_id'))?.partner_name ?? ''} /></SelectTrigger>
               <SelectContent>
                 {partners.map((p) => (
                   <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
@@ -171,7 +183,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
             <div className="space-y-1.5">
               <Label>접수방법 *</Label>
               <Select value={watch('receipt_method') ?? ''} onValueChange={(v) => setValue('receipt_method', v ?? '')}>
-                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectTrigger><Txt text={RECEIPT_METHOD_LABEL[watch('receipt_method') as ReceiptMethod] ?? ''} /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(RECEIPT_METHOD_LABEL) as [ReceiptMethod, string][]).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -183,7 +195,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
             <div className="space-y-1.5">
               <Label>관리구분 *</Label>
               <Select value={watch('management_category') ?? ''} onValueChange={(v) => setValue('management_category', v ?? '')}>
-                <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+                <SelectTrigger><Txt text={MANAGEMENT_CATEGORY_LABEL[watch('management_category') as ManagementCategory] ?? ''} /></SelectTrigger>
                 <SelectContent>
                   {(Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => (
                     <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -197,7 +209,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
           <div className="space-y-1.5">
             <Label>충당소스 *</Label>
             <Select value={watch('fulfillment_source') ?? ''} onValueChange={(v) => setValue('fulfillment_source', v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <SelectTrigger><Txt text={FULFILLMENT_SOURCE_LABEL[watch('fulfillment_source') as FulfillmentSource] ?? ''} /></SelectTrigger>
               <SelectContent>
                 {(Object.entries(FULFILLMENT_SOURCE_LABEL) as [FulfillmentSource, string][]).map(([k, v]) => (
                   <SelectItem key={k} value={k}>{v}</SelectItem>
@@ -211,7 +223,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
           <div className="space-y-1.5">
             <Label>품번 *</Label>
             <Select value={watch('product_id') ?? ''} onValueChange={(v) => setValue('product_id', v ?? '')}>
-              <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <SelectTrigger><Txt text={(() => { const p = products.find(p => p.product_id === watch('product_id')); return p ? `${p.product_code} — ${p.product_name}` : ''; })()} /></SelectTrigger>
               <SelectContent>
                 {products.map((p) => (
                   <SelectItem key={p.product_id} value={p.product_id}>
