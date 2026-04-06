@@ -80,6 +80,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", poH.Create)
 			r.Get("/{id}", poH.GetByID)
 			r.Put("/{id}", poH.Update)
+			r.Delete("/{id}", poH.Delete)
 			r.Route("/{poId}/lines", func(r chi.Router) {
 				r.Get("/", poLineH.ListByPO)
 				r.Post("/", poLineH.Create)
@@ -94,6 +95,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", lcH.Create)
 			r.Get("/{id}", lcH.GetByID)
 			r.Put("/{id}", lcH.Update)
+			r.Delete("/{id}", lcH.Delete)
 		})
 
 		ttH := handler.NewTTHandler(db)
@@ -102,6 +104,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/", ttH.Create)
 			r.Get("/{id}", ttH.GetByID)
 			r.Put("/{id}", ttH.Update)
+			r.Delete("/{id}", ttH.Delete)
 		})
 
 		blH := handler.NewBLHandler(db)

@@ -168,3 +168,22 @@ func (h *TTHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
+
+// Delete — DELETE /api/v1/tts/{id} — TT 송금 삭제
+func (h *TTHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	_, _, err := h.DB.From("tt_remittances").
+		Delete("", "").
+		Eq("tt_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[TT 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "TT 삭제에 실패했습니다")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, struct {
+		Status string `json:"status"`
+	}{Status: "deleted"})
+}

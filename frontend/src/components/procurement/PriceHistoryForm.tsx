@@ -7,11 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import type { PriceHistory, PurchaseOrder } from '@/types/procurement';
 import type { Manufacturer, Product } from '@/types/masters';
+
+function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
+  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
+}
 
 const REASON_OPTIONS = ['시세변동', '재협상', '계약갱신', '최초계약'] as const;
 
@@ -35,6 +39,7 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
+  const [submitError, setSubmitError] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema) as any });
 
@@ -63,6 +68,7 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
 
   useEffect(() => {
     if (open) {
+      setSubmitError('');
       if (editData) {
         const { select, text } = parseReason(editData.reason);
         reset({ manufacturer_id: editData.manufacturer_id, product_id: editData.product_id, change_date: editData.change_date.slice(0, 10), previous_price: editData.previous_price ?? '', new_price: editData.new_price, reason_select: select, reason_text: text, related_po_id: editData.related_po_id ?? '', memo: editData.memo ?? '' });
@@ -73,6 +79,7 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
   }, [open, editData, reset]);
 
   const handle = async (data: FormData) => {
+    setSubmitError('');
     const payload: Record<string, unknown> = {
       manufacturer_id: data.manufacturer_id,
       product_id: data.product_id,
@@ -85,24 +92,29 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
     if (reason) payload.reason = reason;
     if (data.related_po_id) payload.related_po_id = data.related_po_id;
     if (data.memo) payload.memo = data.memo;
-    await onSubmit(payload);
-    onOpenChange(false);
+    try {
+      await onSubmit(payload);
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다');
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editData ? '단가이력 수정' : '단가이력 등록'}</DialogTitle></DialogHeader>
+        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="space-y-1.5">
             <Label>제조사 *</Label>
-            <Select value={watch('manufacturer_id') ?? ''} onValueChange={(v) => { setValue('manufacturer_id', v ?? ''); setValue('product_id', ''); }}><SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+            <Select value={watch('manufacturer_id') ?? ''} onValueChange={(v) => { setValue('manufacturer_id', v ?? ''); setValue('product_id', ''); }}><SelectTrigger className="w-full"><Txt text={manufacturers.find((m) => m.manufacturer_id === watch('manufacturer_id'))?.name_kr || ''} /></SelectTrigger>
               <SelectContent>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent>
             </Select>{errors.manufacturer_id && <p className="text-xs text-destructive">{errors.manufacturer_id.message}</p>}
           </div>
           <div className="space-y-1.5">
             <Label>품번 *</Label>
-            <Select value={watch('product_id') ?? ''} onValueChange={(v) => setValue('product_id', v ?? '')}><SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+            <Select value={watch('product_id') ?? ''} onValueChange={(v) => setValue('product_id', v ?? '')}><SelectTrigger className="w-full"><Txt text={(() => { const p = filteredProducts.find((p) => p.product_id === watch('product_id')); return p ? `${p.product_code} — ${p.product_name}` : ''; })()} /></SelectTrigger>
               <SelectContent>{filteredProducts.map((p) => <SelectItem key={p.product_id} value={p.product_id}>{p.product_code} — {p.product_name}</SelectItem>)}</SelectContent>
             </Select>{errors.product_id && <p className="text-xs text-destructive">{errors.product_id.message}</p>}
           </div>
@@ -114,7 +126,7 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>사유 (선택)</Label>
-              <Select value={reasonSelect ?? ''} onValueChange={(v) => setValue('reason_select', v ?? '')}><SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <Select value={reasonSelect ?? ''} onValueChange={(v) => setValue('reason_select', v ?? '')}><SelectTrigger className="w-full"><Txt text={reasonSelect || ''} /></SelectTrigger>
                 <SelectContent>
                   {REASON_OPTIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                 </SelectContent>
@@ -125,7 +137,7 @@ export default function PriceHistoryForm({ open, onOpenChange, onSubmit, editDat
           <div className="space-y-1.5">
             <Label>관련 PO</Label>
             <Select value={watch('related_po_id') ?? ''} onValueChange={(v) => setValue('related_po_id', v === 'none' ? '' : (v ?? ''))}>
-              <SelectTrigger><SelectValue placeholder="선택 (선택사항)" /></SelectTrigger>
+              <SelectTrigger className="w-full"><Txt text={(() => { const v = watch('related_po_id'); if (!v || v === 'none') return ''; const p = pos.find((p) => p.po_id === v); return p?.po_number || v.slice(0, 8); })()} placeholder="선택 (선택사항)" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">선택안함</SelectItem>
                 {pos.map((p) => <SelectItem key={p.po_id} value={p.po_id}>{p.po_number || p.po_id.slice(0, 8)}</SelectItem>)}

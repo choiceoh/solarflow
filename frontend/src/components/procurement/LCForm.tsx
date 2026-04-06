@@ -7,11 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import type { LCRecord, PurchaseOrder } from '@/types/procurement';
 import type { Bank } from '@/types/masters';
+
+function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
+  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
+}
 
 const schema = z.object({
   lc_number: z.string().optional(),
@@ -36,6 +40,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
+  const [submitError, setSubmitError] = useState('');
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({ resolver: zodResolver(schema) as any });
 
@@ -48,6 +53,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
 
   useEffect(() => {
     if (open) {
+      setSubmitError('');
       if (editData) {
         reset({ lc_number: editData.lc_number ?? '', po_id: editData.po_id, bank_id: editData.bank_id, open_date: editData.open_date?.slice(0, 10) ?? '', amount_usd: editData.amount_usd, target_qty: editData.target_qty ?? '', target_mw: editData.target_mw ?? '', usance_days: editData.usance_days ?? '', usance_type: editData.usance_type ?? '', maturity_date: editData.maturity_date?.slice(0, 10) ?? '', settlement_date: editData.settlement_date?.slice(0, 10) ?? '', status: editData.status, memo: editData.memo ?? '' });
       } else {
@@ -57,6 +63,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
   }, [open, editData, reset]);
 
   const handle = async (data: FormData) => {
+    setSubmitError('');
     const payload: Record<string, unknown> = { ...data, company_id: selectedCompanyId };
     if (data.target_qty === '' || data.target_qty === undefined) delete payload.target_qty;
     if (data.target_mw === '' || data.target_mw === undefined) delete payload.target_mw;
@@ -64,27 +71,32 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
     if (!data.open_date) delete payload.open_date;
     if (!data.maturity_date) delete payload.maturity_date;
     if (!data.settlement_date) delete payload.settlement_date;
-    await onSubmit(payload);
-    onOpenChange(false);
+    try {
+      await onSubmit(payload);
+      onOpenChange(false);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '저장에 실패했습니다');
+    }
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editData ? 'LC 수정' : 'LC 등록'}</DialogTitle></DialogHeader>
+        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>LC번호</Label><Input {...register('lc_number')} /></div>
             <div className="space-y-1.5">
               <Label>PO *</Label>
-              <Select value={watch('po_id') ?? ''} onValueChange={(v) => setValue('po_id', v ?? '')}><SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+              <Select value={watch('po_id') ?? ''} onValueChange={(v) => setValue('po_id', v ?? '')}><SelectTrigger className="w-full"><Txt text={pos.find((p) => p.po_id === watch('po_id'))?.po_number || watch('po_id')?.slice(0, 8) || ''} /></SelectTrigger>
                 <SelectContent>{pos.map((p) => <SelectItem key={p.po_id} value={p.po_id}>{p.po_number || p.po_id.slice(0, 8)}</SelectItem>)}</SelectContent>
               </Select>{errors.po_id && <p className="text-xs text-destructive">{errors.po_id.message}</p>}
             </div>
           </div>
           <div className="space-y-1.5">
             <Label>은행 *</Label>
-            <Select value={watch('bank_id') ?? ''} onValueChange={(v) => setValue('bank_id', v ?? '')}><SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
+            <Select value={watch('bank_id') ?? ''} onValueChange={(v) => setValue('bank_id', v ?? '')}><SelectTrigger className="w-full"><Txt text={banks.find((b) => b.bank_id === watch('bank_id'))?.bank_name || ''} /></SelectTrigger>
               <SelectContent>{banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.bank_name}</SelectItem>)}</SelectContent>
             </Select>{errors.bank_id && <p className="text-xs text-destructive">{errors.bank_id.message}</p>}
           </div>
@@ -100,7 +112,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
             <div className="space-y-1.5"><Label>Usance(일)</Label><Input type="number" {...register('usance_days')} /></div>
             <div className="space-y-1.5">
               <Label>Usance유형</Label>
-              <Select value={watch('usance_type') ?? ''} onValueChange={(v) => setValue('usance_type', v ?? '')}><SelectTrigger><SelectValue /></SelectTrigger>
+              <Select value={watch('usance_type') ?? ''} onValueChange={(v) => setValue('usance_type', v ?? '')}><SelectTrigger className="w-full"><Txt text={{ buyers: "Buyer's", shippers: "Shipper's" }[watch('usance_type') ?? ''] || ''} /></SelectTrigger>
                 <SelectContent><SelectItem value="buyers">Buyer's</SelectItem><SelectItem value="shippers">Shipper's</SelectItem></SelectContent>
               </Select>
             </div>
@@ -111,7 +123,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
           </div>
           <div className="space-y-1.5">
             <Label>상태 *</Label>
-            <Select value={watch('status') ?? ''} onValueChange={(v) => setValue('status', v ?? '')}><SelectTrigger><SelectValue /></SelectTrigger>
+            <Select value={watch('status') ?? ''} onValueChange={(v) => setValue('status', v ?? '')}><SelectTrigger className="w-full"><Txt text={{ pending: '대기', opened: '개설', docs_received: '서류접수', settled: '결제완료' }[watch('status') ?? ''] || ''} /></SelectTrigger>
               <SelectContent><SelectItem value="pending">대기</SelectItem><SelectItem value="opened">개설</SelectItem><SelectItem value="docs_received">서류접수</SelectItem><SelectItem value="settled">결제완료</SelectItem></SelectContent>
             </Select>
           </div>

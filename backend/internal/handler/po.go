@@ -238,3 +238,30 @@ func (h *POHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
+
+// Delete — DELETE /api/v1/pos/{id} — 발주 삭제
+// 비유: 발주 서류를 파기하는 것 — 연결된 라인아이템도 함께 삭제
+func (h *POHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// 라인아이템 먼저 삭제 (FK 제약)
+	_, _, _ = h.DB.From("po_line_items").
+		Delete("", "").
+		Eq("po_id", id).
+		Execute()
+
+	// PO 본체 삭제
+	_, _, err := h.DB.From("purchase_orders").
+		Delete("", "").
+		Eq("po_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[발주 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "발주 삭제에 실패했습니다")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, struct {
+		Status string `json:"status"`
+	}{Status: "deleted"})
+}

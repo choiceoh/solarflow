@@ -181,3 +181,22 @@ func (h *LCHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
+
+// Delete — DELETE /api/v1/lcs/{id} — LC 삭제
+func (h *LCHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	_, _, err := h.DB.From("lc_records").
+		Delete("", "").
+		Eq("lc_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[LC 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "LC 삭제에 실패했습니다")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, struct {
+		Status string `json:"status"`
+	}{Status: "deleted"})
+}
