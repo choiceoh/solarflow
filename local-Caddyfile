@@ -18,8 +18,18 @@
     }
     handle {
         root * /Users/chnops.ak/solarflow-3/frontend/dist
-        @html path / /index.html
+
+        # Hashed assets (Vite 빌드 결과물) — 파일명에 hash 포함, 영구 캐시 OK
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+
+        # HTML / SPA fallback 경로 — 빌드마다 JS 파일명 변경되므로 항상 최신 HTML 필요
+        # /assets/* 이외 모든 경로 = index.html로 서빙됨 (try_files)
+        @html {
+            not path /assets/*
+        }
         header @html Cache-Control "no-cache, no-store, must-revalidate"
+
         try_files {path} /index.html
         file_server
     }

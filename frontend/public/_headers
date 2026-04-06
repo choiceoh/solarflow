@@ -1,0 +1,13 @@
+# Cloudflare Pages 캐시 설정
+
+# Hashed assets — Vite 빌드 결과물, 파일명에 hash 포함 → 영구 캐시
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML — 빌드마다 JS 파일명이 변경되므로 항상 최신 HTML 필요
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# SPA fallback — 모든 페이지 경로가 index.html로 서빙됨
+/*
+  Cache-Control: no-cache, no-store, must-revalidate
