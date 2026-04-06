@@ -43,10 +43,10 @@ export interface BLLineItem {
 }
 
 export const INBOUND_TYPE_LABEL: Record<InboundType, string> = {
-  import: '해외 직수입',
-  domestic: '국내 제조사',
-  domestic_foreign: '국내 유통사',
-  group: '그룹 내',
+  import: '해외직수입',
+  domestic: '국내구매',
+  domestic_foreign: '국내유통사',
+  group: '그룹내구매',
 };
 
 export const BL_STATUS_ORDER: BLStatus[] = [
