@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
@@ -29,6 +30,17 @@ export default function CustomsPage() {
   const [declBlFilter, setDeclBlFilter] = useState('');
   const [selectedDecl, setSelectedDecl] = useState<string | null>(null);
   const [declFormOpen, setDeclFormOpen] = useState(false);
+  const [presetBLId, setPresetBLId] = useState<string | null>(null);
+  const location = useLocation();
+  // D-085: ?bl=xxx 쿼리 → 면장 등록 폼 자동 열기
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const bl = params.get('bl');
+    if (bl) {
+      setPresetBLId(bl);
+      setDeclFormOpen(true);
+    }
+  }, [location.search]);
 
   // 탭 2: 부대비용
   const [expBlFilter, setExpBlFilter] = useState('');
@@ -219,7 +231,12 @@ export default function CustomsPage() {
         </TabsContent>
       </Tabs>
 
-      <DeclarationForm open={declFormOpen} onOpenChange={setDeclFormOpen} onSubmit={handleCreateDecl} />
+      <DeclarationForm
+        open={declFormOpen}
+        onOpenChange={(v) => { setDeclFormOpen(v); if (!v) setPresetBLId(null); }}
+        onSubmit={handleCreateDecl}
+        presetBLId={presetBLId}
+      />
       <ExpenseForm
         open={expFormOpen}
         onOpenChange={setExpFormOpen}

@@ -117,6 +117,10 @@ export default function PODetailView({ po, onBack, onReload }: Props) {
         <h2 className="text-base font-semibold flex-1">PO {po.po_number || '—'}</h2>
         <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', PO_STATUS_COLOR[po.status])}>{PO_STATUS_LABEL[po.status]}</span>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="mr-1 h-3.5 w-3.5" />수정</Button>
+        {/* D-085: PO → 입고 데이터 전달 */}
+        <Button size="sm" onClick={() => { window.location.href = `/inbound?po=${po.po_id}`; }}>
+          입고 등록
+        </Button>
       </div>
 
       <Tabs defaultValue="info">

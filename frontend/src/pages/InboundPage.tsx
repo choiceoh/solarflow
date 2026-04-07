@@ -24,9 +24,19 @@ export default function InboundPage() {
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedBL, setSelectedBL] = useState<string | null>(null);
+  const [presetPOId, setPresetPOId] = useState<string | null>(null);
   const location = useLocation();
   // 사이드바 "입고 관리" 클릭 시 상세에서 목록으로 복귀
   useEffect(() => { setSelectedBL(null); }, [location.key]);
+  // D-085: ?po=xxx 쿼리 감지 → 입고 등록 폼 자동 열기
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const po = params.get('po');
+    if (po) {
+      setPresetPOId(po);
+      setFormOpen(true);
+    }
+  }, [location.search]);
   const [formOpen, setFormOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -164,7 +174,12 @@ export default function InboundPage() {
         />
       )}
 
-      <BLForm open={formOpen} onOpenChange={setFormOpen} onSubmit={handleCreate} />
+      <BLForm
+        open={formOpen}
+        onOpenChange={(v) => { setFormOpen(v); if (!v) setPresetPOId(null); }}
+        onSubmit={handleCreate}
+        presetPOId={presetPOId}
+      />
 
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-md bg-green-600 text-white px-4 py-3 text-sm shadow-lg">

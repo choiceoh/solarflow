@@ -22,18 +22,20 @@ interface MenuItem {
   children?: { label: string; path: string }[];
 }
 
-const menuItems: MenuItem[] = [
-  { icon: Package, label: '재고 현황', path: '/inventory' },
-  { icon: LayoutDashboard, label: '대시보드', path: '/' },
+// 업무 흐름 (D-084) — 발주→입고→면장→수주→출고 순
+const workflowItems: MenuItem[] = [
+  { icon: ClipboardList, label: '발주/결제', path: '/procurement', roles: ['admin', 'manager', 'staff'] },
+  { icon: PackageCheck, label: '입고 관리', path: '/inbound', roles: ['admin', 'manager', 'staff'] },
+  { icon: Calculator, label: '면장/원가', path: '/customs', roles: ['admin', 'manager', 'staff'] },
+  { icon: HandCoins, label: '수주/수금', path: '/orders', roles: ['admin', 'manager', 'staff'] },
+  { icon: Truck, label: '출고/판매', path: '/outbound', roles: ['admin', 'manager', 'staff'] },
 ];
 
-const operationItems: MenuItem[] = [
-  { icon: PackageCheck, label: '입고 관리', path: '/inbound', roles: ['admin', 'manager', 'staff'] },
-  { icon: ClipboardList, label: '발주/결제', path: '/procurement', roles: ['admin', 'manager', 'staff'] },
-  { icon: Truck, label: '출고/판매', path: '/outbound', roles: ['admin', 'manager', 'staff'] },
-  { icon: HandCoins, label: '수주/수금', path: '/orders', roles: ['admin', 'manager', 'staff'] },
-  { icon: Calculator, label: '면장/원가', path: '/customs', roles: ['admin', 'manager', 'staff'] },
+// 현황/분석
+const analysisItems: MenuItem[] = [
+  { icon: Package, label: '재고 현황', path: '/inventory' },
   { icon: Landmark, label: '은행/LC', path: '/banking', roles: ['admin', 'manager', 'staff'] },
+  { icon: LayoutDashboard, label: '대시보드', path: '/' },
 ];
 
 const masterItem: MenuItem = {
@@ -159,20 +161,18 @@ export default function Sidebar() {
         )}
       </div>
 
-      {/* 메뉴 */}
+      {/* 메뉴 — D-084: 업무흐름/현황분석/도구 3그룹 */}
       <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-        {menuItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
+        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">업무 흐름</p>}
+        {workflowItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
         <Separator className="my-2" />
-        {operationItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
+        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">현황/분석</p>}
+        {analysisItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
+        <Separator className="my-2" />
+        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">도구</p>}
         {canSee(masterItem, role) && <NavLink {...masterItem} />}
-        <Separator className="my-2" />
         {toolItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
-        {canSee(settingsItem, role) && (
-          <>
-            <Separator className="my-2" />
-            <NavLink {...settingsItem} />
-          </>
-        )}
+        {canSee(settingsItem, role) && <NavLink {...settingsItem} />}
       </nav>
 
       {/* 하단 사용자 */}

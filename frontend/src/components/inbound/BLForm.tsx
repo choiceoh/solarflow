@@ -203,14 +203,35 @@ function Opt({ children }: { children: React.ReactNode }) {
 }
 
 /* ── Props ── */
+/** PO 요약 (드롭다운 + 자동채움용) */
+interface POSummary {
+  po_id: string;
+  po_number: string;
+  company_id: string;
+  manufacturer_id: string;
+  manufacturer_name?: string;
+  currency?: 'USD' | 'KRW';
+  total_capacity_mw?: number;
+  status?: string;
+  incoterms?: string | null;
+  payment_terms?: string | null;
+}
+interface POLineSummary {
+  product_id: string;
+  unit_price_usd_wp?: number;
+  unit_price_krw_wp?: number;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   editData?: BLShipment | null;
+  /** PO 상세에서 입고 등록 시 사전 연결 (D-085) */
+  presetPOId?: string | null;
 }
 
-export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props) {
+export default function BLForm({ open, onOpenChange, onSubmit, editData, presetPOId }: Props) {
   const globalCompanyId = useAppStore((s) => s.selectedCompanyId);
   const storeCompanies = useAppStore((s) => s.companies);
 
@@ -234,6 +255,9 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
   const [bafCaf, setBafCaf] = useState(false);
   const [deliveryDate, setDeliveryDate] = useState(''); // 만기일 계산용 (actual_arrival 미러)
   const [exchangeRateLive, setExchangeRateLive] = useState(''); // 환율 실시간 미러 (KRW 재계산용)
+  // D-085: PO 연결 (선택사항) — 드롭다운 + 자동 채움
+  const [poList, setPoList] = useState<POSummary[]>([]);
+  const [selPOId, setSelPOId] = useState<string>('');
   const [submitError, setSubmitError] = useState('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -274,6 +298,53 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
       .then(list => setProducts(list.filter(p => p.is_active)))
       .catch(() => setProducts([]));
   }, [selMfgId]);
+
+  /* D-085: PO 목록 로드 (연결 드롭다운용) */
+  useEffect(() => {
+    if (!open || editData) return;
+    fetchWithAuth<POSummary[]>('/api/v1/pos')
+      .then(list => setPoList(list ?? []))
+      .catch(() => setPoList([]));
+  }, [open, editData]);
+
+  /* PO 선택 → 입고 폼 자동 채움 */
+  const applyPOAutofill = useCallback(async (poId: string) => {
+    if (!poId) return;
+    const po = poList.find(p => p.po_id === poId);
+    if (!po) return;
+    // 입고 유형: USD면 해외직수입, KRW면 국내구매로 기본 추정
+    const inferType: InboundTypeValue = po.currency === 'KRW' ? 'domestic' : 'import';
+    setSelType(inferType);
+    setValue('inbound_type', inferType);
+    setSelCompanyId(po.company_id);
+    setSelMfgId(po.manufacturer_id);
+    setValue('manufacturer_id', po.manufacturer_id);
+    if (po.incoterms) setValue('incoterms', po.incoterms);
+    // PO 라인 조회 → 입고품목 프리셋 (수량 비움, 단가만 복사)
+    try {
+      const lines = await fetchWithAuth<POLineSummary[]>(`/api/v1/pos/${poId}/lines`);
+      if (Array.isArray(lines) && lines.length > 0) {
+        setLines(lines.map(l => ({
+          product_id: l.product_id,
+          quantity: '',
+          item_type: 'main',
+          payment_type: 'paid',
+          unit_price: inferType === 'import'
+            ? (l.unit_price_usd_wp != null ? String(l.unit_price_usd_wp * 100) : '') // cents mode
+            : (l.unit_price_krw_wp != null ? String(Math.round(l.unit_price_krw_wp)) : ''),
+          manualInvoice: false,
+          invoiceOverride: '',
+        })));
+      }
+    } catch { /* PO 라인 조회 실패 시 빈 입고품목 유지 */ }
+  }, [poList, setValue]);
+
+  /* presetPOId (PO 상세에서 진입) → 자동 적용 */
+  useEffect(() => {
+    if (!open || editData || !presetPOId || poList.length === 0) return;
+    setSelPOId(presetPOId);
+    applyPOAutofill(presetPOId);
+  }, [open, editData, presetPOId, poList, applyPOAutofill]);
 
   /* ── 자동채번 ── */
   const genAutoNumber = useCallback(async (prefix: string) => {
@@ -372,7 +443,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
       const cid = globalCompanyId && globalCompanyId !== 'all' ? globalCompanyId : '';
       setSelType(''); setSelCompanyId(cid); setSelMfgId(''); setSelWhId('');
       setCounterpartId(''); setAutoNumber(''); setImportPT(defaultImportPT()); setDomesticPT(defaultDomesticPT());
-      setBafCaf(false); setDeliveryDate(''); setExchangeRateLive('');
+      setBafCaf(false); setDeliveryDate(''); setExchangeRateLive(''); setSelPOId('');
       reset({
         inbound_type: '', bl_number: '', manufacturer_id: '',
         exchange_rate: '', etd: '', eta: '', actual_arrival: '',
@@ -464,6 +535,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
     const payload: Record<string, unknown> = {
       bl_id: editData?.bl_id,
       bl_number: blNumber,
+      po_id: selPOId || undefined,
       inbound_type: selType,
       company_id: selCompanyId,
       manufacturer_id: selMfgId || undefined,
@@ -554,6 +626,37 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
           }}
           className="space-y-3"
         >
+
+          {/* ── D-085: PO 연결 (선택사항) ── */}
+          {!editData && (
+            <div className="max-w-md space-y-1.5">
+              <Label className="text-muted-foreground">P/O 연결 (선택사항)</Label>
+              <Select value={selPOId || 'none'} onValueChange={(v) => {
+                const val = v === 'none' ? '' : (v ?? '');
+                setSelPOId(val);
+                if (val) applyPOAutofill(val);
+              }}>
+                <SelectTrigger className="w-full">
+                  <Txt text={(() => {
+                    if (!selPOId) return '';
+                    const po = poList.find(p => p.po_id === selPOId);
+                    return po ? `${po.po_number} | ${po.manufacturer_name ?? ''} | ${po.total_capacity_mw?.toFixed(1) ?? '-'}MW | ${po.status ?? ''}` : '';
+                  })()} placeholder="과거/긴급 입고는 미선택" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">미선택 (수기 입력)</SelectItem>
+                  {poList.map(p => (
+                    <SelectItem key={p.po_id} value={p.po_id}>
+                      {p.po_number} | {p.manufacturer_name ?? '—'} | {p.total_capacity_mw?.toFixed(1) ?? '-'}MW | {p.status ?? ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selPOId && (
+                <p className="text-[10px] text-muted-foreground">PO 정보가 자동 채움됨. 모든 필드는 수정 가능.</p>
+              )}
+            </div>
+          )}
 
           {/* ── 입고유형 (항상 첫번째) ── */}
           <div className="max-w-xs">

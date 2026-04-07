@@ -102,6 +102,12 @@ export default function BLDetailView({ blId, onBack }: Props) {
         <Button variant="outline" size="sm" onClick={() => setEditBLOpen(true)}>
           <Pencil className="mr-1 h-3.5 w-3.5" />수정
         </Button>
+        {/* D-085: BL → 면장 데이터 전달 (해외직수입만) */}
+        {bl.inbound_type === 'import' && (
+          <Button size="sm" onClick={() => { window.location.href = `/customs?bl=${blId}`; }}>
+            면장 등록
+          </Button>
+        )}
         <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
           <Trash2 className="mr-1 h-3.5 w-3.5" />삭제
         </Button>

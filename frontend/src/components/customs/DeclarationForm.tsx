@@ -19,9 +19,11 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   editData?: Declaration | null;
+  /** D-085: BL 상세에서 면장 등록 시 사전 연결 */
+  presetBLId?: string | null;
 }
 
-export default function DeclarationForm({ open, onOpenChange, onSubmit, editData }: Props) {
+export default function DeclarationForm({ open, onOpenChange, onSubmit, editData, presetBLId }: Props) {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [bls, setBls] = useState<BLShipment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,11 +59,11 @@ export default function DeclarationForm({ open, onOpenChange, onSubmit, editData
       setPort(editData.port || '');
       setMemo(editData.memo || '');
     } else {
-      setDeclarationNumber(''); setBlId(''); setDeclarationDate('');
+      setDeclarationNumber(''); setBlId(presetBLId ?? ''); setDeclarationDate('');
       setArrivalDate(''); setReleaseDate(''); setHsCode('');
       setCustomsOffice(''); setPort(''); setMemo('');
     }
-  }, [editData, open]);
+  }, [editData, open, presetBLId]);
 
   const handleSubmit = async () => {
     setLoading(true);
