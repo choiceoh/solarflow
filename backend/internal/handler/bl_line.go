@@ -63,6 +63,30 @@ func (h *BLLineHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 비유: URL의 blId를 요청 데이터에 덮어씀 — 라우트 경로가 권위 있는 출처
 	req.BLID = blID
 
+	// 비유: usage_category 기본값 (재고 집계용)
+	if req.UsageCategory == "" {
+		req.UsageCategory = "sale"
+	}
+
+	// 안전장치 (재고 0kW 근본 수정): capacity_kw가 0/누락이면 products.spec_wp로 자동 계산
+	// quantity × spec_wp / 1000 = capacity_kw
+	if req.CapacityKW <= 0 && req.ProductID != "" && req.Quantity > 0 {
+		prodData, _, perr := h.DB.From("products").
+			Select("spec_wp", "exact", false).
+			Eq("product_id", req.ProductID).
+			Execute()
+		if perr == nil {
+			var prods []struct {
+				SpecWP int `json:"spec_wp"`
+			}
+			if err := json.Unmarshal(prodData, &prods); err == nil && len(prods) > 0 && prods[0].SpecWP > 0 {
+				req.CapacityKW = float64(req.Quantity) * float64(prods[0].SpecWP) / 1000.0
+				log.Printf("[B/L 라인 capacity_kw 자동계산] product=%s qty=%d spec_wp=%d → %.3f kW",
+					req.ProductID, req.Quantity, prods[0].SpecWP, req.CapacityKW)
+			}
+		}
+	}
+
 	// 비유: 접수 창구에서 화물 품목 검증
 	if msg := req.Validate(); msg != "" {
 		response.RespondError(w, http.StatusBadRequest, msg)

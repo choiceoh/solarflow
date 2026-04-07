@@ -55,21 +55,43 @@ export default function InboundPage() {
 
   const handleCreate = async (formData: Record<string, unknown>) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { lines, ...blData } = formData as any;
-    // 1. BL 본체 생성
-    const created = await fetchWithAuth<{ bl_id: string }>('/api/v1/bls', {
-      method: 'POST', body: JSON.stringify(blData),
-    });
-    // 2. 라인아이템 개별 생성 (Go API가 lines를 별도 endpoint로 처리)
-    if (Array.isArray(lines) && lines.length > 0) {
-      for (const line of lines) {
-        await fetchWithAuth(`/api/v1/bls/${created.bl_id}/lines`, {
-          method: 'POST', body: JSON.stringify({ ...line, bl_id: created.bl_id }),
+    const { lines, bl_id: existingId, ...blData } = formData as any;
+    let blId: string;
+    try {
+      if (existingId) {
+        // 수정 모드: PUT
+        await fetchWithAuth(`/api/v1/bls/${existingId}`, {
+          method: 'PUT', body: JSON.stringify(blData),
         });
+        blId = existingId;
+      } else {
+        // 신규 등록: POST
+        const created = await fetchWithAuth<{ bl_id: string }>('/api/v1/bls', {
+          method: 'POST', body: JSON.stringify(blData),
+        });
+        blId = created.bl_id;
       }
+      // 라인아이템 개별 생성 — 부분 실패 시 명확히 알려줌
+      if (!existingId && Array.isArray(lines) && lines.length > 0) {
+        const failures: string[] = [];
+        for (const line of lines) {
+          try {
+            await fetchWithAuth(`/api/v1/bls/${blId}/lines`, {
+              method: 'POST', body: JSON.stringify({ ...line, bl_id: blId }),
+            });
+          } catch (err) {
+            failures.push(err instanceof Error ? err.message : '알 수 없는 오류');
+          }
+        }
+        if (failures.length > 0) {
+          throw new Error(`품목 ${failures.length}건 등록 실패: ${failures.join('; ')}`);
+        }
+      }
+      setToast(existingId ? '입고 수정이 완료되었습니다' : '입고등록이 완료되었습니다');
+    } finally {
+      // 성공/실패 무관하게 목록 새로고침 — 부분 성공도 화면에 반영
+      reload();
     }
-    reload();
-    setToast('입고등록이 완료되었습니다');
   };
 
   const handleDelete = async (blId: string) => {

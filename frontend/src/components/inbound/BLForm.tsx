@@ -329,18 +329,27 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
     if (isImport && !data.bl_number) { setSubmitError('B/L 번호는 필수입니다'); return; }
     if ((isDomestic || isGroup) && !autoNumber) { setSubmitError('입고번호가 생성되지 않았습니다'); return; }
     if (!selMfgId) { setSubmitError('공급사를 선택해주세요'); return; }
-    if (isImport && !data.actual_arrival) { setSubmitError('실제입항일은 필수입니다'); return; }
-    if (isDomestic && !data.actual_arrival) { setSubmitError('납품일은 필수입니다'); return; }
+    // 실제입항일/납품일: 신규 등록 시에만 강제. 기존 데이터 수정 시에는 빈 값 허용.
+    if (!editData && isImport && !data.actual_arrival) { setSubmitError('실제입항일은 필수입니다'); return; }
+    if (!editData && isDomestic && !data.actual_arrival) { setSubmitError('납품일은 필수입니다'); return; }
     if (isGroup && !counterpartId) { setSubmitError('상대법인을 선택해주세요'); return; }
+    // 신규 등록일 때만 라인 검증 + capacity_kw 안전체크
+    if (!editData) {
+      const validLinesCheck = lines.filter(l => l.product_id && Number(l.quantity) > 0);
+      if (validLinesCheck.length === 0) { setSubmitError('입고 품목을 최소 1개 이상 입력해주세요'); return; }
+      // 모든 line의 product가 products 리스트에 로드돼 있는지 확인 (capacity_kw=0 방지)
+      const missingProd = validLinesCheck.find(l => !products.find(p => p.product_id === l.product_id));
+      if (missingProd) { setSubmitError('품번 정보가 로드되지 않았습니다. 잠시 후 다시 시도해주세요'); return; }
+    }
 
-    // 라인아이템 최소 1개 필수
+    // 수정 모드: 라인은 별도 화면에서 관리하므로 헤더만 업데이트
     const validLines = lines.filter(l => l.product_id && Number(l.quantity) > 0);
-    if (validLines.length === 0) { setSubmitError('라인아이템을 최소 1개 이상 입력해주세요 (품번+수량 필수)'); return; }
 
     const blNumber = isImport ? (data.bl_number ?? '') : autoNumber;
     const exRate = data.exchange_rate ? parseFloat(data.exchange_rate) : undefined;
 
     const payload: Record<string, unknown> = {
+      bl_id: editData?.bl_id,
       bl_number: blNumber,
       inbound_type: selType,
       company_id: selCompanyId,
@@ -359,8 +368,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
       incoterms: isImport && data.incoterms ? data.incoterms : undefined,
       warehouse_id: selWhId || undefined,
       memo: data.memo || undefined,
-      lines: lines
-        .filter(l => l.product_id && Number(l.quantity) > 0)
+      // 수정 모드에서는 lines 미포함 (별도 화면에서 관리)
+      lines: editData ? undefined : validLines
         .map(l => {
           const prod = products.find(p => p.product_id === l.product_id);
           const qty = Number(l.quantity);
@@ -410,7 +419,16 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
           </div>
         )}
 
-        <form onSubmit={(e) => { e.preventDefault(); handle(); }} className="space-y-3">
+        <form
+          onSubmit={(e) => { e.preventDefault(); handle(); }}
+          onKeyDown={(e) => {
+            // Enter 키로 폼 제출 방지 (Textarea 제외) — 저장 버튼 클릭 시에만 제출
+            if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+              e.preventDefault();
+            }
+          }}
+          className="space-y-3"
+        >
 
           {/* ── 입고유형 (항상 첫번째) ── */}
           <div className="max-w-xs">
@@ -497,7 +515,9 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
                   </>
                 )}
                 <div className="space-y-1.5">
-                  <Opt>{isImport ? '실제입항' : isDomestic ? '납품일' : '입고일'}</Opt>
+                  {isImport || isDomestic
+                    ? <Req>{isImport ? '실제입항일' : '납품일'}</Req>
+                    : <Opt>입고일</Opt>}
                   <Input type="date" {...register('actual_arrival')} />
                 </div>
                 {isImport && (
@@ -619,12 +639,16 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData }: Props
                 {selMfgId && (
                   <>
                     {/* 헤더: 품번 → 수량 → 구분 → 유무상 → 단가(+토글) → 인보이스(자동) → 용량 */}
-                    <div className="grid grid-cols-[minmax(240px,3fr)_90px_90px_90px_170px_150px_130px_90px_36px] gap-2 text-xs font-medium text-muted-foreground px-1">
-                      <span>품번 *</span><span>수량EA *</span><span>구분 *</span><span>유무상 *</span>
-                      <span>{isImport ? (priceMode === 'cents' ? '단가(¢/Wp)' : '단가($/Wp)') : '단가(원/Wp)'}</span>
-                      <span>인보이스{currencyLabel}(자동)</span>
-                      <span>{isImport ? '인보이스KRW(자동)' : ''}</span>
-                      <span>용량kW</span><span />
+                    <div className="grid grid-cols-[minmax(240px,3fr)_90px_90px_90px_170px_150px_130px_90px_36px] gap-2 text-xs px-1">
+                      <span className="text-blue-600 font-medium">품번 *</span>
+                      <span className="text-blue-600 font-medium">수량EA *</span>
+                      <span className="text-blue-600 font-medium">구분 *</span>
+                      <span className="text-blue-600 font-medium">유무상 *</span>
+                      <span className="text-blue-600 font-medium">{isImport ? (priceMode === 'cents' ? '단가(¢/Wp) *' : '단가($/Wp) *') : '단가(원/Wp) *'}</span>
+                      <span className="font-medium text-muted-foreground">인보이스{currencyLabel}(자동)</span>
+                      <span className="font-medium text-muted-foreground">{isImport ? '인보이스KRW(자동)' : ''}</span>
+                      <span className="font-medium text-muted-foreground">용량kW</span>
+                      <span />
                     </div>
                     {lines.map((line, idx) => (
                       <div key={idx} className="grid grid-cols-[minmax(240px,3fr)_90px_90px_90px_170px_150px_130px_90px_36px] gap-2 items-center">

@@ -44,7 +44,11 @@ export default function BLDetailView({ blId, onBack }: Props) {
   const isImport = bl.inbound_type === 'import';
 
   const handleUpdateBL = async (data: Record<string, unknown>) => {
-    await fetchWithAuth(`/api/v1/bls/${blId}`, { method: 'PUT', body: JSON.stringify(data) });
+    // bl_id, lines는 PUT 본문에서 제거 (URL 경로 / 별도 엔드포인트)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { bl_id, lines, ...rest } = data;
+    void bl_id; void lines;
+    await fetchWithAuth(`/api/v1/bls/${blId}`, { method: 'PUT', body: JSON.stringify(rest) });
     reloadBL();
   };
 

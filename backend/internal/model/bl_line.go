@@ -54,6 +54,9 @@ var validUsageCategories = map[string]bool{
 	"repowering":   true,
 	"transfer":     true,
 	"adjustment":   true,
+	"maintenance":  true,
+	"disposal":     true,
+	"other":        true,
 }
 
 // CreateBLLineRequest — B/L 라인아이템 등록 시 클라이언트가 보내는 데이터
