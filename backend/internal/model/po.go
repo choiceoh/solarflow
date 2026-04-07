@@ -67,13 +67,14 @@ type TTSummary struct {
 	Status        *string  `json:"status"`
 }
 
-// 허용되는 contract_type 값 (D-086: 재정의)
-// spot/annual_frame/half_year_frame — 독점은 별도 exclusive 플래그로 분리
-// general/exclusive/annual은 레거시 호환용으로 유지
+// 허용되는 contract_type 값 (D-086: spot/frame 2종으로 단순화)
+// 독점 여부는 별도(메모 접두사 또는 향후 is_exclusive 컬럼)로 분리
+// 기존 general/exclusive/annual/annual_frame/half_year_frame은 레거시 읽기 호환용
 var validContractTypes = map[string]bool{
 	"spot":            true,
-	"annual_frame":    true,
-	"half_year_frame": true,
+	"frame":           true,
+	"annual_frame":    true, // legacy
+	"half_year_frame": true, // legacy
 	"general":         true, // legacy
 	"exclusive":       true, // legacy
 	"annual":          true, // legacy
