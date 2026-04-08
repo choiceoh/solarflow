@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { formatDate } from '@/lib/utils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -113,50 +114,92 @@ export default function BLDetailView({ blId, onBack }: Props) {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader className="pb-2 pt-4">
-          <div className="flex items-center gap-2">
-            <CardTitle className="text-sm">기본 정보</CardTitle>
-            <InboundStatusBadge status={bl.status} />
+      <Tabs defaultValue="basic">
+        <TabsList>
+          <TabsTrigger value="basic">기본정보</TabsTrigger>
+          <TabsTrigger value="lines">입고품목</TabsTrigger>
+          <TabsTrigger value="customs">면장/원가</TabsTrigger>
+          <TabsTrigger value="outbound">출고추적</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="basic">
+          <Card>
+            <CardHeader className="pb-2 pt-4">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm">기본 정보</CardTitle>
+                <InboundStatusBadge status={bl.status} />
+              </div>
+            </CardHeader>
+            <CardContent className="pb-4">
+              <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+                <Field label="입고 구분" value={INBOUND_TYPE_LABEL[bl.inbound_type]} />
+                <Field label="공급사" value={manufacturerName || bl.manufacturer_name || '—'} />
+                {/* R3-보완2: PO/LC 클릭 시 상세 이동 */}
+                {bl.po_id && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">PO번호</p>
+                    <button className="text-sm text-primary underline" onClick={() => { window.location.href = `/procurement?po=${bl.po_id}`; }}>{bl.po_number ?? bl.po_id.slice(0, 8)}</button>
+                  </div>
+                )}
+                {bl.lc_id && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground">LC번호</p>
+                    <button className="text-sm text-primary underline" onClick={() => { window.location.href = `/lc?lc=${bl.lc_id}`; }}>{bl.lc_number ?? bl.lc_id.slice(0, 8)}</button>
+                  </div>
+                )}
+                <Field label="통화" value={bl.currency === 'USD' ? 'USD (달러)' : 'KRW (원)'} />
+                {isImport && <Field label="환율" value={bl.exchange_rate?.toString()} />}
+                {isImport && <Field label="ETD" value={formatDate(bl.etd ?? '')} />}
+                {isImport && <Field label="ETA" value={formatDate(bl.eta ?? '')} />}
+                <Field label={isImport ? '실제입항' : '입고/납품일'} value={formatDate(bl.actual_arrival ?? '')} />
+                {isImport && <Field label="항구" value={bl.port} />}
+                {isImport && <Field label="포워더" value={bl.forwarder} />}
+                {isImport && <Field label="Invoice No." value={bl.invoice_number} />}
+                {isImport && <Field label="인코텀즈" value={bl.incoterms} />}
+                <Field label="입고 창고" value={bl.warehouse_name} />
+                {bl.payment_terms && <Field label="결제조건" value={bl.payment_terms} />}
+                {bl.counterpart_company_id && <Field label="상대법인" value={bl.counterpart_company_id} />}
+                {bl.memo && <Field label="메모" value={bl.memo} />}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="lines">
+          <Separator className="my-2" />
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold">입고 품목</h3>
+            <Button size="sm" onClick={() => { setEditLine(null); setLineFormOpen(true); }}>
+              <Plus className="mr-1 h-3.5 w-3.5" />추가
+            </Button>
           </div>
-        </CardHeader>
-        <CardContent className="pb-4">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
-            <Field label="입고 구분" value={INBOUND_TYPE_LABEL[bl.inbound_type]} />
-            <Field label="공급사" value={manufacturerName || bl.manufacturer_name || '—'} />
-            <Field label="통화" value={bl.currency === 'USD' ? 'USD (달러)' : 'KRW (원)'} />
-            {isImport && <Field label="환율" value={bl.exchange_rate?.toString()} />}
-            {isImport && <Field label="ETD" value={formatDate(bl.etd ?? '')} />}
-            {isImport && <Field label="ETA" value={formatDate(bl.eta ?? '')} />}
-            <Field label={isImport ? '실제입항' : '입고/납품일'} value={formatDate(bl.actual_arrival ?? '')} />
-            {isImport && <Field label="항구" value={bl.port} />}
-            {isImport && <Field label="포워더" value={bl.forwarder} />}
-            {isImport && <Field label="Invoice No." value={bl.invoice_number} />}
-            {isImport && <Field label="인코텀즈" value={bl.incoterms} />}
-            <Field label="입고 창고" value={bl.warehouse_name} />
-            {bl.payment_terms && <Field label="결제조건" value={bl.payment_terms} />}
-            {bl.counterpart_company_id && <Field label="상대법인" value={bl.counterpart_company_id} />}
-            {bl.memo && <Field label="메모" value={bl.memo} />}
+          {linesLoading ? <LoadingSpinner /> : (
+            <BLLineTable
+              items={lines}
+              currency={bl.currency}
+              onEdit={(line) => { setEditLine(line); setLineFormOpen(true); }}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="customs">
+          {/* R3: 면장/원가 — 면장관리로 이동 + Landed/환율비교 패널 */}
+          <div className="space-y-3">
+            <Card><CardHeader className="pb-2 pt-3"><CardTitle className="text-sm">면장 정보</CardTitle></CardHeader>
+              <CardContent className="pb-3 text-xs space-y-2">
+                <p className="text-muted-foreground">면장정보(declarations) / 부대비용(11유형) / Landed Cost / 환율비교는 면장 관리에서 처리합니다.</p>
+                <Button size="sm" onClick={() => { window.location.href = `/customs?bl=${blId}`; }}>면장 관리로 이동</Button>
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <Separator />
-
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">입고 품목</h3>
-        <Button size="sm" onClick={() => { setEditLine(null); setLineFormOpen(true); }}>
-          <Plus className="mr-1 h-3.5 w-3.5" />추가
-        </Button>
-      </div>
-
-      {linesLoading ? <LoadingSpinner /> : (
-        <BLLineTable
-          items={lines}
-          currency={bl.currency}
-          onEdit={(line) => { setEditLine(line); setLineFormOpen(true); }}
-        />
-      )}
+        <TabsContent value="outbound">
+          <Card><CardContent className="pt-6 pb-6 text-center text-sm text-muted-foreground">
+            출고추적은 Round 4에서 활성화됩니다
+          </CardContent></Card>
+        </TabsContent>
+      </Tabs>
 
       <BLForm open={editBLOpen} onOpenChange={setEditBLOpen} onSubmit={handleUpdateBL} editData={bl} />
       <LinkedMemoWidget linkedTable="bl_shipments" linkedId={blId} />
