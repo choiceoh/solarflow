@@ -152,7 +152,7 @@ export default function ProcurementPage() {
             <div className="flex-1" />
             <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
           </div>
-          {poLoading ? <LoadingSpinner /> : <POListTable items={pos} onSelect={setSelectedPO} onNew={() => setPoFormOpen(true)} />}
+          {poLoading ? <LoadingSpinner /> : <POListTable items={pos.map(p => ({ ...p, manufacturer_name: p.manufacturer_name ?? manufacturers.find(m => m.manufacturer_id === p.manufacturer_id)?.name_kr ?? '—' }))} onSelect={setSelectedPO} onNew={() => setPoFormOpen(true)} />}
           <POForm open={poFormOpen} onOpenChange={setPoFormOpen} onSubmit={handleCreatePO} />
         </TabsContent>
 

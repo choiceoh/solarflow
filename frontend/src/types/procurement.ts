@@ -33,6 +33,8 @@ export interface POLineItem {
   unit_price_usd?: number;
   total_amount_usd?: number;
   memo?: string;
+  // Go API가 nested로 반환 (POLineWithProduct)
+  products?: { product_code?: string; product_name?: string; spec_wp?: number };
 }
 
 export interface LCRecord {

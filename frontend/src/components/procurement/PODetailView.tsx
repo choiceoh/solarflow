@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Pencil, Plus } from 'lucide-react';
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -8,6 +8,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import POForm from './POForm';
 import POLineTable from './POLineTable';
 import POLineForm from './POLineForm';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import LinkedMemoWidget from '@/components/memo/LinkedMemoWidget';
 import POInboundProgress from './POInboundProgress';
 import { fetchWithAuth } from '@/lib/api';
@@ -91,6 +92,9 @@ export default function PODetailView({ po, onBack, onReload }: Props) {
   const [editOpen, setEditOpen] = useState(false);
   const [lineFormOpen, setLineFormOpen] = useState(false);
   const [editLine, setEditLine] = useState<POLineItem | null>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const { data: lines, loading: linesLoading, reload: reloadLines } = usePOLines(po.po_id);
   const { data: lcs, loading: lcsLoading } = useLCList({ po_id: po.po_id });
   const { data: tts, loading: ttsLoading } = useTTList({ po_id: po.po_id });
@@ -104,6 +108,27 @@ export default function PODetailView({ po, onBack, onReload }: Props) {
     await fetchWithAuth(`/api/v1/pos/${po.po_id}/lines`, { method: 'POST', body: JSON.stringify(data) });
     reloadLines();
   };
+  // PO 삭제 — 연결된 BL이 있으면 차단
+  const handleDeletePO = async () => {
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const linkedBls = await fetchWithAuth<{ bl_id: string }[]>(`/api/v1/bls?po_id=${po.po_id}`);
+      if (Array.isArray(linkedBls) && linkedBls.length > 0) {
+        setDeleteError(`이 PO에 연결된 입고(B/L)가 ${linkedBls.length}건 있어 삭제할 수 없습니다. 입고를 먼저 삭제하거나 PO 연결을 해제하세요.`);
+        setDeleting(false);
+        return;
+      }
+      await fetchWithAuth(`/api/v1/pos/${po.po_id}`, { method: 'DELETE' });
+      setDeleteOpen(false);
+      onBack();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '삭제에 실패했습니다');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleUpdateLine = async (data: Record<string, unknown>) => {
     if (!editLine) return;
     await fetchWithAuth(`/api/v1/pos/${po.po_id}/lines/${editLine.po_line_id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -117,6 +142,10 @@ export default function PODetailView({ po, onBack, onReload }: Props) {
         <h2 className="text-base font-semibold flex-1">PO {po.po_number || '—'}</h2>
         <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', PO_STATUS_COLOR[po.status])}>{PO_STATUS_LABEL[po.status]}</span>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="mr-1 h-3.5 w-3.5" />수정</Button>
+        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
+          onClick={() => { setDeleteError(''); setDeleteOpen(true); }}>
+          <Trash2 className="mr-1 h-3.5 w-3.5" />삭제
+        </Button>
         {/* D-085: PO → 입고 데이터 전달 */}
         <Button size="sm" onClick={() => { window.location.href = `/inbound?po=${po.po_id}`; }}>
           입고 등록
@@ -163,6 +192,14 @@ export default function PODetailView({ po, onBack, onReload }: Props) {
       <LinkedMemoWidget linkedTable="purchase_orders" linkedId={po.po_id} />
 
       <POForm open={editOpen} onOpenChange={setEditOpen} onSubmit={handleUpdatePO} editData={po} />
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={(v) => { if (!v) { setDeleteOpen(false); setDeleteError(''); } }}
+        title="PO 삭제"
+        description={deleteError || `PO "${po.po_number ?? po.po_id}"를 삭제하시겠습니까? 발주품목도 함께 제거됩니다.`}
+        onConfirm={handleDeletePO}
+        loading={deleting}
+      />
       <POLineForm open={lineFormOpen} onOpenChange={setLineFormOpen} onSubmit={editLine ? handleUpdateLine : handleCreateLine} editData={editLine} poId={po.po_id} />
     </div>
   );

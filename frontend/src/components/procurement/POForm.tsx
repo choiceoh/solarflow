@@ -147,26 +147,34 @@ export default function POForm({ open, onOpenChange, onSubmit, editData }: Props
       .then((list) => setProducts(list.filter((p) => p.is_active))).catch(() => setProducts([]));
   }, [mfgId]);
 
-  /* 폼 초기화 */
+  /* 폼 초기화 — 수정 모드는 서버에서 최신 데이터 fetch (목록 캐시가 stale일 수 있음) */
   useEffect(() => {
     if (!open) return;
     setSubmitError('');
     if (editData) {
-      setPoNumber(editData.po_number ?? '');
-      setCompanyId(editData.company_id);
-      setMfgId(editData.manufacturer_id);
-      setContractType(editData.contract_type);
-      setIsExclusive(editData.contract_type === 'exclusive' || /^\[독점\]/.test(editData.memo ?? ''));
-      setContractDate(editData.contract_date?.slice(0, 10) ?? '');
-      setPeriodStart(editData.contract_period_start?.slice(0, 10) ?? '');
-      setPeriodEnd(editData.contract_period_end?.slice(0, 10) ?? '');
-      setIncoterms((editData.incoterms ?? '').replace(/\s*\(BAF\/CAF 포함\)\s*/i, ''));
-      setBafCaf(/BAF\s*\/\s*CAF/i.test(editData.incoterms ?? '') || /\[BAF\/CAF\]/.test(editData.memo ?? ''));
-      setExchangeRate('');
-      setStatus(editData.status);
-      setMemo((editData.memo ?? '').replace(/^\[독점\]\s*/, '').replace(/^\[BAF\/CAF\]\s*/, ''));
-      setPaymentTerms(parsePT(editData.payment_terms ?? ''));
-      setLines([emptyLine()]);
+      // 우선 list 캐시 데이터로 즉시 채우고, 서버 fetch 결과로 덮어쓰기
+      const fillFromPO = (d: PurchaseOrder) => {
+        setPoNumber(d.po_number ?? '');
+        setCompanyId(d.company_id ?? '');
+        setMfgId(d.manufacturer_id ?? '');
+        setContractType(d.contract_type ?? '');
+        setIsExclusive(d.contract_type === 'exclusive' || /^\[독점\]/.test(d.memo ?? ''));
+        setContractDate(d.contract_date?.slice(0, 10) ?? '');
+        setPeriodStart(d.contract_period_start?.slice(0, 10) ?? '');
+        setPeriodEnd(d.contract_period_end?.slice(0, 10) ?? '');
+        setIncoterms((d.incoterms ?? '').replace(/\s*\(BAF\/CAF 포함\)\s*/i, ''));
+        setBafCaf(/BAF\s*\/\s*CAF/i.test(d.incoterms ?? '') || /\[BAF\/CAF\]/.test(d.memo ?? ''));
+        setExchangeRate('');
+        setStatus(d.status ?? 'draft');
+        setMemo((d.memo ?? '').replace(/^\[독점\]\s*/, '').replace(/^\[BAF\/CAF\]\s*/, ''));
+        setPaymentTerms(parsePT(d.payment_terms ?? ''));
+        setLines([emptyLine()]);
+      };
+      fillFromPO(editData);
+      // 서버에서 최신 fetch
+      fetchWithAuth<PurchaseOrder>(`/api/v1/pos/${editData.po_id}`)
+        .then((fresh) => { if (fresh) fillFromPO(fresh); })
+        .catch(() => { /* 캐시 데이터로 충분 */ });
     } else {
       // 신규: 상단 셀렉터가 단일 법인이면 자동, 'all'이면 비움(직접 선택)
       const cid = globalCompanyId && globalCompanyId !== 'all' ? globalCompanyId : '';
