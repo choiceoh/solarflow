@@ -8,11 +8,13 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import POForm from './POForm';
 import POLineTable from './POLineTable';
 import POLineForm from './POLineForm';
+import TTForm from './TTForm';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import LinkedMemoWidget from '@/components/memo/LinkedMemoWidget';
 import POInboundProgress from './POInboundProgress';
 import { fetchWithAuth } from '@/lib/api';
 import { usePOLines, useLCList, useTTList } from '@/hooks/useProcurement';
+import type { BLShipment, BLLineItem } from '@/types/inbound';
 import { PO_STATUS_LABEL, PO_STATUS_COLOR, CONTRACT_TYPE_LABEL, type PurchaseOrder, type POLineItem, type LCRecord, type TTRemittance } from '@/types/procurement';
 import { LC_STATUS_LABEL, LC_STATUS_COLOR, TT_STATUS_LABEL, TT_STATUS_COLOR } from '@/types/procurement';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -102,7 +104,43 @@ export default function PODetailView({ po: initialPo, onBack, onReload }: Props)
   const [deleteError, setDeleteError] = useState('');
   const { data: lines, loading: linesLoading, reload: reloadLines } = usePOLines(po.po_id);
   const { data: lcs, loading: lcsLoading } = useLCList({ po_id: po.po_id });
-  const { data: tts, loading: ttsLoading } = useTTList({ po_id: po.po_id });
+  const { data: tts, loading: ttsLoading, reload: reloadTTs } = useTTList({ po_id: po.po_id });
+
+  const [ttFormOpen, setTtFormOpen] = useState(false);
+  const handleCreateTT = async (d: Record<string, unknown>) => {
+    await fetchWithAuth('/api/v1/tts', { method: 'POST', body: JSON.stringify({ ...d, po_id: po.po_id }) });
+    reloadTTs();
+  };
+
+  // 4단계 MW 진행률용 BL 데이터 — D-061 동일 패턴 (TODO: Rust 계산엔진 연동)
+  const [blShipped, setBlShipped] = useState<{ shippedMw: number; completedMw: number }>({ shippedMw: 0, completedMw: 0 });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const blList = await fetchWithAuth<BLShipment[]>(`/api/v1/bls?po_id=${po.po_id}`);
+        if (cancelled) return;
+        const lineMap: Record<string, BLLineItem[]> = {};
+        await Promise.all(
+          (blList ?? []).map(async (bl) => {
+            try { lineMap[bl.bl_id] = await fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${bl.bl_id}/lines`); }
+            catch { lineMap[bl.bl_id] = []; }
+          })
+        );
+        if (cancelled) return;
+        const shipStatuses = new Set(['shipping', 'arrived', 'customs', 'completed', 'erp_done']);
+        const compStatuses = new Set(['completed', 'erp_done']);
+        let shippedMw = 0, completedMw = 0;
+        for (const bl of blList ?? []) {
+          const mw = (lineMap[bl.bl_id] ?? []).reduce((s, l) => s + (l.capacity_kw ?? 0) * (l.quantity ?? 0), 0) / 1000;
+          if (shipStatuses.has(bl.status)) shippedMw += mw;
+          if (compStatuses.has(bl.status)) completedMw += mw;
+        }
+        setBlShipped({ shippedMw, completedMw });
+      } catch { if (!cancelled) setBlShipped({ shippedMw: 0, completedMw: 0 }); }
+    })();
+    return () => { cancelled = true; };
+  }, [po.po_id]);
 
   // 저장 후 PO 헤더 새로고침
   const refreshPO = async () => {
@@ -289,10 +327,42 @@ export default function PODetailView({ po: initialPo, onBack, onReload }: Props)
               );
             })()}
 
+            {/* 4단계 MW 진행률 — 계약 → LC개설 → 선적(BL) → 입고완료 */}
+            {(() => {
+              const contractMw = po.total_mw ?? lines.reduce((s, l) => s + ((l.spec_wp ?? 0) * (l.quantity ?? 0)) / 1_000_000, 0);
+              const lcMw = lcs.reduce((s, lc) => s + (lc.target_mw ?? 0), 0);
+              const { shippedMw, completedMw } = blShipped;
+              const pct = (v: number) => contractMw > 0 ? Math.min(100, (v / contractMw) * 100) : 0;
+              const lcPct = pct(lcMw);
+              const shipPct = pct(shippedMw);
+              const compPct = pct(completedMw);
+              const Step = ({ label, value, pctVal, color }: { label: string; value: string; pctVal: number; color: string }) => (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px]">
+                    <span className="text-muted-foreground">{label}</span>
+                    <span className="font-mono">{value} ({pctVal.toFixed(1)}%)</span>
+                  </div>
+                  <div className="h-2 rounded bg-muted overflow-hidden">
+                    <div className={cn('h-full', color)} style={{ width: `${pctVal}%` }} />
+                  </div>
+                </div>
+              );
+              return (
+                <div className="rounded-md border p-3 space-y-2">
+                  <div className="text-xs font-semibold">진행률 (MW)</div>
+                  <Step label="계약 MW" value={`${contractMw.toFixed(2)} MW`} pctVal={100} color="bg-slate-500" />
+                  <Step label="LC 개설" value={`${lcMw.toFixed(2)} MW`} pctVal={lcPct} color="bg-blue-500" />
+                  <Step label="선적 (BL 기준)" value={`${shippedMw.toFixed(2)} MW`} pctVal={shipPct} color="bg-amber-500" />
+                  <Step label="입고완료" value={`${completedMw.toFixed(2)} MW`} pctVal={compPct} color="bg-green-600" />
+                </div>
+              );
+            })()}
+
             {/* T/T 이력 테이블 (종합정보에 병합) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold">T/T 이력</h4>
+                <Button size="sm" onClick={() => setTtFormOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />T/T 등록</Button>
               </div>
               {ttsLoading ? <LoadingSpinner /> : <TTSubTable items={tts} poLines={lines} />}
             </div>
@@ -324,6 +394,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload }: Props)
         loading={deleting}
       />
       <POLineForm open={lineFormOpen} onOpenChange={setLineFormOpen} onSubmit={editLine ? handleUpdateLine : handleCreateLine} editData={editLine} poId={po.po_id} />
+      <TTForm open={ttFormOpen} onOpenChange={setTtFormOpen} onSubmit={handleCreateTT} editData={null} defaultPoId={po.po_id} />
     </div>
   );
 }

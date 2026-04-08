@@ -30,9 +30,9 @@ const schema = z.object({
 });
 type FormData = z.infer<typeof schema>;
 
-interface Props { open: boolean; onOpenChange: (o: boolean) => void; onSubmit: (d: Record<string, unknown>) => Promise<void>; editData?: TTRemittance | null; }
+interface Props { open: boolean; onOpenChange: (o: boolean) => void; onSubmit: (d: Record<string, unknown>) => Promise<void>; editData?: TTRemittance | null; defaultPoId?: string; }
 
-export default function TTForm({ open, onOpenChange, onSubmit, editData }: Props) {
+export default function TTForm({ open, onOpenChange, onSubmit, editData, defaultPoId }: Props) {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [pos, setPos] = useState<PurchaseOrder[]>([]);
   const [submitError, setSubmitError] = useState('');
@@ -49,10 +49,10 @@ export default function TTForm({ open, onOpenChange, onSubmit, editData }: Props
       if (editData) {
         reset({ po_id: editData.po_id, remit_date: editData.remit_date?.slice(0, 10) ?? '', amount_usd: editData.amount_usd, amount_krw: editData.amount_krw ?? '', exchange_rate: editData.exchange_rate ?? '', purpose: editData.purpose ?? '', status: editData.status, bank_name: editData.bank_name ?? '', memo: editData.memo ?? '' });
       } else {
-        reset({ po_id: '', remit_date: '', amount_usd: '' as unknown as number, amount_krw: '', exchange_rate: '', purpose: '', status: 'planned', bank_name: '', memo: '' });
+        reset({ po_id: defaultPoId ?? '', remit_date: '', amount_usd: '' as unknown as number, amount_krw: '', exchange_rate: '', purpose: '', status: 'planned', bank_name: '', memo: '' });
       }
     }
-  }, [open, editData, reset]);
+  }, [open, editData, reset, defaultPoId]);
 
   const handle = async (data: FormData) => {
     setSubmitError('');
