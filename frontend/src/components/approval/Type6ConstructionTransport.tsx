@@ -2,6 +2,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { useType6 } from '@/hooks/useApproval';
 import { generateType6 } from '@/lib/approvalTemplates';
@@ -39,11 +40,11 @@ export default function Type6ConstructionTransport({ onGenerate }: Props) {
       <div className="grid grid-cols-2 gap-4">
         <div>
           <Label>시작일</Label>
-          <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <DateInput value={from} onChange={setFrom} />
         </div>
         <div>
           <Label>종료일</Label>
-          <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <DateInput value={to} onChange={setTo} />
         </div>
       </div>
       <Button onClick={() => generate(from, to)} disabled={loading} size="sm">

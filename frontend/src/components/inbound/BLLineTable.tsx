@@ -5,7 +5,7 @@ import {
 } from '@/components/ui/table';
 import { formatCapacity, formatNumber } from '@/lib/utils';
 import EmptyState from '@/components/common/EmptyState';
-import { USAGE_CATEGORIES, type BLLineItem } from '@/types/inbound';
+import { type BLLineItem } from '@/types/inbound';
 
 interface Props {
   items: BLLineItem[];
@@ -17,6 +17,7 @@ interface Props {
 function pCode(l: BLLineItem) { return l.product_code ?? l.products?.product_code ?? '—'; }
 function pName(l: BLLineItem) { return l.product_name ?? l.products?.product_name ?? '—'; }
 function pSpec(l: BLLineItem) { return l.products?.spec_wp; }
+function pMfg(l: BLLineItem) { return (l.products as { manufacturer_name?: string } | undefined)?.manufacturer_name ?? (l as { manufacturer_name?: string }).manufacturer_name ?? '—'; }
 
 export default function BLLineTable({ items, currency, onEdit }: Props) {
   if (items.length === 0) return <EmptyState message="입고품목이 없습니다" />;
@@ -26,26 +27,29 @@ export default function BLLineTable({ items, currency, onEdit }: Props) {
       <Table className="text-xs">
         <TableHeader>
           <TableRow>
+            <TableHead>제조사</TableHead>
             <TableHead>품번</TableHead>
             <TableHead>품명</TableHead>
             <TableHead>규격</TableHead>
             <TableHead className="text-right">수량</TableHead>
-            <TableHead className="text-right">용량</TableHead>
+            <TableHead className="text-right">용량(kW)</TableHead>
+            <TableHead className="text-right">용량(MW)</TableHead>
             <TableHead>구분</TableHead>
             <TableHead>유/무상</TableHead>
             <TableHead className="text-right">{currency === 'USD' ? '단가(USD/Wp)' : '단가(KRW/Wp)'}</TableHead>
-            <TableHead>용도</TableHead>
             <TableHead className="w-10"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((line) => (
             <TableRow key={line.bl_line_id}>
+              <TableCell>{pMfg(line)}</TableCell>
               <TableCell className="font-mono">{pCode(line)}</TableCell>
               <TableCell>{pName(line)}</TableCell>
               <TableCell>{pSpec(line) != null ? `${pSpec(line)}Wp` : '—'}</TableCell>
               <TableCell className="text-right">{formatNumber(line.quantity)}</TableCell>
               <TableCell className="text-right">{formatCapacity(line.capacity_kw, line.quantity)}</TableCell>
+              <TableCell className="text-right">{line.capacity_kw != null ? (line.capacity_kw / 1000).toFixed(3) : '—'}</TableCell>
               <TableCell>{line.item_type === 'main' ? '본품' : '스페어'}</TableCell>
               <TableCell>{line.payment_type === 'paid' ? '유상' : '무상'}</TableCell>
               <TableCell className="text-right">
@@ -53,7 +57,6 @@ export default function BLLineTable({ items, currency, onEdit }: Props) {
                   ? (line.unit_price_usd_wp != null ? `$${line.unit_price_usd_wp.toFixed(4)}` : '—')
                   : (line.unit_price_krw_wp != null ? `${formatNumber(line.unit_price_krw_wp)}원` : '—')}
               </TableCell>
-              <TableCell>{USAGE_CATEGORIES[line.usage_category] ?? line.usage_category ?? '—'}</TableCell>
               <TableCell>
                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => onEdit(line)}>
                   <Pencil className="h-3 w-3" />

@@ -17,7 +17,7 @@ import TTListTable from '@/components/procurement/TTListTable';
 import TTForm from '@/components/procurement/TTForm';
 import PriceHistoryTable from '@/components/procurement/PriceHistoryTable';
 import PriceHistoryForm from '@/components/procurement/PriceHistoryForm';
-import { PO_STATUS_LABEL, CONTRACT_TYPE_LABEL, LC_STATUS_LABEL, TT_STATUS_LABEL } from '@/types/procurement';
+import { PO_STATUS_LABEL, CONTRACT_TYPE_LABEL, CONTRACT_TYPES_ACTIVE, LC_STATUS_LABEL, TT_STATUS_LABEL } from '@/types/procurement';
 import type { PurchaseOrder, LCRecord, TTRemittance, PriceHistory, POStatus, ContractType, LCStatus, TTStatus } from '@/types/procurement';
 import type { Manufacturer, Bank } from '@/types/masters';
 
@@ -146,8 +146,8 @@ export default function ProcurementPage() {
       <Tabs defaultValue="po">
         <TabsList>
           <TabsTrigger value="po">PO</TabsTrigger>
+          <TabsTrigger value="tt">계약금</TabsTrigger>
           <TabsTrigger value="lc">LC</TabsTrigger>
-          <TabsTrigger value="tt">TT</TabsTrigger>
           <TabsTrigger value="price">단가이력</TabsTrigger>
         </TabsList>
 
@@ -155,7 +155,7 @@ export default function ProcurementPage() {
           <div className="flex items-center gap-2 mb-3">
             <Select value={poStatusFilter || 'all'} onValueChange={(v) => setPoStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={poStatusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(PO_STATUS_LABEL) as [POStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
             <Select value={poMfgFilter || 'all'} onValueChange={(v) => setPoMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={poMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
-            <Select value={poTypeFilter || 'all'} onValueChange={(v) => setPoTypeFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={poTypeLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 유형</SelectItem>{(Object.entries(CONTRACT_TYPE_LABEL) as [ContractType, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
+            <Select value={poTypeFilter || 'all'} onValueChange={(v) => setPoTypeFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={poTypeLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 유형</SelectItem>{CONTRACT_TYPES_ACTIVE.map(({ value, label }) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
             <div className="flex-1" />
             <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
           </div>

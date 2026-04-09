@@ -152,7 +152,7 @@ export default function CostForm({ open, onOpenChange, onSubmit, declarationId, 
             </div>
             <div>
               <Label>환율 *</Label>
-              <Input type="number" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value)} step="0.01" />
+              <Input inputMode="decimal" placeholder="예: 1450.30" value={exchangeRate} onChange={(e) => setExchangeRate(e.target.value.replace(/[^0-9.]/g, ''))} />
             </div>
           </div>
 

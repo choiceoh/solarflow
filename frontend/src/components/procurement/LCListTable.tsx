@@ -24,11 +24,11 @@ export default function LCListTable({ items, onEdit, onNew }: Props) {
         <TableHeader><TableRow>
           <TableHead>LC번호</TableHead><TableHead>PO번호</TableHead><TableHead>은행</TableHead><TableHead>법인</TableHead>
           <TableHead>개설일</TableHead><TableHead className="text-right">금액(USD)</TableHead><TableHead className="text-right">대상수량</TableHead>
-          <TableHead>Usance</TableHead><TableHead>만기일</TableHead><TableHead>결제일</TableHead><TableHead>상태</TableHead><TableHead className="w-10"></TableHead>
+          <TableHead>Usance</TableHead><TableHead>만기일</TableHead><TableHead>결제예정일</TableHead><TableHead>상태</TableHead><TableHead className="w-10"></TableHead>
         </TableRow></TableHeader>
         <TableBody>
           {items.map((lc) => (
-            <TableRow key={lc.lc_id}>
+            <TableRow key={lc.lc_id} className="cursor-pointer hover:bg-accent/50" onClick={() => onEdit(lc)}>
               <TableCell className="font-mono">{lc.lc_number || '—'}</TableCell>
               <TableCell className="font-mono">{lc.po_number || '—'}</TableCell>
               <TableCell>{lc.bank_name ?? '—'}</TableCell>

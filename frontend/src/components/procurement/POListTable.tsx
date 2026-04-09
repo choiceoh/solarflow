@@ -13,7 +13,7 @@ interface Props {
   onNew: () => void;
 }
 
-interface Agg { totalUsd: number; ttUsd: number; lcUsd: number; lcRemainUsd: number; }
+interface Agg { totalUsd: number; ttUsd: number; lcUsd: number; lcRemainUsd: number; firstLine?: { name: string; spec: string; price: number; mw: number }; extraCount: number; }
 
 export default function POListTable({ items, onSelect, onNew }: Props) {
   // 결제 컬럼 집계 — 프론트 계산 (TODO: Rust 계산엔진 연동)
@@ -34,7 +34,14 @@ export default function POListTable({ items, onSelect, onNew }: Props) {
             const totalUsd = (lines ?? []).reduce((s, l) => s + (l.total_amount_usd ?? 0), 0);
             const ttUsd = (tts ?? []).reduce((s, t) => s + (t.amount_usd ?? 0), 0);
             const lcUsd = (lcs ?? []).reduce((s, l) => s + (l.amount_usd ?? 0), 0);
-            result[po.po_id] = { totalUsd, ttUsd, lcUsd, lcRemainUsd: Math.max(0, totalUsd - lcUsd) };
+            const first = (lines ?? [])[0];
+            const firstLine = first ? {
+              name: first.products?.product_name ?? first.product_name ?? '—',
+              spec: first.products?.product_code ?? first.product_code ?? '—',
+              price: first.unit_price_usd ?? 0,
+              mw: (first.quantity * (first.products?.spec_wp ?? first.spec_wp ?? 0)) / 1_000_000,
+            } : undefined;
+            result[po.po_id] = { totalUsd, ttUsd, lcUsd, lcRemainUsd: Math.max(0, totalUsd - lcUsd), firstLine, extraCount: Math.max(0, (lines?.length ?? 0) - 1) };
           } catch { /* skip */ }
         }));
         if (!cancelled) setAgg(result);
@@ -53,6 +60,9 @@ export default function POListTable({ items, onSelect, onNew }: Props) {
           <TableRow>
             <TableHead>PO번호</TableHead>
             <TableHead>제조사</TableHead>
+            <TableHead>품명/규격</TableHead>
+            <TableHead className="text-right">단가(¢/Wp)</TableHead>
+            <TableHead className="text-right">용량(MW)</TableHead>
             <TableHead>계약유형</TableHead>
             <TableHead>계약일</TableHead>
             <TableHead>Incoterms</TableHead>
@@ -72,6 +82,16 @@ export default function POListTable({ items, onSelect, onNew }: Props) {
             <TableRow key={po.po_id} className="cursor-pointer hover:bg-accent/50" onClick={() => onSelect(po)}>
               <TableCell className="font-mono">{po.po_number || '—'}</TableCell>
               <TableCell>{po.manufacturer_name ?? '—'}</TableCell>
+              <TableCell className="text-xs">
+                {a?.firstLine ? (
+                  <>
+                    <div className="truncate max-w-[200px]">{a.firstLine.name}</div>
+                    <div className="text-muted-foreground truncate max-w-[200px]">{a.firstLine.spec}{a.extraCount > 0 ? ` 외 ${a.extraCount}건` : ''}</div>
+                  </>
+                ) : '—'}
+              </TableCell>
+              <TableCell className="text-right font-mono">{a?.firstLine ? (a.firstLine.price * 100).toFixed(2) : '—'}</TableCell>
+              <TableCell className="text-right font-mono">{a?.firstLine ? a.firstLine.mw.toFixed(2) : '—'}</TableCell>
               <TableCell>{CONTRACT_TYPE_LABEL[po.contract_type]}</TableCell>
               <TableCell>{formatDate(po.contract_date ?? '')}</TableCell>
               <TableCell>{po.incoterms ?? '—'}</TableCell>

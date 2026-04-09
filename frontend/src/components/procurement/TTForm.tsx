@@ -86,7 +86,7 @@ export default function TTForm({ open, onOpenChange, onSubmit, editData, default
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>원화(KRW)</Label><Input type="number" {...register('amount_krw')} /></div>
-            <div className="space-y-1.5"><Label>환율</Label><Input type="number" step="0.01" {...register('exchange_rate')} /></div>
+            <div className="space-y-1.5"><Label>환율</Label><Input inputMode="decimal" placeholder="예: 1450.30" value={(watch('exchange_rate') as unknown as string) ?? ''} onChange={(e) => setValue('exchange_rate', e.target.value.replace(/[^0-9.]/g, '') as unknown as number, { shouldDirty: true })} /></div>
           </div>
           <div className="space-y-1.5"><Label>목적</Label><Input {...register('purpose')} placeholder="계약금1차" /></div>
           <div className="grid grid-cols-2 gap-3">

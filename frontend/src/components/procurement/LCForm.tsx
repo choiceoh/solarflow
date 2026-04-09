@@ -137,7 +137,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editData ? 'LC 수정' : 'LC 등록'}</DialogTitle></DialogHeader>
         {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
@@ -150,19 +150,32 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
               </Select>{errors.po_id && <p className="text-xs text-destructive">{errors.po_id.message}</p>}
             </div>
           </div>
-          {/* 4박스 자동표시 — PO 결제 현황 */}
+          {/* PO 연결 현황 — 제조사/품명/규격/잔량MW + 결제 요약 (F10) */}
           {watchedPoId && (() => {
+            const po = pos.find((x) => x.po_id === watchedPoId);
+            const firstLine = poLines[0];
+            const firstProd = products.find((p) => p.product_id === firstLine?.product_id);
             const poTotalUsd = poLines.reduce((s, l) => s + (l.total_amount_usd ?? 0), 0);
             const ttPaid = poTts.reduce((s, t) => s + (t.amount_usd ?? 0), 0);
-            // 편집 중인 LC는 기개설에서 제외
             const lcOpened = poLcs.filter((l) => !editData || l.lc_id !== editData.lc_id).reduce((s, l) => s + (l.amount_usd ?? 0), 0);
             const remain = Math.max(0, poTotalUsd - lcOpened);
+            const poTotalMw = po?.total_mw ?? 0;
+            const lcOpenedMw = poLcs.filter((l) => !editData || l.lc_id !== editData.lc_id).reduce((s, l) => s + (l.target_mw ?? 0), 0);
+            const remainMw = Math.max(0, poTotalMw - lcOpenedMw);
             return (
-              <div className="grid grid-cols-4 gap-2 rounded-md border p-2 bg-muted/30 text-[10px]">
-                <div><div className="text-muted-foreground">PO 계약총액</div><div className="font-mono">{formatUSD(poTotalUsd)}</div></div>
-                <div><div className="text-muted-foreground">T/T 기납부</div><div className="font-mono">{formatUSD(ttPaid)}</div></div>
-                <div><div className="text-muted-foreground">LC 기개설</div><div className="font-mono">{formatUSD(lcOpened)}</div></div>
-                <div><div className="text-muted-foreground">미개설 잔액</div><div className="font-mono font-semibold">{formatUSD(remain)}</div></div>
+              <div className="rounded-md border p-3 bg-muted/30 text-xs space-y-2">
+                <div className="grid grid-cols-4 gap-2">
+                  <div><div className="text-muted-foreground">제조사</div><div className="font-medium">{po?.manufacturer_name ?? '—'}</div></div>
+                  <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{firstProd?.product_name ?? firstLine?.product_name ?? '—'}</div></div>
+                  <div><div className="text-muted-foreground">규격</div><div className="font-medium truncate">{firstProd?.product_code ?? firstLine?.product_code ?? '—'}{poLines.length > 1 ? ` 외 ${poLines.length - 1}건` : ''}</div></div>
+                  <div><div className="text-muted-foreground">발주 잔량</div><div className="font-mono font-semibold">{remainMw.toFixed(2)} MW</div></div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+                  <div><div className="text-muted-foreground">PO 계약총액</div><div className="font-mono">{formatUSD(poTotalUsd)}</div></div>
+                  <div><div className="text-muted-foreground">계약금 기납부</div><div className="font-mono">{formatUSD(ttPaid)}</div></div>
+                  <div><div className="text-muted-foreground">LC 기개설</div><div className="font-mono">{formatUSD(lcOpened)}</div></div>
+                  <div><div className="text-muted-foreground">미개설 잔액</div><div className="font-mono font-semibold">{formatUSD(remain)}</div></div>
+                </div>
               </div>
             );
           })()}
@@ -216,7 +229,7 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData }: Props
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>만기일</Label><DateInput value={watch('maturity_date') ?? ''} onChange={(v) => setValue('maturity_date', v, { shouldDirty: true })} /></div>
-            <div className="space-y-1.5"><Label>결제일</Label><DateInput value={watch('settlement_date') ?? ''} onChange={(v) => setValue('settlement_date', v, { shouldDirty: true })} /></div>
+            <div className="space-y-1.5"><Label>결제예정일</Label><DateInput value={watch('settlement_date') ?? ''} onChange={(v) => setValue('settlement_date', v, { shouldDirty: true })} /></div>
           </div>
           <div className="space-y-1.5">
             <Label>상태 *</Label>

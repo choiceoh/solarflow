@@ -54,7 +54,13 @@ export function useLCList(filters: { status?: string; bank_id?: string; po_id?: 
       if (filters.status) params.set('status', filters.status);
       if (filters.bank_id) params.set('bank_id', filters.bank_id);
       if (filters.po_id) params.set('po_id', filters.po_id);
-      setData(await fetchWithAuth<LCRecord[]>(`/api/v1/lcs?${params}`));
+      const raw = await fetchWithAuth<Array<LCRecord & { banks?: { bank_name?: string }; companies?: { company_name?: string }; purchase_orders?: { po_number?: string } }>>(`/api/v1/lcs?${params}`);
+      setData(raw.map((r) => ({
+        ...r,
+        bank_name: r.bank_name ?? r.banks?.bank_name,
+        company_name: r.company_name ?? r.companies?.company_name,
+        po_number: r.po_number ?? r.purchase_orders?.po_number,
+      })));
     } catch { setData([]); }
     setLoading(false);
   }, [selectedCompanyId, filters.status, filters.bank_id, filters.po_id]);

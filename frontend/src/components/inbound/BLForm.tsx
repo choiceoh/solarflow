@@ -601,6 +601,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     if (isImport && !data.bl_number) { setSubmitError('B/L 번호는 필수입니다'); return; }
     if ((isDomestic || isGroup) && !autoNumber) { setSubmitError('입고번호가 생성되지 않았습니다'); return; }
     if (!selMfgId) { setSubmitError('공급사를 선택해주세요'); return; }
+    if (!selPOId) { setSubmitError('PO 연결은 필수입니다'); return; }
     // 실제입항일/납품일: 신규 등록 시에만 강제. 기존 데이터 수정 시에는 빈 값 허용.
     if (!editData && isImport && !data.actual_arrival) { setSubmitError('실제입항일은 필수입니다'); return; }
     if (!editData && isDomestic && !data.actual_arrival) { setSubmitError('납품일은 필수입니다'); return; }
@@ -774,10 +775,10 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
                 }
               }}>
                 <SelectTrigger className="w-full">
-                  <Txt text={formatPOLabel(poList.find(p => p.po_id === selPOId), manufacturers)} placeholder="과거/긴급 입고는 미선택" />
+                  <Txt text={formatPOLabel(poList.find(p => p.po_id === selPOId), manufacturers)} placeholder="PO 선택 *" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">미선택 (수기 입력)</SelectItem>
+                  {/* F15: PO 연결은 필수 — 미선택 옵션 제거 */}
                   {poList.map(p => (
                     <SelectItem key={p.po_id} value={p.po_id}>
                       {formatPOLabel(p, manufacturers)}
@@ -1199,8 +1200,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
                 )}
               </div>
 
-              {/* 결제조건 — 해외직수입 (총구매금액 기준) */}
-              {isImport && (
+              {/* 결제조건 섹션 삭제됨 (F16) — 아래 블록은 비활성화 */}
+              {false && isImport && (
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">결제조건</Label>
                   <div className="rounded-md border p-3 text-sm space-y-2">
@@ -1269,8 +1270,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
                 </div>
               )}
 
-              {/* 결제조건 — 국내구매 */}
-              {isDomestic && (
+              {/* 결제조건 섹션 삭제됨 (F16) */}
+              {false && isDomestic && (
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">결제조건</Label>
                   <div className="rounded-md border p-3 text-sm space-y-2">

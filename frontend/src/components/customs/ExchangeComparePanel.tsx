@@ -51,23 +51,19 @@ export default function ExchangeComparePanel() {
             <div>
               <Label>환율 1</Label>
               <Input
-                type="number"
+                inputMode="decimal"
                 value={rate1}
-                onChange={(e) => setRate1(e.target.value)}
-                placeholder="1350.00"
-                min={0}
-                step="0.01"
+                onChange={(e) => setRate1(e.target.value.replace(/[^0-9.]/g, ''))}
+                placeholder="예: 1450.30"
               />
             </div>
             <div>
               <Label>환율 2</Label>
               <Input
-                type="number"
+                inputMode="decimal"
                 value={rate2}
-                onChange={(e) => setRate2(e.target.value)}
-                placeholder="1380.00"
-                min={0}
-                step="0.01"
+                onChange={(e) => setRate2(e.target.value.replace(/[^0-9.]/g, ''))}
+                placeholder="예: 1450.30"
               />
             </div>
           </div>
