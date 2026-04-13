@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { fetchWithAuth } from '@/lib/api';
 import { formatNumber } from '@/lib/utils';
 import type { Outbound, Sale } from '@/types/outbound';
@@ -35,10 +35,6 @@ interface Props {
 }
 
 // 비유: Wp단가 하나만 입력하면 EA단가→공급가→부가세→합계가 자동 계산되는 계산기
-function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
-  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
-}
-
 export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editData }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [submitError, setSubmitError] = useState('');
@@ -133,14 +129,12 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="space-y-1.5">
             <Label>거래처 *</Label>
-            <Select value={watch('customer_id') ?? ''} onValueChange={(v) => setValue('customer_id', v ?? '')}>
-              <SelectTrigger className="w-full"><Txt text={partners.find(p => p.partner_id === watch('customer_id'))?.partner_name ?? ''} /></SelectTrigger>
-              <SelectContent>
-                {partners.map((p) => (
-                  <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PartnerCombobox
+              partners={partners}
+              value={watch('customer_id') ?? ''}
+              onChange={(v) => setValue('customer_id', v, { shouldValidate: true })}
+              error={!!errors.customer_id}
+            />
             {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
           </div>
 

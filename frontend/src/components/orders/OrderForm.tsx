@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import {
@@ -183,14 +184,12 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData }: Pr
 
           <div className="space-y-1.5">
             <Label>거래처 *</Label>
-            <Select value={watch('customer_id') ?? ''} onValueChange={(v) => setValue('customer_id', v ?? '')}>
-              <SelectTrigger><Txt text={partners.find(p => p.partner_id === watch('customer_id'))?.partner_name ?? ''} /></SelectTrigger>
-              <SelectContent>
-                {partners.map((p) => (
-                  <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PartnerCombobox
+              partners={partners}
+              value={watch('customer_id') ?? ''}
+              onChange={(v) => setValue('customer_id', v, { shouldValidate: true })}
+              error={!!errors.customer_id}
+            />
             {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
           </div>
 

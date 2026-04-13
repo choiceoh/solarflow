@@ -8,15 +8,11 @@ import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
+import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import type { Receipt } from '@/types/orders';
 import type { Partner } from '@/types/masters';
-
-function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
-  return <span className={`flex flex-1 text-left truncate ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
-}
 
 const schema = z.object({
   customer_id: z.string().min(1, '거래처는 필수입니다'),
@@ -92,14 +88,12 @@ export default function ReceiptForm({ open, onOpenChange, onSubmit, editData }: 
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="space-y-1.5">
             <Label>거래처 *</Label>
-            <Select value={watch('customer_id') ?? ''} onValueChange={(v) => setValue('customer_id', v ?? '')}>
-              <SelectTrigger><Txt text={partners.find(p => p.partner_id === watch('customer_id'))?.partner_name ?? ''} /></SelectTrigger>
-              <SelectContent>
-                {partners.map((p) => (
-                  <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PartnerCombobox
+              partners={partners}
+              value={watch('customer_id') ?? ''}
+              onChange={(v) => setValue('customer_id', v, { shouldValidate: true })}
+              error={!!errors.customer_id}
+            />
             {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
           </div>
 
