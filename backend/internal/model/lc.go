@@ -136,6 +136,7 @@ func (req *CreateLCRequest) Validate() string {
 // 비유: "LC 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateLCRequest struct {
 	LCNumber       *string  `json:"lc_number,omitempty"`
+	POID           *string  `json:"po_id,omitempty"`
 	BankID         *string  `json:"bank_id,omitempty"`
 	CompanyID      *string  `json:"company_id,omitempty"`
 	OpenDate       *string  `json:"open_date,omitempty"`
