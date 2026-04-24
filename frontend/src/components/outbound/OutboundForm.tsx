@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
@@ -27,7 +28,6 @@ const schema = z.object({
   warehouse_id: z.string().min(1, '창고는 필수입니다'),
   usage_category: z.string().min(1, '용도는 필수입니다'),
   order_id: z.string().optional(),
-  bl_id: z.string().optional(),
   site_name: z.string().optional(),
   site_address: z.string().optional(),
   spare_qty: z.coerce.number().optional().or(z.literal('')),
@@ -37,6 +37,8 @@ const schema = z.object({
   memo: z.string().optional(),
 });
 type FormData = z.infer<typeof schema>;
+
+interface BLEntry { bl_id: string; quantity: string }
 
 interface Props {
   open: boolean;
@@ -58,6 +60,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [orders, setOrders] = useState<{ order_id: string; order_number: string; remaining_qty?: number }[]>([]);
   const [bls, setBls] = useState<BLShipment[]>([]);
+  const [blEntries, setBlEntries] = useState<BLEntry[]>([]);
   const [submitError, setSubmitError] = useState('');
   const [qtyDisplay, setQtyDisplay] = useState('');
   const [spareQtyDisplay, setSpareQtyDisplay] = useState('');
@@ -74,8 +77,6 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
   const groupTrade = watch('group_trade') ?? false;
   const selectedOrderId = watch('order_id');
   const selectedOrder = orders.find((o) => o.order_id === selectedOrderId);
-  const selectedBlId = watch('bl_id') ?? '';
-  const selectedBl = bls.find((b) => b.bl_id === selectedBlId);
   const usageCat = watch('usage_category') ?? '';
   const warehouseId = watch('warehouse_id') ?? '';
   const targetCompanyId = watch('target_company_id') ?? '';
@@ -120,7 +121,6 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
           warehouse_id: editData.warehouse_id,
           usage_category: editData.usage_category,
           order_id: editData.order_id ?? '',
-          bl_id: editData.bl_id ?? '',
           site_name: editData.site_name ?? '',
           site_address: editData.site_address ?? '',
           spare_qty: editData.spare_qty ?? '',
@@ -131,30 +131,48 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
         });
         setQtyDisplay(fmtInt(editData.quantity));
         setSpareQtyDisplay(fmtInt(editData.spare_qty));
+        // 기존 BL 연결 복원
+        if (editData.bl_items && editData.bl_items.length > 0) {
+          setBlEntries(editData.bl_items.map(i => ({ bl_id: i.bl_id, quantity: String(i.quantity) })));
+        } else if (editData.bl_id) {
+          setBlEntries([{ bl_id: editData.bl_id, quantity: String(editData.quantity) }]);
+        } else {
+          setBlEntries([]);
+        }
       } else {
         const today = new Date().toISOString().slice(0, 10);
         reset({
           outbound_date: today, product_id: '', quantity: '' as unknown as number,
-          warehouse_id: '', usage_category: '', order_id: '', bl_id: '', site_name: '',
+          warehouse_id: '', usage_category: '', order_id: '', site_name: '',
           site_address: '', spare_qty: '', group_trade: false,
           target_company_id: '', erp_outbound_no: '', memo: '',
         });
         setQtyDisplay('');
         setSpareQtyDisplay('');
+        setBlEntries([]);
       }
     }
   }, [open, editData, reset]);
 
+  const addBlEntry = () => setBlEntries(prev => [...prev, { bl_id: '', quantity: '' }]);
+  const removeBlEntry = (i: number) => setBlEntries(prev => prev.filter((_, idx) => idx !== i));
+  const updateBlEntry = (i: number, field: keyof BLEntry, val: string) =>
+    setBlEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: val } : e));
+
   const handle = async (data: FormData) => {
     setSubmitError('');
+    const validBLItems = blEntries
+      .filter(e => e.bl_id && e.quantity && parseInt(e.quantity) > 0)
+      .map(e => ({ bl_id: e.bl_id, quantity: parseInt(e.quantity.replace(/[^0-9]/g, ''), 10) }));
+
     const payload: Record<string, unknown> = {
       ...data,
       company_id: selectedCompanyId,
       capacity_kw: capacityKw,
+      bl_items: validBLItems.length > 0 ? validBLItems : undefined,
     };
     if (data.spare_qty === '' || data.spare_qty === undefined) delete payload.spare_qty;
     if (!data.order_id) delete payload.order_id;
-    if (!data.bl_id) delete payload.bl_id;
     if (!data.target_company_id) delete payload.target_company_id;
     if (!data.group_trade) {
       delete payload.target_company_id;
@@ -267,31 +285,72 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
             {errors.warehouse_id && <p className="text-xs text-destructive">{errors.warehouse_id.message}</p>}
           </div>
 
-          {/* B/L 연결 — 출고 원가 추적의 핵심 고리 */}
+          {/* B/L 연결 — 분할선적 지원 (다중 BL + 수량) */}
           <div className="space-y-1.5">
-            <Label>B/L 연결 <span className="text-[10px] text-muted-foreground ml-1">(출고 원가 추적용)</span></Label>
-            <Select value={selectedBlId} onValueChange={(v) => setValue('bl_id', v === '_none' ? '' : (v ?? ''))}>
-              <SelectTrigger className="w-full">
-                <Txt text={selectedBl ? `${selectedBl.bl_number} | ${selectedBl.eta?.slice(0,10) ?? '—'} 입항 | ${selectedBl.status}` : ''} placeholder="B/L 선택 안함" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="_none">선택 안함</SelectItem>
-                {bls.map((b) => (
-                  <SelectItem key={b.bl_id} value={b.bl_id}>
-                    {b.bl_number} | {b.eta?.slice(0,10) ?? '—'} | {b.port ?? '—'} | {b.status}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedBl && (
-              <div className="rounded-md border bg-blue-50 px-3 py-2 text-xs text-blue-800 grid grid-cols-4 gap-2">
-                <div><div className="text-blue-500 mb-0.5">B/L번호</div><div className="font-mono font-medium truncate">{selectedBl.bl_number}</div></div>
-                <div><div className="text-blue-500 mb-0.5">ETA</div><div className="font-medium">{selectedBl.eta?.slice(0,10) ?? '—'}</div></div>
-                <div><div className="text-blue-500 mb-0.5">항구</div><div className="font-medium">{selectedBl.port ?? '—'}</div></div>
-                <div><div className="text-blue-500 mb-0.5">포워더</div><div className="font-medium">{selectedBl.forwarder ?? '—'}</div></div>
-              </div>
+            <div className="flex items-center justify-between">
+              <Label>B/L 연결 <span className="text-[10px] text-muted-foreground ml-1">(출고 원가 추적용, 분할선적 지원)</span></Label>
+              <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={addBlEntry}>
+                <Plus className="h-3.5 w-3.5 mr-1" />B/L 추가
+              </Button>
+            </div>
+            {!selectedProduct && (
+              <p className="text-[10px] text-muted-foreground">품번 선택 후 해당 제조사의 B/L 목록이 표시됩니다</p>
             )}
-            {!selectedProduct && <p className="text-[10px] text-muted-foreground">품번 선택 후 해당 제조사의 B/L 목록이 표시됩니다</p>}
+            {blEntries.length === 0 && selectedProduct && (
+              <p className="text-[10px] text-muted-foreground">B/L 연결 없음 — 위 버튼으로 추가</p>
+            )}
+            <div className="space-y-2">
+              {blEntries.map((entry, i) => {
+                const selectedBl = bls.find(b => b.bl_id === entry.bl_id);
+                return (
+                  <div key={i} className="flex gap-2 items-start">
+                    <div className="flex-1 space-y-1">
+                      <Select value={entry.bl_id} onValueChange={(v) => updateBlEntry(i, 'bl_id', v === '_none' ? '' : (v ?? ''))}>
+                        <SelectTrigger className="w-full h-8 text-xs">
+                          <span className={`flex flex-1 text-left truncate ${entry.bl_id ? '' : 'text-muted-foreground'}`}>
+                            {selectedBl ? `${selectedBl.bl_number} | ${selectedBl.eta?.slice(0,10) ?? '—'} | ${selectedBl.status}` : '— B/L 선택 —'}
+                          </span>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="_none">— 선택 안함 —</SelectItem>
+                          {bls.map((b) => (
+                            <SelectItem key={b.bl_id} value={b.bl_id}>
+                              {b.bl_number} | {b.eta?.slice(0,10) ?? '—'} | {b.port ?? '—'} | {b.status}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedBl && (
+                        <div className="rounded border bg-blue-50 px-2 py-1 text-[10px] text-blue-700 flex gap-3">
+                          <span>항구: {selectedBl.port ?? '—'}</span>
+                          <span>포워더: {selectedBl.forwarder ?? '—'}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="w-28 space-y-1">
+                      <Input
+                        className="h-8 text-xs text-right"
+                        placeholder="수량"
+                        value={entry.quantity}
+                        onChange={(e) => {
+                          const raw = e.target.value.replace(/[^0-9]/g, '');
+                          updateBlEntry(i, 'quantity', raw ? parseInt(raw, 10).toLocaleString('ko-KR') : '');
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeBlEntry(i)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-1.5">

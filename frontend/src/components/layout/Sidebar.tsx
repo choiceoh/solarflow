@@ -4,7 +4,7 @@ import {
   Package, LayoutDashboard, PackageCheck, ClipboardList, Truck,
   Calculator, Landmark, Database, Search, StickyNote,
   FileSignature, Settings, ChevronDown, ChevronRight, LogOut,
-  ScrollText, Wallet, Building2,
+  ScrollText, Wallet, Building2, Home,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -25,12 +25,14 @@ interface MenuItem {
   children?: { label: string; path: string }[];
 }
 
-// 구매: 발주 → LC → 입고 → 재고  (입력 가능: admin, operator)
+// 홈 — 가용재고 (전체 공개, 최상단 단독 배치)
+const inventoryItem: MenuItem = { icon: Home, label: '가용재고', path: '/inventory' };
+
+// 구매: 발주 → LC → 입고  (입력 가능: admin, operator)
 const purchaseItems: MenuItem[] = [
   { icon: ClipboardList, label: 'P/O 발주 관리', path: '/procurement', roles: ['admin', 'operator'] },
   { icon: Landmark,      label: 'L/C 개설 관리', path: '/lc',          roles: ['admin', 'operator'] },
   { icon: PackageCheck,  label: 'B/L 입고 관리', path: '/inbound',     roles: ['admin', 'operator'] },
-  { icon: Package,       label: '재고 현황',      path: '/inventory' },   // 전체 공개
 ];
 // 판매: 수주 → 출고/판매 → 수금  (입력: admin·operator, 조회: executive)
 const salesItems: MenuItem[] = [
@@ -185,12 +187,12 @@ export default function Sidebar() {
       {/* 로고 */}
       <div className={cn('flex h-14 items-center border-b px-4', collapsed && 'justify-center px-0')}>
         {collapsed ? (
-          <span className="text-lg font-bold">SF</span>
+          <Link to="/inventory" className="text-lg font-bold hover:text-primary transition-colors">SF</Link>
         ) : (
-          <div>
+          <Link to="/inventory" className="hover:opacity-80 transition-opacity">
             <h1 className="text-sm font-bold">SolarFlow 3.0</h1>
             <p className="text-[10px] text-muted-foreground">태양광 모듈 유통 관리</p>
-          </div>
+          </Link>
         )}
       </div>
 
@@ -236,8 +238,10 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* 메뉴 — 구매/판매 섹션 분리 */}
+      {/* 메뉴 — 가용재고 홈 → 구매 → 판매 섹션 */}
       <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+        <NavLink {...inventoryItem} />
+        <Separator className="my-2" />
         {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">구매</p>}
         {purchaseItems.filter((m) => canSee(m, role)).map((m) => <NavLink key={m.label} {...m} />)}
         <Separator className="my-2" />

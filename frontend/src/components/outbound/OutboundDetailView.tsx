@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import LinkedMemoWidget from '@/components/memo/LinkedMemoWidget';
 import { useOutboundDetail } from '@/hooks/useOutbound';
 import { fetchWithAuth } from '@/lib/api';
 import { USAGE_CATEGORY_LABEL } from '@/types/outbound';
+import type { BLShipment, BLLineItem } from '@/types/inbound';
 
 interface Props {
   outboundId: string;
@@ -36,6 +37,39 @@ export default function OutboundDetailView({ outboundId, onBack }: Props) {
   const [saleFormOpen, setSaleFormOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [avgCostPerWp, setAvgCostPerWp] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!ob?.bl_items?.length || !ob.product_id) { setAvgCostPerWp(null); return; }
+    let cancelled = false;
+    Promise.all(
+      ob.bl_items.map(async (item) => {
+        const [bl, lines] = await Promise.all([
+          fetchWithAuth<BLShipment>(`/api/v1/bls/${item.bl_id}`),
+          fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${item.bl_id}/lines`),
+        ]);
+        const isImport = bl.inbound_type === 'import';
+        const exRate = bl.exchange_rate ?? 0;
+        const matchingLines = lines.filter((l) => l.product_id === ob.product_id);
+        let totalCostWp = 0, totalQty = 0;
+        for (const line of matchingLines) {
+          const costWp = isImport
+            ? (line.unit_price_usd_wp != null ? line.unit_price_usd_wp * exRate : 0)
+            : (line.unit_price_krw_wp ?? 0);
+          if (costWp > 0) { totalCostWp += costWp * line.quantity; totalQty += line.quantity; }
+        }
+        return totalQty > 0 ? { avgCostWp: totalCostWp / totalQty, qty: item.quantity } : null;
+      })
+    ).then((results) => {
+      if (cancelled) return;
+      const valid = results.filter(Boolean) as { avgCostWp: number; qty: number }[];
+      if (!valid.length) { setAvgCostPerWp(null); return; }
+      const totalCost = valid.reduce((s, r) => s + r.avgCostWp * r.qty, 0);
+      const totalQty = valid.reduce((s, r) => s + r.qty, 0);
+      setAvgCostPerWp(totalQty > 0 ? totalCost / totalQty : null);
+    }).catch(() => setAvgCostPerWp(null));
+    return () => { cancelled = true; };
+  }, [ob?.bl_items, ob?.product_id]);
 
   if (loading || !ob) return <LoadingSpinner />;
 
@@ -117,6 +151,21 @@ export default function OutboundDetailView({ outboundId, onBack }: Props) {
             <Field label="ERP 출고번호" value={ob.erp_outbound_no} />
             {ob.memo && <Field label="메모" value={ob.memo} />}
           </div>
+          {/* B/L 연결 목록 */}
+          {ob.bl_items && ob.bl_items.length > 0 && (
+            <div className="mt-3 pt-3 border-t">
+              <p className="text-[10px] text-muted-foreground mb-1.5">B/L 연결 (분할선적)</p>
+              <div className="space-y-1">
+                {ob.bl_items.map((item) => (
+                  <div key={item.outbound_bl_item_id} className="flex items-center gap-3 rounded border bg-blue-50 px-3 py-1.5 text-xs text-blue-800">
+                    <span className="font-mono font-medium">{item.bl_number ?? item.bl_id.slice(0, 8)}</span>
+                    <span className="text-blue-500">·</span>
+                    <span>{item.quantity.toLocaleString('ko-KR')} EA</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -170,6 +219,7 @@ export default function OutboundDetailView({ outboundId, onBack }: Props) {
           onSubmit={handleSaleSubmit}
           outbound={ob}
           editData={ob.sale ?? null}
+          costPerWp={avgCostPerWp}
         />
       )}
 

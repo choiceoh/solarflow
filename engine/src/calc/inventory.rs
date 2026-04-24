@@ -472,9 +472,21 @@ async fn fetch_lc_incoming(
         r#"
         SELECT pli.product_id,
           COALESCE(SUM(
-            lc.target_mw * 1000.0
-            * (pli.quantity::float8 * p.spec_wp::float8)
-            / NULLIF(po_kw.total_kw, 0.0)
+            GREATEST(0.0,
+              -- LC에서 이 품번이 차지하는 비례 물량 (kW)
+              lc.target_mw * 1000.0
+              * (pli.quantity::float8 * p.spec_wp::float8)
+              / NULLIF(po_kw.total_kw, 0.0)
+              -- 이미 입고 완료된 BL 물량 차감 (부분 입고 처리)
+              - COALESCE((
+                SELECT SUM(bli_done.capacity_kw)
+                FROM bl_shipments bl_done
+                JOIN bl_line_items bli_done ON bl_done.bl_id = bli_done.bl_id
+                WHERE bl_done.lc_id = lc.lc_id
+                  AND bl_done.status IN ('completed', 'erp_done')
+                  AND bli_done.product_id = pli.product_id
+              ), 0.0)
+            )
           ), 0.0)::float8 AS kw
         FROM lc_records lc
         JOIN purchase_orders po ON lc.po_id = po.po_id
@@ -491,11 +503,11 @@ async fn fetch_lc_incoming(
           AND lc.company_id = $1
           AND ($2::uuid IS NULL OR pli.product_id = $2)
           AND ($3::uuid IS NULL OR p.manufacturer_id = $3)
+          -- BL이 운송 중이면 bl_incoming에서 이미 계산 → 이중 집계 방지
           AND NOT EXISTS (
-            -- 이미 BL(shipping/arrived/customs)로 계산된 L/C는 제외 (이중 집계 방지)
             SELECT 1 FROM bl_shipments bl
             WHERE bl.lc_id = lc.lc_id
-              AND bl.status IN ('shipping', 'arrived', 'customs', 'completed', 'erp_done')
+              AND bl.status IN ('shipping', 'arrived', 'customs')
           )
         GROUP BY pli.product_id
         "#,

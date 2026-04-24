@@ -25,33 +25,60 @@ func NewOutboundHandler(db *supa.Client) *OutboundHandler {
 	return &OutboundHandler{DB: db}
 }
 
+// insertBLItems — outbound_bl_items 일괄 등록 헬퍼
+func (h *OutboundHandler) insertBLItems(outboundID string, items []model.OutboundBLItemInput) {
+	for _, item := range items {
+		if item.BLID == "" || item.Quantity <= 0 {
+			continue
+		}
+		row := map[string]interface{}{
+			"outbound_id": outboundID,
+			"bl_id":       item.BLID,
+			"quantity":    item.Quantity,
+		}
+		_, _, err := h.DB.From("outbound_bl_items").
+			Insert(row, false, "", "", "").
+			Execute()
+		if err != nil {
+			log.Printf("[outbound_bl_items 등록 실패] outbound_id=%s bl_id=%s err=%v", outboundID, item.BLID, err)
+		}
+	}
+}
+
+// fetchBLItems — outbound_bl_items 조회 헬퍼 (bl_shipments 조인 없이 단순 조회)
+func (h *OutboundHandler) fetchBLItems(outboundID string) []model.OutboundBLItem {
+	data, _, err := h.DB.From("outbound_bl_items").
+		Select("*", "exact", false).
+		Eq("outbound_id", outboundID).
+		Execute()
+	if err != nil {
+		return nil
+	}
+	var items []model.OutboundBLItem
+	if err := json.Unmarshal(data, &items); err != nil {
+		return nil
+	}
+	return items
+}
+
 // List — GET /api/v1/outbounds — 출고 목록 조회
 // 비유: 출고 관리실에서 전체 출고 전표를 꺼내 보여주는 것
 func (h *OutboundHandler) List(w http.ResponseWriter, r *http.Request) {
 	query := h.DB.From("outbounds").
 		Select("*", "exact", false)
 
-	// 비유: ?company_id=xxx — 특정 법인의 출고만 필터
 	if compID := r.URL.Query().Get("company_id"); compID != "" && compID != "all" {
 		query = query.Eq("company_id", compID)
 	}
-
-	// 비유: ?warehouse_id=xxx — 특정 창고의 출고만 필터
 	if whID := r.URL.Query().Get("warehouse_id"); whID != "" {
 		query = query.Eq("warehouse_id", whID)
 	}
-
-	// 비유: ?usage_category=sale — 특정 용도의 출고만 필터
 	if usage := r.URL.Query().Get("usage_category"); usage != "" {
 		query = query.Eq("usage_category", usage)
 	}
-
-	// 비유: ?order_id=xxx — 특정 수주의 출고만 필터
 	if orderID := r.URL.Query().Get("order_id"); orderID != "" {
 		query = query.Eq("order_id", orderID)
 	}
-
-	// 비유: ?status=active — 특정 상태의 출고만 필터
 	if status := r.URL.Query().Get("status"); status != "" {
 		query = query.Eq("status", status)
 	}
@@ -74,7 +101,6 @@ func (h *OutboundHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID — GET /api/v1/outbounds/{id} — 출고 상세 조회
-// 비유: 특정 출고 전표를 꺼내 자세히 보는 것
 func (h *OutboundHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -100,11 +126,12 @@ func (h *OutboundHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.RespondJSON(w, http.StatusOK, outbounds[0])
+	ob := outbounds[0]
+	ob.BLItems = h.fetchBLItems(id)
+	response.RespondJSON(w, http.StatusOK, ob)
 }
 
 // Create — POST /api/v1/outbounds — 출고 등록
-// 비유: 새 출고 전표를 작성하여 관리실에 보관하는 것
 func (h *OutboundHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateOutboundRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -113,15 +140,17 @@ func (h *OutboundHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 비유: status 미입력이면 기본값 "active" 설정
 	if req.Status == "" {
 		req.Status = "active"
 	}
-
 	if msg := req.Validate(); msg != "" {
 		response.RespondError(w, http.StatusBadRequest, msg)
 		return
 	}
+
+	// BLItems를 추출하고 nil로 설정해 PostgREST에 전달되지 않게 함
+	blItems := req.BLItems
+	req.BLItems = nil
 
 	data, _, err := h.DB.From("outbounds").
 		Insert(req, false, "", "", "").
@@ -138,17 +167,21 @@ func (h *OutboundHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusInternalServerError, "응답 데이터 처리에 실패했습니다")
 		return
 	}
-
 	if len(created) == 0 {
 		response.RespondError(w, http.StatusInternalServerError, "출고 등록 결과를 확인할 수 없습니다")
 		return
 	}
 
+	outboundID := created[0].OutboundID
+	if len(blItems) > 0 {
+		h.insertBLItems(outboundID, blItems)
+	}
+
+	created[0].BLItems = h.fetchBLItems(outboundID)
 	response.RespondJSON(w, http.StatusCreated, created[0])
 }
 
 // Update — PUT /api/v1/outbounds/{id} — 출고 수정
-// 비유: 기존 출고 전표의 내용을 수정하는 것
 func (h *OutboundHandler) Update(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -158,11 +191,14 @@ func (h *OutboundHandler) Update(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusBadRequest, "잘못된 요청 형식입니다")
 		return
 	}
-
 	if msg := req.Validate(); msg != "" {
 		response.RespondError(w, http.StatusBadRequest, msg)
 		return
 	}
+
+	// BLItems 추출 후 nil 처리
+	blItems := req.BLItems
+	req.BLItems = nil
 
 	data, _, err := h.DB.From("outbounds").
 		Update(req, "", "").
@@ -180,27 +216,35 @@ func (h *OutboundHandler) Update(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusInternalServerError, "응답 데이터 처리에 실패했습니다")
 		return
 	}
-
 	if len(updated) == 0 {
 		response.RespondError(w, http.StatusNotFound, "수정할 출고를 찾을 수 없습니다")
 		return
 	}
 
+	// bl_items가 제공된 경우 기존 항목 삭제 후 재등록
+	if blItems != nil {
+		_, _, _ = h.DB.From("outbound_bl_items").
+			Delete("", "").
+			Eq("outbound_id", id).
+			Execute()
+		h.insertBLItems(id, blItems)
+	}
+
+	updated[0].BLItems = h.fetchBLItems(id)
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
 
 // Delete — DELETE /api/v1/outbounds/{id} — 출고 삭제
-// 비유: 출고 서류를 파기하는 것 — 연결된 매출 정보도 함께 삭제
 func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
+	// outbound_bl_items는 ON DELETE CASCADE로 자동 삭제
 	// 연결된 매출 먼저 삭제 (FK 제약)
 	_, _, _ = h.DB.From("sales").
 		Delete("", "").
 		Eq("outbound_id", id).
 		Execute()
 
-	// 출고 본체 삭제
 	_, _, err := h.DB.From("outbounds").
 		Delete("", "").
 		Eq("outbound_id", id).

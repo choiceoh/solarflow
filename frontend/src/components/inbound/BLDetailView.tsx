@@ -162,6 +162,15 @@ export default function BLDetailView({ blId, onBack }: Props) {
                 const totalQty = lines.reduce((s, l) => s + l.quantity, 0);
                 const totalMW = lines.reduce((s, l) => s + (l.capacity_kw ?? 0), 0) / 1000;
                 const totalInvoice = lines.reduce((s, l) => s + (l.invoice_amount_usd ?? 0), 0);
+                // 원가 확정: 해외직수입 = unit_price_usd_wp × exchange_rate, 국내 = unit_price_krw_wp
+                const exRate = bl.exchange_rate ?? 0;
+                const totalCostKrw = lines.reduce((s, l) => {
+                  const costWp = isImport
+                    ? (l.unit_price_usd_wp != null ? l.unit_price_usd_wp * exRate : 0)
+                    : (l.unit_price_krw_wp ?? 0);
+                  return s + costWp * (l.capacity_kw ?? 0) * 1000;
+                }, 0);
+                const hasCost = lines.some(l => l.unit_price_usd_wp != null || l.unit_price_krw_wp != null);
                 return (
                   <div className="mt-4 pt-3 border-t grid grid-cols-3 gap-x-6">
                     <div>
@@ -176,6 +185,27 @@ export default function BLDetailView({ blId, onBack }: Props) {
                       <div>
                         <p className="text-[10px] text-muted-foreground">총 입고금액</p>
                         <p className="text-sm font-mono font-medium">${formatNumber(Math.round(totalInvoice))}</p>
+                      </div>
+                    )}
+                    {hasCost && totalCostKrw > 0 && (
+                      <div className="col-span-3 mt-3 pt-3 border-t">
+                        <p className="text-[10px] text-muted-foreground mb-1">원가 확정 (BL 기준)</p>
+                        <div className="flex gap-6">
+                          <div>
+                            <p className="text-[10px] text-muted-foreground">총 원가</p>
+                            <p className="text-sm font-mono font-medium text-blue-700">
+                              {Math.round(totalCostKrw).toLocaleString('ko-KR')}원
+                            </p>
+                          </div>
+                          {totalMW > 0 && (
+                            <div>
+                              <p className="text-[10px] text-muted-foreground">평균 원가</p>
+                              <p className="text-sm font-mono font-medium text-blue-700">
+                                {(totalCostKrw / (totalMW * 1_000_000)).toFixed(2)}원/Wp
+                              </p>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

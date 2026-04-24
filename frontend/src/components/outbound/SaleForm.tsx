@@ -32,10 +32,11 @@ interface Props {
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
   outbound: Outbound;
   editData?: Sale | null;
+  costPerWp?: number | null;  // BL 원가 (원/Wp) — OutboundDetailView에서 계산해 전달
 }
 
 // 비유: Wp단가 하나만 입력하면 EA단가→공급가→부가세→합계가 자동 계산되는 계산기
-export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editData }: Props) {
+export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editData, costPerWp }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [submitError, setSubmitError] = useState('');
 
@@ -144,14 +145,49 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
             {errors.unit_price_wp && <p className="text-xs text-destructive">{errors.unit_price_wp.message}</p>}
           </div>
 
-          {unitPriceWp > 0 && specWp > 0 && (
-            <div className="rounded-md border bg-muted/50 p-3 space-y-1 text-xs">
-              <div className="flex justify-between"><span>EA단가</span><span>{formatNumber(unitPriceEa)}원 ({unitPriceWp} x {specWp}Wp)</span></div>
-              <div className="flex justify-between"><span>공급가</span><span>{formatNumber(supplyAmount)}원 ({formatNumber(unitPriceEa)} x {quantity})</span></div>
-              <div className="flex justify-between"><span>부가세 (10%)</span><span>{formatNumber(vatAmount)}원</span></div>
-              <div className="flex justify-between font-semibold border-t pt-1"><span>합계</span><span>{formatNumber(totalAmount)}원</span></div>
-            </div>
-          )}
+          {unitPriceWp > 0 && specWp > 0 && (() => {
+            const profitWp = costPerWp != null ? unitPriceWp - costPerWp : null;
+            const profitRate = costPerWp != null && costPerWp > 0
+              ? ((unitPriceWp - costPerWp) / costPerWp * 100)
+              : null;
+            const totalProfit = profitWp != null ? profitWp * specWp * quantity : null;
+            return (
+              <div className="rounded-md border bg-muted/50 p-3 space-y-1 text-xs">
+                <div className="flex justify-between"><span>EA단가</span><span>{formatNumber(unitPriceEa)}원 ({unitPriceWp} x {specWp}Wp)</span></div>
+                <div className="flex justify-between"><span>공급가</span><span>{formatNumber(supplyAmount)}원</span></div>
+                <div className="flex justify-between"><span>부가세 (10%)</span><span>{formatNumber(vatAmount)}원</span></div>
+                <div className="flex justify-between font-semibold border-t pt-1"><span>합계</span><span>{formatNumber(totalAmount)}원</span></div>
+                {costPerWp != null && (
+                  <div className="border-t pt-2 mt-1 space-y-1">
+                    <div className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wide mb-1">BL 원가 기반 이익</div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">BL 원가</span>
+                      <span className="font-mono">{costPerWp.toFixed(2)}원/Wp</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">판매가</span>
+                      <span className="font-mono">{unitPriceWp.toFixed(2)}원/Wp</span>
+                    </div>
+                    <div className={`flex justify-between font-semibold ${(profitWp ?? 0) >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                      <span>이익</span>
+                      <span className="font-mono">
+                        {profitWp != null ? `${profitWp >= 0 ? '+' : ''}${profitWp.toFixed(2)}원/Wp` : '—'}
+                        {profitRate != null && (
+                          <span className="ml-2 text-[10px]">({profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%)</span>
+                        )}
+                      </span>
+                    </div>
+                    {totalProfit != null && (
+                      <div className={`flex justify-between text-[10px] border-t pt-1 ${totalProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                        <span>총 이익 (세전)</span>
+                        <span className="font-mono font-medium">{totalProfit >= 0 ? '+' : ''}{Math.round(totalProfit).toLocaleString('ko-KR')}원</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="space-y-1.5">
             <Label>세금계산서 발행일</Label>

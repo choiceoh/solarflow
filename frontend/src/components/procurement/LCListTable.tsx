@@ -38,7 +38,7 @@ interface Props {
   onSettle?: (lc: LCRecord, repaymentDate: string) => Promise<void>;
   onSelectBL?: (blId: string) => void;
   onNewBL?: (lc: LCRecord) => void;
-  blsVersion?: number; // ProcurementPage에서 BL 생성 시 증가 → 현재 펼쳐진 BL 목록 재로드
+  blsVersion?: number;
 }
 
 export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, onSelectBL, onNewBL, blsVersion }: Props) {
@@ -52,6 +52,7 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
   // BL 드릴다운 상태
   const [expandedLCId, setExpandedLCId] = useState<string | null>(null);
   const [expandedBLs, setExpandedBLs] = useState<BLShipment[] | null>(null); // null = 로딩중
+  const [blMwMap, setBlMwMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -100,11 +101,22 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
 
   /* BL 드릴다운: 확장된 LC 변경 또는 버전 변경 시 재조회 */
   useEffect(() => {
-    if (!expandedLCId) { setExpandedBLs(null); return; }
+    if (!expandedLCId) { setExpandedBLs(null); setBlMwMap({}); return; }
     let cancelled = false;
-    setExpandedBLs(null); // 로딩
+    setExpandedBLs(null); setBlMwMap({});
     fetchWithAuth<BLShipment[]>(`/api/v1/bls?lc_id=${expandedLCId}`)
-      .then((bls) => { if (!cancelled) setExpandedBLs(bls ?? []); })
+      .then(async (bls) => {
+        if (cancelled) return;
+        setExpandedBLs(bls ?? []);
+        const mwMap: Record<string, number> = {};
+        await Promise.all((bls ?? []).map(async (bl) => {
+          try {
+            const lines = await fetchWithAuth<Array<{ capacity_kw?: number }>>(`/api/v1/bls/${bl.bl_id}/lines`);
+            mwMap[bl.bl_id] = (lines ?? []).reduce((s, l) => s + (l.capacity_kw ?? 0), 0) / 1000;
+          } catch { mwMap[bl.bl_id] = 0; }
+        }));
+        if (!cancelled) setBlMwMap(mwMap);
+      })
       .catch(() => { if (!cancelled) setExpandedBLs([]); });
     return () => { cancelled = true; };
   // blsVersion은 외부에서 BL 생성 시 증가 → 재조회 트리거
@@ -292,16 +304,24 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                           {/* 헤더 */}
                           <div className="flex items-center justify-between">
                             <span className="text-[11px] font-semibold text-blue-700">
-                              입고 B/L{expandedBLs !== null ? ` (${expandedBLs.length}건)` : ''}
+                              입고 B/L
+                              {expandedBLs !== null && (
+                                <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">
+                                  {expandedBLs.length}건
+                                  {expandedBLs.length > 0 && (() => {
+                                    const totalMw = Object.values(blMwMap).reduce((s, v) => s + v, 0);
+                                    return totalMw > 0 ? ` · ${totalMw.toFixed(3)} MW` : '';
+                                  })()}
+                                </span>
+                              )}
                             </span>
                             {onNewBL && (
                               <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs border-blue-300 hover:bg-blue-100 hover:text-blue-800"
+                                size="sm" variant="ghost"
+                                className="h-6 text-[11px] px-2 gap-1 text-green-600 hover:text-green-700 hover:bg-green-50"
                                 onClick={(e) => { e.stopPropagation(); onNewBL(lc); }}
                               >
-                                <Plus className="h-3 w-3 mr-1" />입고 등록
+                                <Plus className="h-3 w-3" />입고 등록
                               </Button>
                             )}
                           </div>
@@ -310,23 +330,25 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                           {expandedBLs === null ? (
                             <p className="text-xs text-muted-foreground py-1">로딩 중…</p>
                           ) : expandedBLs.length === 0 ? (
-                            <p className="text-xs text-muted-foreground py-1">
-                              등록된 입고(B/L)가 없습니다.
-                              {onNewBL && <span className="ml-1">위 [입고 등록] 버튼으로 추가하세요.</span>}
-                            </p>
+                            <p className="text-xs text-muted-foreground py-1">등록된 입고(B/L)가 없습니다.</p>
                           ) : (
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="border-b border-blue-200">
                                   <th className="pb-1 text-left font-medium text-muted-foreground">B/L 번호</th>
                                   <th className="pb-1 text-left font-medium text-muted-foreground">구분</th>
+                                  <th className="pb-1 text-left font-medium text-muted-foreground">모듈 / 규격(W)</th>
                                   <th className="pb-1 text-left font-medium text-muted-foreground">입항일</th>
                                   <th className="pb-1 text-left font-medium text-muted-foreground">창고</th>
                                   <th className="pb-1 text-center font-medium text-muted-foreground w-20">상태</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {expandedBLs.map((bl) => (
+                                {expandedBLs.map((bl) => {
+                                  const a = agg[lc.lc_id];
+                                  const mLabel = a ? moduleLabel(a.manufacturerName, a.firstSpecWp) : '—';
+                                  const blMw = blMwMap[bl.bl_id];
+                                  return (
                                   <tr
                                     key={bl.bl_id}
                                     className="border-t border-blue-100 hover:bg-blue-100/50 cursor-pointer"
@@ -334,6 +356,12 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                                   >
                                     <td className="py-1.5 font-mono font-medium">{bl.bl_number}</td>
                                     <td className="py-1.5 text-muted-foreground">{INBOUND_TYPE_LABEL[bl.inbound_type] ?? bl.inbound_type}</td>
+                                    <td className="py-1.5">
+                                      <div className="text-[10px] font-medium">{mLabel}</div>
+                                      <div className="text-[10px] text-muted-foreground font-mono">
+                                        {blMw != null ? `${blMw.toFixed(3)} MW` : '—'}
+                                      </div>
+                                    </td>
                                     <td className="py-1.5 text-muted-foreground">{formatDate(bl.actual_arrival ?? '') || '—'}</td>
                                     <td className="py-1.5 text-muted-foreground">{bl.warehouse_name ?? '—'}</td>
                                     <td className="py-1.5 text-center">
@@ -342,7 +370,8 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                                       </span>
                                     </td>
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           )}

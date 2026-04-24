@@ -3,6 +3,7 @@ import {
   ChevronDown, LayoutDashboard, Landmark, BarChart3,
   StickyNote, FileSignature, Settings, LogOut, User,
   Building2, Factory, Tag, Handshake, Warehouse, Banknote, HardHat,
+  Package, ClipboardList, Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
@@ -84,8 +85,8 @@ export default function TopNav() {
   return (
     <header className="h-14 border-b bg-card flex items-center gap-2 px-4 shrink-0 z-40">
 
-      {/* ① 로고 */}
-      <Link to="/" className="flex items-center gap-1.5 shrink-0 mr-1">
+      {/* ① 로고 — 가용재고 홈으로 이동 */}
+      <Link to="/inventory" className="flex items-center gap-1.5 shrink-0 mr-1">
         <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
           <span className="text-[10px] font-bold text-primary-foreground leading-none">SF</span>
         </div>
@@ -108,16 +109,22 @@ export default function TopNav() {
       {/* 구분선 */}
       <div className="h-5 w-px bg-border mx-1 shrink-0" />
 
-      {/* ③ 메인 네비게이션 */}
+      {/* ③ 메인 네비게이션 — 가용재고가 첫 번째 */}
       <nav className="flex items-center gap-0.5">
-        {showPurchase && (
-          <Link to="/procurement" className={navLinkClass(isPurchase)}>구매</Link>
-        )}
         {showInventory && (
-          <Link to="/inventory" className={navLinkClass(isInventory)}>재고</Link>
+          <Link to="/inventory" className={navLinkClass(isInventory)}>
+            <Package className="h-3.5 w-3.5" />가용재고
+          </Link>
+        )}
+        {showPurchase && (
+          <Link to="/procurement" className={navLinkClass(isPurchase)}>
+            <ClipboardList className="h-3.5 w-3.5" />구매
+          </Link>
         )}
         {showSales && (
-          <Link to="/orders" className={navLinkClass(isSales)}>판매</Link>
+          <Link to="/orders" className={navLinkClass(isSales)}>
+            <Store className="h-3.5 w-3.5" />판매
+          </Link>
         )}
 
         {/* 현황/분석 드롭다운 */}
@@ -127,7 +134,7 @@ export default function TopNav() {
               'flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors select-none whitespace-nowrap',
               isAnalysis ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
             )}>
-              현황/분석
+              <BarChart3 className="h-3.5 w-3.5" />현황/분석
               <ChevronDown className="h-3 w-3 opacity-60" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44">

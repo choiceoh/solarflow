@@ -17,12 +17,14 @@ type InventoryAllocation struct {
 	SiteName             *string  `json:"site_name"`
 	Notes                *string  `json:"notes"`
 	ExpectedPricePerWp   *float64 `json:"expected_price_per_wp,omitempty"`
-	FreeSpareQty         int      `json:"free_spare_qty"`           // 무상스페어 수량
+	FreeSpareQty         int      `json:"free_spare_qty"`
 	Status               string   `json:"status"`                   // pending | confirmed | cancelled | hold
 	OutboundID           *string  `json:"outbound_id"`
-	OrderID              *string  `json:"order_id"`                 // 수주 확정 시 연결
-	GroupID              *string  `json:"group_id,omitempty"`       // 동일 배정 등록의 stock+incoming 그룹 묶음
-	SiteID               *string  `json:"site_id,omitempty"`        // 공사현장 FK (construction_own|construction_epc 시)
+	OrderID              *string  `json:"order_id"`
+	GroupID              *string  `json:"group_id,omitempty"`
+	SiteID               *string  `json:"site_id,omitempty"`
+	BLID                 *string  `json:"bl_id,omitempty"`          // 원가 추적용 BL 연결
+	BLNumber             *string  `json:"bl_number,omitempty"`      // 조회용 (JOIN 없이 표시)
 	CreatedAt            string   `json:"created_at"`
 	UpdatedAt            string   `json:"updated_at"`
 }
@@ -50,8 +52,9 @@ type CreateInventoryAllocationRequest struct {
 	Notes                *string  `json:"notes,omitempty"`
 	ExpectedPricePerWp   *float64 `json:"expected_price_per_wp,omitempty"`
 	FreeSpareQty         int      `json:"free_spare_qty,omitempty"`
-	GroupID              *string  `json:"group_id,omitempty"`       // 동일 배정 등록의 stock+incoming 그룹 묶음
-	SiteID               *string  `json:"site_id,omitempty"`        // 공사현장 FK
+	GroupID              *string  `json:"group_id,omitempty"`
+	SiteID               *string  `json:"site_id,omitempty"`
+	BLID                 *string  `json:"bl_id,omitempty"`
 }
 
 func (req *CreateInventoryAllocationRequest) Validate() string {
@@ -90,6 +93,7 @@ type UpdateInventoryAllocationRequest struct {
 	Status               *string  `json:"status,omitempty"`
 	OutboundID           *string  `json:"outbound_id,omitempty"`
 	OrderID              *string  `json:"order_id,omitempty"`
+	BLID                 *string  `json:"bl_id,omitempty"`
 }
 
 func (req *UpdateInventoryAllocationRequest) Validate() string {

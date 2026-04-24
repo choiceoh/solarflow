@@ -5,6 +5,14 @@ export type UsageCategory =
   | 'sale' | 'sale_spare' | 'construction' | 'construction_damage' | 'repowering'
   | 'maintenance' | 'disposal' | 'transfer' | 'adjustment' | 'other';
 
+export interface OutboundBLItem {
+  outbound_bl_item_id: string;
+  outbound_id: string;
+  bl_id: string;
+  bl_number?: string;
+  quantity: number;
+}
+
 export interface Outbound {
   outbound_id: string;
   outbound_date: string;
@@ -33,6 +41,7 @@ export interface Outbound {
   memo?: string;
   bl_id?: string;
   bl_number?: string;
+  bl_items?: OutboundBLItem[];
   sale?: Sale;
 }
 

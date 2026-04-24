@@ -500,7 +500,7 @@ export default function POListTable({ items, onDetail, onNew, onEditLC, onNewLC,
                                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">LC번호</th>
                                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">은행</th>
                                   <th className="px-3 py-1.5 text-right font-medium">금액(USD)</th>
-                                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">모듈 / MW</th>
+                                  <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">모듈 / 규격(W)</th>
                                   <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">만기일</th>
                                   <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">상태</th>
                                   <th className="px-3 py-1.5 w-20" />

@@ -52,6 +52,7 @@ export interface BLLineItem {
   bl_line_id: string;
   bl_id: string;
   product_id: string;
+  po_line_id?: string;
   product_name?: string;
   product_code?: string;
   quantity: number;

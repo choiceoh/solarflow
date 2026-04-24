@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Receipt, ArrowLeftRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -141,8 +141,8 @@ export default function CustomsPage() {
       <Tabs defaultValue="expenses">
         <TabsList>
           {/* F20: 수입면장 탭 삭제 — 면장번호는 입고등록에서 직접 입력 */}
-          <TabsTrigger value="expenses">부대비용</TabsTrigger>
-          <TabsTrigger value="exchange">환율 비교</TabsTrigger>
+          <TabsTrigger value="expenses"><Receipt className="h-3.5 w-3.5" />부대비용</TabsTrigger>
+          <TabsTrigger value="exchange"><ArrowLeftRight className="h-3.5 w-3.5" />환율 비교</TabsTrigger>
         </TabsList>
 
         {/* F20: 수입면장 탭 삭제됨 — 면장번호는 BLForm에서 직접 입력 */}

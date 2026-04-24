@@ -28,15 +28,16 @@ export default function InboundPage() {
   const location = useLocation();
   // 사이드바 "B/L 입고 관리" 클릭 시 상세에서 목록으로 복귀
   useEffect(() => { setSelectedBL(null); }, [location.key]);
-  // D-085: ?po=xxx 쿼리 감지 → 입고 등록 폼 자동 열기
+  // D-085: ?po=xxx 쿼리 감지 → 입고 등록 폼 자동 열기 / ?lc=xxx&po=xxx → LC 프리셋
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const po = params.get('po');
-    if (po) {
-      setPresetPOId(po);
-      setFormOpen(true);
-    }
+    const lc = params.get('lc');
+    if (po) setPresetPOId(po);
+    if (lc) setPresetLCId(lc);
+    if (po || lc) setFormOpen(true);
   }, [location.search]);
+  const [presetLCId, setPresetLCId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
@@ -97,8 +98,15 @@ export default function InboundPage() {
         });
         blId = created.bl_id;
       }
-      // 라인아이템 개별 생성 — 부분 실패 시 명확히 알려줌
-      if (!existingId && Array.isArray(lines) && lines.length > 0) {
+      // 라인아이템 처리
+      if (Array.isArray(lines) && lines.length > 0) {
+        if (existingId) {
+          // 수정 모드: 기존 라인 전체 삭제 후 재생성
+          const existing = await fetchWithAuth<{ bl_line_id: string }[]>(`/api/v1/bls/${blId}/lines`).catch(() => []);
+          for (const el of existing) {
+            await fetchWithAuth(`/api/v1/bls/${blId}/lines/${el.bl_line_id}`, { method: 'DELETE' }).catch(() => {});
+          }
+        }
         const failures: string[] = [];
         for (const line of lines) {
           try {
@@ -176,9 +184,10 @@ export default function InboundPage() {
 
       <BLForm
         open={formOpen}
-        onOpenChange={(v) => { setFormOpen(v); if (!v) setPresetPOId(null); }}
+        onOpenChange={(v) => { setFormOpen(v); if (!v) { setPresetPOId(null); setPresetLCId(null); } }}
         onSubmit={handleCreate}
         presetPOId={presetPOId}
+        presetLCId={presetLCId}
       />
 
       {toast && (

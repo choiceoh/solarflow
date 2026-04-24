@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Plus, PackageX, PackageCheck, Clock } from 'lucide-react';
+import { Plus, PackageX, PackageCheck, Clock, Shield, Package, Truck, TrendingUp } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import AllocationForm, { type InventoryAllocation } from '@/components/inventory/AllocationForm';
 
@@ -256,10 +256,10 @@ export default function InventoryPage() {
 
       <Tabs defaultValue="avail">
         <TabsList>
-          <TabsTrigger value="avail">가용재고</TabsTrigger>
-          <TabsTrigger value="physical">실재고</TabsTrigger>
-          <TabsTrigger value="incoming">미착품</TabsTrigger>
-          <TabsTrigger value="forecast">수급 전망</TabsTrigger>
+          <TabsTrigger value="avail"><Shield className="h-3.5 w-3.5" />가용재고</TabsTrigger>
+          <TabsTrigger value="physical"><Package className="h-3.5 w-3.5" />실재고</TabsTrigger>
+          <TabsTrigger value="incoming"><Truck className="h-3.5 w-3.5" />미착품</TabsTrigger>
+          <TabsTrigger value="forecast"><TrendingUp className="h-3.5 w-3.5" />수급 전망</TabsTrigger>
         </TabsList>
         <div className="flex gap-2 mt-3">
           <Select value={mfgFilter || 'all'} onValueChange={(v) => setMfgFilter(v === 'all' ? '' : (v ?? ''))}>

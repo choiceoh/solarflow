@@ -269,13 +269,32 @@ pub async fn analyze_customers(pool: &PgPool, req: &CustomerAnalysisRequest) -> 
     let cost_col = if req.cost_basis == "cif" { "cd.cif_wp_krw" } else { "cd.landed_wp_krw" };
     let margin_sql = format!(
         r#"
-        WITH cost_avg AS (
+        WITH cd_cost AS (
             SELECT cd.product_id,
                    SUM({cost_col} * cd.quantity)::float8 / NULLIF(SUM(cd.quantity), 0) AS avg_wp_krw
             FROM cost_details cd
-            JOIN import_declarations id ON cd.declaration_id = id.declaration_id
-            WHERE id.company_id = $1 AND {cost_col} IS NOT NULL
+            JOIN import_declarations decl ON cd.declaration_id = decl.declaration_id
+            WHERE decl.company_id = $1 AND {cost_col} IS NOT NULL
             GROUP BY cd.product_id
+        ),
+        bl_cost AS (
+            SELECT bli.product_id,
+                   SUM(bli.quantity::float8 * COALESCE(
+                       bli.unit_price_usd_wp * bl.exchange_rate,
+                       bli.unit_price_krw_wp
+                   ))::float8 / NULLIF(SUM(bli.quantity), 0) AS avg_wp_krw
+            FROM bl_line_items bli
+            JOIN bl_shipments bl ON bli.bl_id = bl.bl_id
+            WHERE bl.status IN ('completed', 'erp_done')
+              AND bl.company_id = $1
+              AND (bli.unit_price_usd_wp IS NOT NULL OR bli.unit_price_krw_wp IS NOT NULL)
+            GROUP BY bli.product_id
+        ),
+        cost_avg AS (
+            SELECT COALESCE(cd.product_id, bl.product_id) AS product_id,
+                   COALESCE(cd.avg_wp_krw, bl.avg_wp_krw) AS avg_wp_krw
+            FROM bl_cost bl
+            LEFT JOIN cd_cost cd ON bl.product_id = cd.product_id
         )
         SELECT s.customer_id,
                SUM(CASE WHEN ca.avg_wp_krw IS NOT NULL THEN s.supply_amount ELSE 0 END)::float8 AS revenue_covered,
@@ -445,18 +464,44 @@ pub async fn calculate_price_trend(pool: &PgPool, req: &PriceTrendRequest) -> Re
 
 async fn fetch_cost_avg(pool: &PgPool, company_id: Uuid, product_id: Option<Uuid>, basis: &str) -> Result<HashMap<Uuid, f64>, sqlx::Error> {
     let col = if basis == "landed" { "cd.landed_wp_krw" } else { "cd.cif_wp_krw" };
+    // 1순위: 수입면장 기반 원가 (cost_details — 관세/부대비용 포함 확정원가)
     let sql = format!(
         r#"
-        SELECT cd.product_id,
-               CASE WHEN SUM(cd.quantity) > 0
-                 THEN SUM({col} * cd.quantity)::float8 / SUM(cd.quantity)
-                 ELSE 0 END as avg_wp
-        FROM cost_details cd
-        JOIN import_declarations id ON cd.declaration_id = id.declaration_id
-        WHERE id.company_id = $1
-          AND ($2::uuid IS NULL OR cd.product_id = $2)
-          AND {col} IS NOT NULL
-        GROUP BY cd.product_id
+        WITH cd_cost AS (
+          SELECT cd.product_id,
+                 CASE WHEN SUM(cd.quantity) > 0
+                   THEN SUM({col} * cd.quantity)::float8 / SUM(cd.quantity)
+                   ELSE NULL END AS avg_wp
+          FROM cost_details cd
+          JOIN import_declarations decl ON cd.declaration_id = decl.declaration_id
+          WHERE decl.company_id = $1
+            AND ($2::uuid IS NULL OR cd.product_id = $2)
+            AND {col} IS NOT NULL
+          GROUP BY cd.product_id
+        ),
+        -- 2순위: BL 입고 단가 기반 원가 (수입면장 미입력 시 BL unit_price 사용)
+        bl_cost AS (
+          SELECT bli.product_id,
+                 CASE WHEN SUM(bli.quantity) > 0
+                   THEN SUM(
+                     bli.quantity::float8 * COALESCE(
+                       bli.unit_price_usd_wp * bl.exchange_rate,
+                       bli.unit_price_krw_wp
+                     )
+                   )::float8 / SUM(bli.quantity)
+                   ELSE NULL END AS avg_wp
+          FROM bl_line_items bli
+          JOIN bl_shipments bl ON bli.bl_id = bl.bl_id
+          WHERE bl.status IN ('completed', 'erp_done')
+            AND bl.company_id = $1
+            AND ($2::uuid IS NULL OR bli.product_id = $2)
+            AND (bli.unit_price_usd_wp IS NOT NULL OR bli.unit_price_krw_wp IS NOT NULL)
+          GROUP BY bli.product_id
+        )
+        SELECT COALESCE(cd.product_id, bl.product_id) AS product_id,
+               COALESCE(cd.avg_wp, bl.avg_wp) AS avg_wp
+        FROM bl_cost bl
+        LEFT JOIN cd_cost cd ON bl.product_id = cd.product_id
         "#
     );
     let rows = sqlx::query_as::<_, CostAvgRow>(&sql)

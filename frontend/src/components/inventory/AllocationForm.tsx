@@ -11,7 +11,8 @@ import { fetchWithAuth } from '@/lib/api';
 import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { cn } from '@/lib/utils';
 import type { InventoryItem } from '@/types/inventory';
-import type { Partner, ConstructionSite } from '@/types/masters';
+import type { Partner, ConstructionSite, Product } from '@/types/masters';
+import type { BLShipment } from '@/types/inbound';
 
 /* ─── 타입 ─────────────────────────────────────── */
 export interface InventoryAllocation {
@@ -418,15 +419,36 @@ export default function AllocationForm({
   const [error,             setError]             = useState('');
   const [saving,            setSaving]            = useState(false);
   const [partners,          setPartners]          = useState<Partner[]>([]);
+  const [selectedBlId,      setSelectedBlId]      = useState('');  // BL 연결 (원가 추적용)
+  const [bls,               setBls]               = useState<BLShipment[]>([]);
+  const [products,          setProducts]          = useState<Product[]>([]);
 
   const noCompany = !selectedCompanyId || selectedCompanyId === 'all';
 
-  /* 거래처 목록 */
+  /* 거래처 목록 + 품목 목록 */
   useEffect(() => {
     fetchWithAuth<Partner[]>('/api/v1/partners')
       .then((list) => setPartners(list.filter((p) => p.is_active)))
       .catch(() => {});
+    fetchWithAuth<Product[]>('/api/v1/products')
+      .then((list) => setProducts(list.filter((p) => p.is_active)))
+      .catch(() => {});
   }, []);
+
+  /* 품목 선택 시 해당 제조사의 BL 목록 로드 */
+  useEffect(() => {
+    if (!productId) { setBls([]); return; }
+    const mfgId = products.find((p) => p.product_id === productId)?.manufacturer_id;
+    if (!mfgId) { setBls([]); return; }
+    fetchWithAuth<BLShipment[]>(`/api/v1/bls?manufacturer_id=${mfgId}`)
+      .then((list) => {
+        const relevant = (list ?? []).filter((b) =>
+          ['scheduled', 'shipping', 'arrived', 'customs', 'completed', 'erp_done'].includes(b.status)
+        );
+        setBls(relevant);
+      })
+      .catch(() => setBls([]));
+  }, [productId, products]);
 
   /* 공사 현장 목록 — purpose가 construction_own/epc이고 법인이 선택된 경우만 로드 */
   useEffect(() => {
@@ -461,6 +483,7 @@ export default function AllocationForm({
       setExpectedPrice(editData.expected_price_per_wp != null ? String(editData.expected_price_per_wp) : '');
       setFreeSpareQty('');  // 수정 시 무상스페어는 별도 관리 (재생성 방지)
       setSiteName(editData.site_name ?? '');
+      setSelectedBlId(editData.bl_id ?? '');
       // notes에서 [발주번호:X] 파싱
       const rawNotes = editData.notes ?? '';
       const orderNoMatch = rawNotes.match(/^\[발주번호:([^\]]*)\]\s*/);
@@ -485,6 +508,7 @@ export default function AllocationForm({
       setCustomerOrderNo('');
       setSiteName('');
       setSelectedSiteId('');
+      setSelectedBlId('');
       setNotes('');
     }
   }, [open, prefilledProductId, editData]);
@@ -576,6 +600,7 @@ export default function AllocationForm({
       notes:                   notesWithOrderNo,
       expected_price_per_wp:   !isNaN(parsedPrice) && parsedPrice > 0 ? parsedPrice : undefined,
       free_spare_qty:          !isNaN(parsedSpare) && parsedSpare > 0 ? parsedSpare : 0,
+      bl_id:                   selectedBlId || undefined,
     };
 
     setSaving(true);
@@ -813,6 +838,59 @@ export default function AllocationForm({
               </div>
             </div>
           </div>
+
+          {/* ③-b B/L 연결 (원가 추적용, 선택) */}
+          {selectedItem && bls.length > 0 && (
+            <div className="space-y-1.5">
+              <Label>
+                B/L 연결
+                <span className="ml-1 text-muted-foreground font-normal text-xs">(원가 추적용, 선택)</span>
+              </Label>
+              <Select
+                value={selectedBlId || '_none'}
+                onValueChange={(v) => setSelectedBlId(v === '_none' ? '' : (v ?? ''))}
+              >
+                <SelectTrigger className="w-full">
+                  <Txt
+                    text={selectedBlId
+                      ? (() => {
+                          const bl = bls.find(b => b.bl_id === selectedBlId);
+                          return bl ? `${bl.bl_number} | ${bl.eta?.slice(0,10) ?? bl.actual_arrival?.slice(0,10) ?? '—'} | ${bl.status}` : selectedBlId.slice(0,8);
+                        })()
+                      : ''}
+                    placeholder="B/L 선택 안함"
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">선택 안함</SelectItem>
+                  {bls.map((b) => {
+                    const dateStr = b.eta?.slice(0,10) ?? b.actual_arrival?.slice(0,10) ?? '—';
+                    const isCompleted = ['completed','erp_done'].includes(b.status);
+                    return (
+                      <SelectItem key={b.bl_id} value={b.bl_id}>
+                        <span className={cn('text-xs font-medium mr-1.5', isCompleted ? 'text-green-600' : 'text-blue-600')}>
+                          [{b.status}]
+                        </span>
+                        {b.bl_number} | {dateStr}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {selectedBlId && (() => {
+                const bl = bls.find(b => b.bl_id === selectedBlId);
+                if (!bl) return null;
+                return (
+                  <div className="rounded border bg-blue-50 px-3 py-1.5 text-[10px] text-blue-700 flex gap-4">
+                    <span>항구: {bl.port ?? '—'}</span>
+                    <span>포워더: {bl.forwarder ?? '—'}</span>
+                    <span>ETA: {bl.eta?.slice(0,10) ?? '—'}</span>
+                    {bl.exchange_rate && <span>환율: {bl.exchange_rate.toLocaleString('ko-KR')}</span>}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* ④ 배정 계획 (자동) */}
           {allocationPlan && selectedItem && (

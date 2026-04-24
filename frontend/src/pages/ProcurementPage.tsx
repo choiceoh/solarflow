@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, FileText, Banknote, Landmark, Ship, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
@@ -55,6 +55,7 @@ export default function ProcurementPage() {
 
   const [lcStatusFilter, setLcStatusFilter] = useState('');
   const [lcBankFilter, setLcBankFilter] = useState('');
+  const [lcMfgFilter, setLcMfgFilter] = useState('');
   const [lcFormOpen, setLcFormOpen] = useState(false);
   const [editLC, setEditLC] = useState<LCRecord | null>(null);
   const [newLcDefaultPoId, setNewLcDefaultPoId] = useState<string | undefined>(undefined);
@@ -75,15 +76,19 @@ export default function ProcurementPage() {
   // BL 탭
   const [blTypeFilter, setBlTypeFilter] = useState('');
   const [blStatusFilter, setBlStatusFilter] = useState('');
+  const [blMfgFilter, setBlMfgFilter] = useState('');
   const [selectedBL, setSelectedBL] = useState<string | null>(null);
   const [blFormOpen, setBlFormOpen] = useState(false);
   const [blFormPresetPOId, setBlFormPresetPOId] = useState<string | null>(null);
   const [blFormPresetLCId, setBlFormPresetLCId] = useState<string | null>(null);
-  const [blsVersion, setBlsVersion] = useState(0); // LCListTable BL 목록 재조회 트리거
-  const blFilters: { inbound_type?: string; status?: string } = {};
+  const [blsVersion, setBlsVersion] = useState(0);
+  const blFilters: { inbound_type?: string; status?: string; manufacturer_id?: string } = {};
   if (blTypeFilter) blFilters.inbound_type = blTypeFilter;
   if (blStatusFilter) blFilters.status = blStatusFilter;
+  if (blMfgFilter) blFilters.manufacturer_id = blMfgFilter;
   const { data: bls, loading: blLoading, reload: reloadBL } = useBLList(blFilters);
+
+  const [depositMfgFilter, setDepositMfgFilter] = useState('');
 
   const [phMfgFilter, setPhMfgFilter] = useState('');
   const [phFormOpen, setPhFormOpen] = useState(false);
@@ -240,7 +245,13 @@ export default function ProcurementPage() {
       const created = await fetchWithAuth<{ bl_id: string }>('/api/v1/bls', { method: 'POST', body: JSON.stringify(blData) });
       blId = created.bl_id;
     }
-    if (!existingId && Array.isArray(lines) && lines.length > 0) {
+    if (Array.isArray(lines) && lines.length > 0) {
+      if (existingId) {
+        const existing = await fetchWithAuth<{ bl_line_id: string }[]>(`/api/v1/bls/${blId}/lines`).catch(() => []);
+        for (const el of existing) {
+          await fetchWithAuth(`/api/v1/bls/${blId}/lines/${el.bl_line_id}`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
       for (const line of lines) {
         await fetchWithAuth(`/api/v1/bls/${blId}/lines`, { method: 'POST', body: JSON.stringify({ ...line, bl_id: blId }) }).catch(() => {});
       }
@@ -249,12 +260,12 @@ export default function ProcurementPage() {
     setBlsVersion(v => v + 1); // LC 탭의 BL 드릴다운 목록 재조회 트리거
   };
 
-  // LC 탭 드릴다운에서 "입고 등록" 클릭 시
-  const handleNewBLFromLC = (lc: LCRecord) => {
+  const handleNewBLFromLC = (lc: { lc_id: string; po_id: string }) => {
     setBlFormPresetPOId(lc.po_id);
     setBlFormPresetLCId(lc.lc_id);
     setBlFormOpen(true);
   };
+
   const handleDeleteBL = async (blId: string) => {
     await fetchWithAuth(`/api/v1/bls/${blId}`, { method: 'DELETE' });
     reloadBL();
@@ -363,6 +374,9 @@ export default function ProcurementPage() {
   const poTypeLabel = poTypeFilter ? (CONTRACT_TYPE_LABEL[poTypeFilter as ContractType] ?? poTypeFilter) : '전체 유형';
   const lcStatusLabel = lcStatusFilter ? (LC_STATUS_LABEL[lcStatusFilter as LCStatus] ?? lcStatusFilter) : '전체 상태';
   const lcBankLabel = lcBankFilter ? (banks.find(b => b.bank_id === lcBankFilter)?.bank_name ?? '') : '전체 은행';
+  const lcMfgLabel = lcMfgFilter ? (manufacturers.find(m => m.manufacturer_id === lcMfgFilter)?.name_kr ?? '') : '전체 제조사';
+  const blMfgLabel = blMfgFilter ? (manufacturers.find(m => m.manufacturer_id === blMfgFilter)?.name_kr ?? '') : '전체 제조사';
+  const depositMfgLabel = depositMfgFilter ? (manufacturers.find(m => m.manufacturer_id === depositMfgFilter)?.name_kr ?? '') : '전체 제조사';
   const ttStatusLabel = ttStatusFilter ? (TT_STATUS_LABEL[ttStatusFilter as TTStatus] ?? ttStatusFilter) : '전체 상태';
   const ttPoLabel = ttPoFilter ? (poList.find(p => p.po_id === ttPoFilter)?.po_number ?? '') : '전체 PO';
   const phMfgLabel = phMfgFilter ? (manufacturers.find(m => m.manufacturer_id === phMfgFilter)?.name_kr ?? '') : '전체 제조사';
@@ -390,11 +404,11 @@ export default function ProcurementPage() {
 
       <Tabs defaultValue="po">
         <TabsList>
-          <TabsTrigger value="po">PO</TabsTrigger>
-          <TabsTrigger value="tt">계약금</TabsTrigger>
-          <TabsTrigger value="lc">LC</TabsTrigger>
-          <TabsTrigger value="bl">B/L</TabsTrigger>
-          <TabsTrigger value="price">단가이력</TabsTrigger>
+          <TabsTrigger value="po"><FileText className="h-3.5 w-3.5" />PO</TabsTrigger>
+          <TabsTrigger value="tt"><Banknote className="h-3.5 w-3.5" />계약금</TabsTrigger>
+          <TabsTrigger value="lc"><Landmark className="h-3.5 w-3.5" />LC</TabsTrigger>
+          <TabsTrigger value="bl"><Ship className="h-3.5 w-3.5" />B/L</TabsTrigger>
+          <TabsTrigger value="price"><History className="h-3.5 w-3.5" />단가이력</TabsTrigger>
         </TabsList>
 
         <TabsContent value="po">
@@ -427,12 +441,13 @@ export default function ProcurementPage() {
           <div className="flex items-center gap-2 mb-3">
             <Select value={lcStatusFilter || 'all'} onValueChange={(v) => setLcStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={lcStatusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
             <Select value={lcBankFilter || 'all'} onValueChange={(v) => setLcBankFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={lcBankLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 은행</SelectItem>{banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.bank_name}</SelectItem>)}</SelectContent></Select>
+            <Select value={lcMfgFilter || 'all'} onValueChange={(v) => setLcMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={lcMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
             <div className="flex-1" />
             <Button size="sm" onClick={() => { setEditLC(null); setLcFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
           </div>
           {lcLoading ? <LoadingSpinner /> : (
             <LCListTable
-              items={lcs}
+              items={lcMfgFilter ? lcs.filter(lc => poList.find(p => p.po_id === lc.po_id)?.manufacturer_id === lcMfgFilter) : lcs}
               onEdit={(lc) => { setEditLC(lc); setLcFormOpen(true); }}
               onNew={() => { setEditLC(null); setLcFormOpen(true); }}
               onDelete={handleDeleteLC}
@@ -447,9 +462,13 @@ export default function ProcurementPage() {
         <TabsContent value="tt" className="space-y-5">
           {/* 계약금 현황 — PO별 계약금 자동 집계 */}
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">계약금 현황</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-foreground">계약금 현황</h2>
+              <div className="flex-1" />
+              <Select value={depositMfgFilter || 'all'} onValueChange={(v) => setDepositMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={depositMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
+            </div>
             <DepositStatusPanel
-              pos={poList}
+              pos={depositMfgFilter ? poList.filter(p => p.manufacturer_id === depositMfgFilter) : poList}
               tts={tts}
               onPaymentCreated={() => reloadTT()}
               onEditTT={(tt) => { setEditTT(tt); setTtFormOpen(true); }}
@@ -486,6 +505,7 @@ export default function ProcurementPage() {
                 {(Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={blMfgFilter || 'all'} onValueChange={(v) => setBlMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={blMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
             <div className="flex-1" />
             <Button size="sm" onClick={() => setBlFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
           </div>

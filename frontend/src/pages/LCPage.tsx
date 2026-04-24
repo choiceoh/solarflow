@@ -8,6 +8,8 @@ import { fetchWithAuth } from '@/lib/api';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import LCListTable from '@/components/procurement/LCListTable';
 import LCForm from '@/components/procurement/LCForm';
+import BLForm from '@/components/inbound/BLForm';
+import BLDetailView from '@/components/inbound/BLDetailView';
 import { LC_STATUS_LABEL, type LCRecord, type LCStatus } from '@/types/procurement';
 import type { Bank, Company } from '@/types/masters';
 
@@ -26,13 +28,19 @@ export default function LCPage() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editLC, setEditLC] = useState<LCRecord | null>(null);
+  const [selectedBL, setSelectedBL] = useState<string | null>(null);
+  const [blsVersion, setBlsVersion] = useState(0);
+
+  // BL 등록 폼 인라인
+  const [blFormOpen, setBlFormOpen] = useState(false);
+  const [blPresetPOId, setBlPresetPOId] = useState<string | null>(null);
+  const [blPresetLCId, setBlPresetLCId] = useState<string | null>(null);
 
   const filters: Record<string, string> = {};
   if (statusFilter) filters.status = statusFilter;
   if (bankFilter) filters.bank_id = bankFilter;
   const { data: lcs, loading, reload } = useLCList(filters);
 
-  // 클라이언트 측 법인 필터 (D-094: 다른 법인 LC 표시 가능)
   const filtered = companyFilter ? lcs.filter((l) => l.company_id === companyFilter) : lcs;
 
   useEffect(() => {
@@ -47,6 +55,14 @@ export default function LCPage() {
 
   if (!selectedCompanyId) {
     return <div className="flex items-center justify-center p-12"><p className="text-muted-foreground">좌측 상단에서 법인을 선택해주세요</p></div>;
+  }
+
+  if (selectedBL) {
+    return (
+      <div className="p-6">
+        <BLDetailView blId={selectedBL} onBack={() => { setSelectedBL(null); setBlsVersion(v => v + 1); }} />
+      </div>
+    );
   }
 
   const handleCreate = async (d: Record<string, unknown>) => {
@@ -66,6 +82,42 @@ export default function LCPage() {
     await fetchWithAuth(`/api/v1/lcs/${lcId}`, { method: 'DELETE' });
     reload();
   };
+  const handleSettleLC = async (lc: LCRecord, repaymentDate: string) => {
+    await fetchWithAuth(`/api/v1/lcs/${lc.lc_id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ repaid: true, repayment_date: repaymentDate, status: 'settled' }),
+    });
+    reload();
+  };
+  const handleNewBLFromLC = (lc: LCRecord) => {
+    setBlPresetPOId(lc.po_id);
+    setBlPresetLCId(lc.lc_id);
+    setBlFormOpen(true);
+  };
+  const handleCreateBL = async (formData: Record<string, unknown>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { lines, bl_id: existingId, ...blData } = formData as any;
+    let blId: string;
+    if (existingId) {
+      await fetchWithAuth(`/api/v1/bls/${existingId}`, { method: 'PUT', body: JSON.stringify(blData) });
+      blId = existingId;
+    } else {
+      const created = await fetchWithAuth<{ bl_id: string }>('/api/v1/bls', { method: 'POST', body: JSON.stringify(blData) });
+      blId = created.bl_id;
+    }
+    if (Array.isArray(lines) && lines.length > 0) {
+      if (existingId) {
+        const existing = await fetchWithAuth<{ bl_line_id: string }[]>(`/api/v1/bls/${blId}/lines`).catch(() => []);
+        for (const el of existing) {
+          await fetchWithAuth(`/api/v1/bls/${blId}/lines/${el.bl_line_id}`, { method: 'DELETE' }).catch(() => {});
+        }
+      }
+      for (const line of lines) {
+        await fetchWithAuth(`/api/v1/bls/${blId}/lines`, { method: 'POST', body: JSON.stringify({ ...line, bl_id: blId }) }).catch(() => {});
+      }
+    }
+    setBlsVersion(v => v + 1);
+  };
 
   const statusLabel = statusFilter ? (LC_STATUS_LABEL[statusFilter as LCStatus] ?? statusFilter) : '전체 상태';
   const bankLabel = bankFilter ? (banks.find((b) => b.bank_id === bankFilter)?.bank_name ?? '') : '전체 은행';
@@ -82,9 +134,25 @@ export default function LCPage() {
         <Button size="sm" onClick={() => { setEditLC(null); setFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />+ LC 개설</Button>
       </div>
       {loading ? <LoadingSpinner /> : (
-        <LCListTable items={filtered} onEdit={(lc) => { setEditLC(lc); setFormOpen(true); }} onNew={() => { setEditLC(null); setFormOpen(true); }} onDelete={handleDeleteLC} />
+        <LCListTable
+          items={filtered}
+          onEdit={(lc) => { setEditLC(lc); setFormOpen(true); }}
+          onNew={() => { setEditLC(null); setFormOpen(true); }}
+          onDelete={handleDeleteLC}
+          onSettle={handleSettleLC}
+          onSelectBL={setSelectedBL}
+          onNewBL={handleNewBLFromLC}
+          blsVersion={blsVersion}
+        />
       )}
       <LCForm open={formOpen} onOpenChange={setFormOpen} onSubmit={editLC ? handleUpdate : handleCreate} editData={editLC} />
+      <BLForm
+        open={blFormOpen}
+        onOpenChange={(v) => { setBlFormOpen(v); if (!v) { setBlPresetPOId(null); setBlPresetLCId(null); } }}
+        onSubmit={handleCreateBL}
+        presetPOId={blPresetPOId}
+        presetLCId={blPresetLCId}
+      />
     </div>
   );
 }

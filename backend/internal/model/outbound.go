@@ -1,26 +1,42 @@
 package model
 
+// OutboundBLItem — 출고-BL 연결 항목 (분할선적 지원)
+type OutboundBLItem struct {
+	OutboundBLItemID string  `json:"outbound_bl_item_id"`
+	OutboundID       string  `json:"outbound_id"`
+	BLID             string  `json:"bl_id"`
+	BLNumber         *string `json:"bl_number,omitempty"`
+	Quantity         int     `json:"quantity"`
+}
+
+// OutboundBLItemInput — 출고 등록/수정 시 BL 연결 입력
+type OutboundBLItemInput struct {
+	BLID     string `json:"bl_id"`
+	Quantity int    `json:"quantity"`
+}
+
 // Outbound — 출고 정보를 담는 구조체
 // 비유: "출고 전표" — 어떤 품번을, 어디서, 몇 장, 어떤 용도로 출고했는지 기록
 type Outbound struct {
-	OutboundID      string   `json:"outbound_id"`
-	OutboundDate    string   `json:"outbound_date"`
-	CompanyID       string   `json:"company_id"`
-	ProductID       string   `json:"product_id"`
-	Quantity        int      `json:"quantity"`
-	CapacityKw      *float64 `json:"capacity_kw"`
-	WarehouseID     string   `json:"warehouse_id"`
-	UsageCategory   string   `json:"usage_category"`
-	OrderID         *string  `json:"order_id"`
-	SiteName        *string  `json:"site_name"`
-	SiteAddress     *string  `json:"site_address"`
-	SpareQty        *int     `json:"spare_qty"`
-	GroupTrade      *bool    `json:"group_trade"`
-	TargetCompanyID *string  `json:"target_company_id"`
-	ErpOutboundNo   *string  `json:"erp_outbound_no"`
-	Status          string   `json:"status"`
-	Memo            *string  `json:"memo"`
-	BLID            *string  `json:"bl_id"`
+	OutboundID      string           `json:"outbound_id"`
+	OutboundDate    string           `json:"outbound_date"`
+	CompanyID       string           `json:"company_id"`
+	ProductID       string           `json:"product_id"`
+	Quantity        int              `json:"quantity"`
+	CapacityKw      *float64         `json:"capacity_kw"`
+	WarehouseID     string           `json:"warehouse_id"`
+	UsageCategory   string           `json:"usage_category"`
+	OrderID         *string          `json:"order_id"`
+	SiteName        *string          `json:"site_name"`
+	SiteAddress     *string          `json:"site_address"`
+	SpareQty        *int             `json:"spare_qty"`
+	GroupTrade      *bool            `json:"group_trade"`
+	TargetCompanyID *string          `json:"target_company_id"`
+	ErpOutboundNo   *string          `json:"erp_outbound_no"`
+	Status          string           `json:"status"`
+	Memo            *string          `json:"memo"`
+	BLID            *string          `json:"bl_id"`
+	BLItems         []OutboundBLItem `json:"bl_items,omitempty"`
 }
 
 // 허용되는 출고 usage_category 값 (ERP 관리구분 기반 재설계)
@@ -47,23 +63,24 @@ var validOutboundStatuses = map[string]bool{
 // CreateOutboundRequest — 출고 등록 시 클라이언트가 보내는 데이터
 // 비유: "출고 등록 신청서" — 출고일, 법인, 품번, 수량, 창고, 용도를 필수 기재
 type CreateOutboundRequest struct {
-	OutboundDate    string   `json:"outbound_date"`
-	CompanyID       string   `json:"company_id"`
-	ProductID       string   `json:"product_id"`
-	Quantity        int      `json:"quantity"`
-	CapacityKw      *float64 `json:"capacity_kw"`
-	WarehouseID     string   `json:"warehouse_id"`
-	UsageCategory   string   `json:"usage_category"`
-	OrderID         *string  `json:"order_id"`
-	SiteName        *string  `json:"site_name"`
-	SiteAddress     *string  `json:"site_address"`
-	SpareQty        *int     `json:"spare_qty"`
-	GroupTrade      *bool    `json:"group_trade"`
-	TargetCompanyID *string  `json:"target_company_id"`
-	ErpOutboundNo   *string  `json:"erp_outbound_no"`
-	Status          string   `json:"status"`
-	Memo            *string  `json:"memo"`
-	BLID            *string  `json:"bl_id"`
+	OutboundDate    string                `json:"outbound_date"`
+	CompanyID       string                `json:"company_id"`
+	ProductID       string                `json:"product_id"`
+	Quantity        int                   `json:"quantity"`
+	CapacityKw      *float64              `json:"capacity_kw"`
+	WarehouseID     string                `json:"warehouse_id"`
+	UsageCategory   string                `json:"usage_category"`
+	OrderID         *string               `json:"order_id"`
+	SiteName        *string               `json:"site_name"`
+	SiteAddress     *string               `json:"site_address"`
+	SpareQty        *int                  `json:"spare_qty"`
+	GroupTrade      *bool                 `json:"group_trade"`
+	TargetCompanyID *string               `json:"target_company_id"`
+	ErpOutboundNo   *string               `json:"erp_outbound_no"`
+	Status          string                `json:"status"`
+	Memo            *string               `json:"memo"`
+	BLID            *string               `json:"bl_id"`
+	BLItems         []OutboundBLItemInput `json:"bl_items,omitempty"`
 }
 
 // Validate — 출고 등록 요청의 입력값을 검증
@@ -107,23 +124,24 @@ func (req *CreateOutboundRequest) Validate() string {
 // UpdateOutboundRequest — 출고 수정 시 클라이언트가 보내는 데이터
 // 비유: "출고 전표 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateOutboundRequest struct {
-	OutboundDate    *string  `json:"outbound_date,omitempty"`
-	CompanyID       *string  `json:"company_id,omitempty"`
-	ProductID       *string  `json:"product_id,omitempty"`
-	Quantity        *int     `json:"quantity,omitempty"`
-	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
-	WarehouseID     *string  `json:"warehouse_id,omitempty"`
-	UsageCategory   *string  `json:"usage_category,omitempty"`
-	OrderID         *string  `json:"order_id,omitempty"`
-	SiteName        *string  `json:"site_name,omitempty"`
-	SiteAddress     *string  `json:"site_address,omitempty"`
-	SpareQty        *int     `json:"spare_qty,omitempty"`
-	GroupTrade      *bool    `json:"group_trade,omitempty"`
-	TargetCompanyID *string  `json:"target_company_id,omitempty"`
-	ErpOutboundNo   *string  `json:"erp_outbound_no,omitempty"`
-	Status          *string  `json:"status,omitempty"`
-	Memo            *string  `json:"memo,omitempty"`
-	BLID            *string  `json:"bl_id,omitempty"`
+	OutboundDate    *string               `json:"outbound_date,omitempty"`
+	CompanyID       *string               `json:"company_id,omitempty"`
+	ProductID       *string               `json:"product_id,omitempty"`
+	Quantity        *int                  `json:"quantity,omitempty"`
+	CapacityKw      *float64              `json:"capacity_kw,omitempty"`
+	WarehouseID     *string               `json:"warehouse_id,omitempty"`
+	UsageCategory   *string               `json:"usage_category,omitempty"`
+	OrderID         *string               `json:"order_id,omitempty"`
+	SiteName        *string               `json:"site_name,omitempty"`
+	SiteAddress     *string               `json:"site_address,omitempty"`
+	SpareQty        *int                  `json:"spare_qty,omitempty"`
+	GroupTrade      *bool                 `json:"group_trade,omitempty"`
+	TargetCompanyID *string               `json:"target_company_id,omitempty"`
+	ErpOutboundNo   *string               `json:"erp_outbound_no,omitempty"`
+	Status          *string               `json:"status,omitempty"`
+	Memo            *string               `json:"memo,omitempty"`
+	BLID            *string               `json:"bl_id,omitempty"`
+	BLItems         []OutboundBLItemInput `json:"bl_items,omitempty"`
 }
 
 // Validate — 출고 수정 요청의 입력값을 검증

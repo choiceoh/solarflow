@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, ScrollText, Truck, Receipt as ReceiptIcon, Wallet, GitMerge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -320,11 +320,11 @@ export default function OrdersPage() {
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
         <TabsList>
-          <TabsTrigger value="orders">수주</TabsTrigger>
-          <TabsTrigger value="outbound">출고</TabsTrigger>
-          <TabsTrigger value="sales">판매</TabsTrigger>
-          <TabsTrigger value="receipts">수금</TabsTrigger>
-          <TabsTrigger value="matching">수금매칭</TabsTrigger>
+          <TabsTrigger value="orders"><ScrollText className="h-3.5 w-3.5" />수주</TabsTrigger>
+          <TabsTrigger value="outbound"><Truck className="h-3.5 w-3.5" />출고</TabsTrigger>
+          <TabsTrigger value="sales"><ReceiptIcon className="h-3.5 w-3.5" />판매</TabsTrigger>
+          <TabsTrigger value="receipts"><Wallet className="h-3.5 w-3.5" />수금</TabsTrigger>
+          <TabsTrigger value="matching"><GitMerge className="h-3.5 w-3.5" />수금매칭</TabsTrigger>
         </TabsList>
 
         {/* 탭 1: 수주 관리 */}

@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import { moduleLabel } from '@/lib/utils';
-import type { BLShipment } from '@/types/inbound';
+import type { BLShipment, BLLineItem } from '@/types/inbound';
 import type { Company, Manufacturer, Product, Warehouse } from '@/types/masters';
 
 const LC_STATUS_KR: Record<string, string> = {
@@ -395,16 +395,19 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     try {
       poLines = await fetchWithAuth<POLineSummary[]>(`/api/v1/pos/${poId}/lines`) ?? [];
     } catch { /* 빈 PO */ }
-    // 기입고 합산: 동일 PO의 모든 BL → lines → product_id별 quantity 합산
-    const shippedByProduct: Record<string, number> = {};
+    // 기입고 합산: po_line_id 기준으로 집계 (동일 품목 복수 PO 라인 구분)
+    const shippedByLine: Record<string, number> = {};   // po_line_id → qty
+    const shippedByProduct: Record<string, number> = {}; // product_id → qty (po_line_id 없는 구 데이터 폴백)
     let shippedKwTotal = 0;
     try {
       const bls = await fetchWithAuth<BLShipment[]>(`/api/v1/bls?po_id=${poId}`);
       for (const bl of bls ?? []) {
         try {
-          const blLines = await fetchWithAuth<{ product_id?: string; quantity?: number; capacity_kw?: number }[]>(`/api/v1/bls/${bl.bl_id}/lines`);
+          const blLines = await fetchWithAuth<{ po_line_id?: string; product_id?: string; quantity?: number; capacity_kw?: number }[]>(`/api/v1/bls/${bl.bl_id}/lines`);
           for (const ln of blLines ?? []) {
-            if (ln.product_id) {
+            if (ln.po_line_id) {
+              shippedByLine[ln.po_line_id] = (shippedByLine[ln.po_line_id] || 0) + (ln.quantity ?? 0);
+            } else if (ln.product_id) {
               shippedByProduct[ln.product_id] = (shippedByProduct[ln.product_id] || 0) + (ln.quantity ?? 0);
             }
             shippedKwTotal += ln.capacity_kw ?? 0;
@@ -417,7 +420,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       po_line_id: l.po_line_id,
       product_id: l.product_id,
       contracted_qty: l.quantity ?? 0,
-      shipped_qty: shippedByProduct[l.product_id] ?? 0,
+      shipped_qty: shippedByLine[l.po_line_id] ?? shippedByProduct[l.product_id] ?? 0,
       unit_price_usd: l.unit_price_usd,
       unit_price_usd_wp: l.unit_price_usd_wp,
       unit_price_krw_wp: l.unit_price_krw_wp,
@@ -508,6 +511,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       setSelCompanyId(d.company_id);
       setSelMfgId(d.manufacturer_id);
       setSelWhId(d.warehouse_id ?? '');
+      setSelPOId(d.po_id ?? '');
       setAutoNumber(d.bl_number);
       setBafCaf(/BAF\s*\/\s*CAF/i.test(d.incoterms ?? ''));
       setDeliveryDate(d.actual_arrival?.slice(0, 10) ?? '');
@@ -538,6 +542,25 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
         warehouse_id: d.warehouse_id ?? '', invoice_number: d.invoice_number ?? '', declaration_number: d.declaration_number ?? '',
         incoterms: d.incoterms ?? '', memo: d.memo ?? '',
       });
+      setLines([emptyLine()]);
+      fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${d.bl_id}/lines`)
+        .then((apiLines) => {
+          if (!apiLines || apiLines.length === 0) return;
+          setLines(apiLines.map(l => ({
+            product_id: l.product_id,
+            quantity: String(l.quantity),
+            item_type: (l.item_type ?? 'main') as 'main' | 'spare',
+            payment_type: (l.payment_type ?? 'paid') as 'paid' | 'free',
+            unit_price: l.unit_price_usd_wp != null
+              ? String(l.unit_price_usd_wp)
+              : l.unit_price_krw_wp != null
+              ? String(l.unit_price_krw_wp)
+              : '',
+            manualInvoice: false,
+            invoiceOverride: '',
+          })));
+        })
+        .catch(() => {});
     } else {
       const cid = globalCompanyId && globalCompanyId !== 'all' ? globalCompanyId : '';
       setSelType(''); setSelCompanyId(cid); setSelMfgId(''); setSelWhId('');
@@ -713,7 +736,6 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       if (missingProd) { setSubmitError('품번 정보가 로드되지 않았습니다. 잠시 후 다시 시도해주세요'); return; }
     }
 
-    // 수정 모드: 라인은 별도 화면에서 관리하므로 헤더만 업데이트
     const validLines = lines.filter(l => l.product_id && Number(l.quantity) > 0);
 
     const blNumber = isImport ? (data.bl_number ?? '') : autoNumber;
@@ -747,8 +769,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
         : undefined,
       warehouse_id: selWhId || undefined,
       memo: data.memo || undefined,
-      // 수정 모드에서는 lines 미포함 (별도 화면에서 관리)
-      lines: editData ? undefined : validLines
+      lines: validLines
         .map(l => {
           const prod = products.find(p => p.product_id === l.product_id);
           const qty = Number(l.quantity);

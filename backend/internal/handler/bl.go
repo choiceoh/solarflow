@@ -35,16 +35,20 @@ func (h *BLHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	// 입력 필터 조건을 디버그 로그에 기록
 	poID := r.URL.Query().Get("po_id")
+	lcID := r.URL.Query().Get("lc_id")
 	compID := r.URL.Query().Get("company_id")
 	mfgID := r.URL.Query().Get("manufacturer_id")
 	status := r.URL.Query().Get("status")
 	inboundType := r.URL.Query().Get("inbound_type")
-	log.Printf("[B/L 목록 조회 요청] po_id=%q company_id=%q manufacturer_id=%q status=%q inbound_type=%q",
-		poID, compID, mfgID, status, inboundType)
+	log.Printf("[B/L 목록 조회 요청] po_id=%q lc_id=%q company_id=%q manufacturer_id=%q status=%q inbound_type=%q",
+		poID, lcID, compID, mfgID, status, inboundType)
 
-	// 비유: ?po_id=xxx — 특정 PO의 B/L만 필터
 	if poID != "" {
 		query = query.Eq("po_id", poID)
+	}
+
+	if lcID != "" {
+		query = query.Eq("lc_id", lcID)
 	}
 
 	// 비유: ?company_id=xxx — 특정 법인의 B/L만 필터 ("all"이면 전체)

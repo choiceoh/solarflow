@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, CreditCard, BellRing, History, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
@@ -56,10 +56,10 @@ export default function BankingPage() {
 
       <Tabs defaultValue="limits">
         <TabsList>
-          <TabsTrigger value="limits">한도 현황</TabsTrigger>
-          <TabsTrigger value="maturity">만기 알림</TabsTrigger>
-          <TabsTrigger value="changes">한도 변경 이력</TabsTrigger>
-          <TabsTrigger value="demand">LC 수요 예측</TabsTrigger>
+          <TabsTrigger value="limits"><CreditCard className="h-3.5 w-3.5" />한도 현황</TabsTrigger>
+          <TabsTrigger value="maturity"><BellRing className="h-3.5 w-3.5" />만기 알림</TabsTrigger>
+          <TabsTrigger value="changes"><History className="h-3.5 w-3.5" />한도 변경 이력</TabsTrigger>
+          <TabsTrigger value="demand"><TrendingUp className="h-3.5 w-3.5" />LC 수요 예측</TabsTrigger>
         </TabsList>
 
         {/* 탭 1: LC 한도 현황 — 법인별 그룹 */}

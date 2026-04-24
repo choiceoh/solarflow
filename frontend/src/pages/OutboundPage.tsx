@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Truck, TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -109,8 +109,8 @@ export default function OutboundPage() {
 
       <Tabs defaultValue="outbound">
         <TabsList>
-          <TabsTrigger value="outbound">출고 관리</TabsTrigger>
-          <TabsTrigger value="sales">매출 현황</TabsTrigger>
+          <TabsTrigger value="outbound"><Truck className="h-3.5 w-3.5" />출고 관리</TabsTrigger>
+          <TabsTrigger value="sales"><TrendingUp className="h-3.5 w-3.5" />매출 현황</TabsTrigger>
         </TabsList>
 
         <TabsContent value="outbound" className="space-y-4 mt-4">
