@@ -262,9 +262,8 @@ export default function ProcurementPage() {
 
   const handleCreateLC = async (d: Record<string, unknown>) => { await fetchWithAuth('/api/v1/lcs', { method: 'POST', body: JSON.stringify(d) }); reloadLC(); };
   const handleUpdateLC = async (d: Record<string, unknown>) => { if (!editLC) return; await fetchWithAuth(`/api/v1/lcs/${editLC.lc_id}`, { method: 'PUT', body: JSON.stringify(d) }); setEditLC(null); reloadLC(); };
-  const handleSettleLC = async (lc: import('@/types/procurement').LCRecord) => {
-    const today = new Date().toISOString().slice(0, 10);
-    await fetchWithAuth(`/api/v1/lcs/${lc.lc_id}`, { method: 'PUT', body: JSON.stringify({ repaid: true, repayment_date: today, status: 'settled' }) });
+  const handleSettleLC = async (lc: import('@/types/procurement').LCRecord, repaymentDate: string) => {
+    await fetchWithAuth(`/api/v1/lcs/${lc.lc_id}`, { method: 'PUT', body: JSON.stringify({ repaid: true, repayment_date: repaymentDate, status: 'settled' }) });
     reloadLC();
   };
   const handleDeleteLC = async (lcId: string) => {

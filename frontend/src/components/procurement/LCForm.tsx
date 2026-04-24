@@ -31,8 +31,6 @@ const schema = z.object({
   usance_days: z.coerce.number().optional().or(z.literal('')),
   usance_type: z.string().optional(),
   maturity_date: z.string().optional(),
-  repayment_date: z.string().optional(),
-  repaid: z.boolean().optional(),
   status: z.string().min(1, '상태는 필수입니다'),
   memo: z.string().optional(),
 });
@@ -104,11 +102,11 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData, default
     if (open) {
       setSubmitError('');
       if (editData) {
-        reset({ lc_number: editData.lc_number ?? '', po_id: editData.po_id, company_id: editData.company_id, bank_id: editData.bank_id, open_date: editData.open_date?.slice(0, 10) ?? '', amount_usd: editData.amount_usd, target_qty: editData.target_qty ?? '', target_mw: editData.target_mw ?? '', usance_days: editData.usance_days ?? '', usance_type: editData.usance_type ?? '', maturity_date: editData.maturity_date?.slice(0, 10) ?? '', repayment_date: editData.repayment_date?.slice(0, 10) ?? (editData.maturity_date?.slice(0, 10) ?? ''), repaid: editData.repaid ?? false, status: editData.status, memo: editData.memo ?? '' });
+        reset({ lc_number: editData.lc_number ?? '', po_id: editData.po_id, company_id: editData.company_id, bank_id: editData.bank_id, open_date: editData.open_date?.slice(0, 10) ?? '', amount_usd: editData.amount_usd, target_qty: editData.target_qty ?? '', target_mw: editData.target_mw ?? '', usance_days: editData.usance_days ?? '', usance_type: editData.usance_type ?? '', maturity_date: editData.maturity_date?.slice(0, 10) ?? '', status: editData.status, memo: editData.memo ?? '' });
         setAmountUsdDisplay(fmtDecimal(editData.amount_usd?.toString() ?? ''));
         setTargetQtyDisplay(editData.target_qty ? Math.round(editData.target_qty).toLocaleString('ko-KR') : '');
       } else {
-        reset({ lc_number: '', po_id: defaultPoId ?? '', company_id: selectedCompanyId ?? '', bank_id: '', open_date: '', amount_usd: '' as unknown as number, target_qty: '', target_mw: '', usance_days: 90, usance_type: 'buyers', maturity_date: '', repayment_date: '', repaid: false, status: 'opened', memo: '' });
+        reset({ lc_number: '', po_id: defaultPoId ?? '', company_id: selectedCompanyId ?? '', bank_id: '', open_date: '', amount_usd: '' as unknown as number, target_qty: '', target_mw: '', usance_days: 90, usance_type: 'buyers', maturity_date: '', status: 'opened', memo: '' });
         setAmountUsdDisplay('');
         setTargetQtyDisplay('');
       }
@@ -140,14 +138,6 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData, default
     }
   }, [watchedQty, poLines, products, setValue]);
 
-  // 자동: maturity_date → repayment_date 기본값 (미입력 상태일 때만)
-  const watchedMaturity = watch('maturity_date');
-  useEffect(() => {
-    if (!watchedMaturity) return;
-    const cur = watch('repayment_date');
-    if (!cur) setValue('repayment_date', watchedMaturity, { shouldDirty: false });
-  }, [watchedMaturity]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // 자동: open_date + usance_days → maturity_date
   const watchedOpenDate = watch('open_date');
   const watchedUsance = watch('usance_days');
@@ -169,7 +159,6 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData, default
     if (data.usance_days === '' || data.usance_days === undefined) delete payload.usance_days;
     if (!data.open_date) delete payload.open_date;
     if (!data.maturity_date) delete payload.maturity_date;
-    if (!data.repayment_date) delete payload.repayment_date;
     try {
       await onSubmit(payload);
       onOpenChange(false);
@@ -337,24 +326,6 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData, default
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>만기일</Label><DateInput value={watch('maturity_date') ?? ''} onChange={(v) => setValue('maturity_date', v, { shouldDirty: true })} /></div>
           </div>
-          {/* 상환 처리 — 수정 모드에서만 표시 */}
-          {editData && (
-            <div className="rounded-md border border-dashed p-3 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">상환 처리</p>
-              <div className="grid grid-cols-2 gap-3 items-end">
-                <div className="space-y-1.5">
-                  <Label>상환일</Label>
-                  <DateInput value={watch('repayment_date') ?? ''} onChange={(v) => { setValue('repayment_date', v, { shouldDirty: true }); if (v) setValue('repaid', true, { shouldDirty: true }); }} />
-                </div>
-                <div className="flex items-end pb-1">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer">
-                    <input type="checkbox" checked={!!watch('repaid')} onChange={(e) => { setValue('repaid', e.target.checked, { shouldDirty: true }); if (!e.target.checked) setValue('repayment_date', '', { shouldDirty: true }); }} />
-                    상환완료 (한도 계산에서 제외)
-                  </label>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="space-y-1.5">
             <Label>상태 *</Label>
             <Select value={watch('status') ?? ''} onValueChange={(v) => setValue('status', v ?? '')}><SelectTrigger className="w-full"><Txt text={{ pending: '대기', opened: '개설', docs_received: '서류접수', settled: '결제완료' }[watch('status') ?? ''] || ''} /></SelectTrigger>

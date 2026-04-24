@@ -2,6 +2,9 @@ import { useState, useEffect, Fragment } from 'react';
 import { Pencil, Trash2, CheckCircle2, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { DateInput } from '@/components/ui/date-input';
 import { cn, formatDate, formatUSD, formatNumber, moduleLabel } from '@/lib/utils';
 import EmptyState from '@/components/common/EmptyState';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -32,7 +35,7 @@ interface Props {
   onEdit: (lc: LCRecord) => void;
   onNew: () => void;
   onDelete?: (lcId: string) => Promise<void>;
-  onSettle?: (lc: LCRecord) => Promise<void>;
+  onSettle?: (lc: LCRecord, repaymentDate: string) => Promise<void>;
   onSelectBL?: (blId: string) => void;
   onNewBL?: (lc: LCRecord) => void;
   blsVersion?: number; // ProcurementPage에서 BL 생성 시 증가 → 현재 펼쳐진 BL 목록 재로드
@@ -43,6 +46,7 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
   const [deleteTarget, setDeleteTarget] = useState<LCRecord | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [settleTarget, setSettleTarget] = useState<LCRecord | null>(null);
+  const [settleDate, setSettleDate] = useState('');
   const [settling, setSettling] = useState(false);
 
   // BL 드릴다운 상태
@@ -127,7 +131,7 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
     if (!settleTarget || !onSettle) return;
     setSettling(true);
     try {
-      await onSettle(settleTarget);
+      await onSettle(settleTarget, settleDate);
       setSettleTarget(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : '상환완료 처리에 실패했습니다');
@@ -233,12 +237,13 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                         <span className="text-[11px]">{formatDate(lc.maturity_date ?? '')}</span>
                         {!isRepaid && <MaturityBadge date={lc.maturity_date} />}
                       </div>
-                      <div className="text-[10px] text-muted-foreground mt-0.5">
-                        {lc.settlement_date ? `결제 ${formatDate(lc.settlement_date)}` : '결제일 미정'}
-                      </div>
-                      {isRepaid && lc.repayment_date && (
+                      {isRepaid && lc.repayment_date ? (
                         <div className="text-[10px] text-green-600 font-medium mt-0.5">
-                          상환 {formatDate(lc.repayment_date)}
+                          상환완료 {formatDate(lc.repayment_date)}
+                        </div>
+                      ) : (
+                        <div className="text-[10px] text-muted-foreground mt-0.5">
+                          상환예정일 {formatDate(lc.maturity_date ?? '')}
                         </div>
                       )}
                     </td>
@@ -269,7 +274,7 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
                               size="icon"
                               className="h-6 w-6 text-muted-foreground hover:text-green-600"
                               title="상환완료 처리"
-                              onClick={() => setSettleTarget(lc)}
+                              onClick={() => { setSettleTarget(lc); setSettleDate(lc.maturity_date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10)); }}
                             >
                               <CheckCircle2 className="h-3 w-3" />
                             </Button>
@@ -359,14 +364,29 @@ export default function LCListTable({ items, onEdit, onNew, onDelete, onSettle, 
         onConfirm={handleDelete}
         loading={deleting}
       />
-      <ConfirmDialog
-        open={!!settleTarget}
-        onOpenChange={(v) => { if (!v) setSettleTarget(null); }}
-        title="상환완료 처리"
-        description={settleTarget ? `LC "${settleTarget.lc_number ?? ''}"를 상환완료로 처리하시겠습니까? 오늘 날짜로 상환일이 기록되며 한도 계산에서 제외됩니다.` : ''}
-        onConfirm={handleSettle}
-        loading={settling}
-      />
+      <Dialog open={!!settleTarget} onOpenChange={(v) => { if (!v) setSettleTarget(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>상환완료 처리</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-1">
+            <p className="text-sm text-muted-foreground">
+              LC <span className="font-medium text-foreground">{settleTarget?.lc_number ?? ''}</span>를 상환완료 처리합니다.
+              상환완료 후 은행 한도 계산에서 제외됩니다.
+            </p>
+            <div className="space-y-1.5">
+              <Label>상환일</Label>
+              <DateInput value={settleDate} onChange={setSettleDate} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettleTarget(null)}>취소</Button>
+            <Button onClick={handleSettle} disabled={settling || !settleDate}>
+              {settling ? '처리 중…' : '상환완료'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
