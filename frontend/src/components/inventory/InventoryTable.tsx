@@ -66,7 +66,6 @@ function TotalCell({
   mainClassName?: string;
 }) {
   const activeDeductions = deductions?.filter((d) => d.kw > 0) ?? [];
-  const netKw = kw - activeDeductions.reduce((s, d) => s + d.kw, 0);
   const hasDeductions = activeDeductions.length > 0;
   return (
     <td className="p-3 text-right align-top">
@@ -79,9 +78,6 @@ function TotalCell({
               <span className="tabular-nums">{fmw(d.kw)}</span>
             </div>
           ))}
-          <div className="text-[10px] border-t border-border/60 pt-0.5 mt-0.5 font-semibold tabular-nums text-foreground">
-            소계 {fmw(netKw)}
-          </div>
         </div>
       )}
     </td>
