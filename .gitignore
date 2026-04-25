@@ -7,3 +7,8 @@ dist/
 .DS_Store
 insert_*.sql
 .claude/
+
+
+# graphify 산출물 (로컬 분석 결과, 커밋하지 않음)
+graphify-out/
+

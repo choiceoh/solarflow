@@ -62,9 +62,31 @@ export function formatSize(w: number, h: number): string {
 
 // --- 모듈 레이블 ---
 
+// ─── 제조사명 간략 표기 (실무 관행) ────────────────────────────────────────
+// "진코솔라" → "진코", "트리나솔라" → "트리나", "LONGi" → "론지" 등
+const _MFG_OVERRIDE: Record<string, string> = {
+  longi: '론지',
+  'longi solar': '론지',
+  tongwei: '통웨이',
+};
+// 제거할 접미사 (긴 것 먼저 매칭)
+const _MFG_SUFFIX_RE = /(에너지솔루션|에너지솔라|에너지|솔루션|솔라|[ ]?[Ss]olar[ ]?[Ee]nergy|[ ]?[Ss]olar|[ ]?[Ee]nergy)$/;
+
+/**
+ * 제조사 전체명 → 실무 약칭.
+ * "진코솔라" → "진코", "트리나솔라" → "트리나", "라이젠에너지" → "라이젠", "LONGi" → "론지"
+ */
+export function shortMfgName(name: string | null | undefined): string {
+  if (!name) return '—';
+  const trimmed = name.trim();
+  const lower = trimmed.toLowerCase();
+  if (_MFG_OVERRIDE[lower]) return _MFG_OVERRIDE[lower];
+  return trimmed.replace(_MFG_SUFFIX_RE, '').trim() || trimmed;
+}
+
 /**
  * 제조사 약칭 + 사양 조합 레이블. 예: "진코 640W", "트리나 730W"
- * @param mfg   short_name 우선, 없으면 name_kr 사용
+ * @param mfg   short_name 우선, 없으면 name_kr → shortMfgName 적용
  * @param specWp 모듈 사양(Wp). 없으면 제조사명만 반환
  */
 export function moduleLabel(
@@ -75,9 +97,10 @@ export function moduleLabel(
   if (!mfg) {
     name = '—';
   } else if (typeof mfg === 'string') {
-    name = mfg || '—';
+    name = shortMfgName(mfg);   // 문자열은 자동 약칭 처리
   } else {
-    name = mfg.short_name?.trim() || mfg.name_kr?.trim() || '—';
+    // DB short_name이 있으면 그대로, 없으면 name_kr을 약칭 처리
+    name = mfg.short_name?.trim() || shortMfgName(mfg.name_kr) || '—';
   }
   if (!specWp) return name;
   return `${name} ${specWp}W`;   // → "진코 640W"
@@ -94,4 +117,51 @@ export function moduleLabelById(
 ): string {
   const mfg = manufacturers.find((m) => m.manufacturer_id === manufacturerId);
   return moduleLabel(mfg ?? null, specWp);
+}
+
+// --- PO 정보 박스 공통 라벨 (LC/TT/BL 폼에서 공유) ---
+
+type _POLineLike = {
+  product_id?: string;
+  product_code?: string;
+  product_name?: string;
+  spec_wp?: number;
+  payment_type?: 'paid' | 'free' | null;
+  products?: { product_code?: string; product_name?: string; spec_wp?: number };
+};
+type _ProductLike = { product_id: string; spec_wp?: number; product_code?: string; product_name?: string };
+
+/**
+ * "제조사/규격" 칸 표시용 — 제조사 약칭 + 첫 라인 spec_wp.
+ * 예: "진코 640W"
+ */
+export function poMfgSpecLabel(
+  manufacturerName: string | null | undefined,
+  lines: _POLineLike[],
+  products: _ProductLike[] = [],
+): string {
+  const first = lines[0];
+  const prod = first ? products.find((p) => p.product_id === first.product_id) : undefined;
+  const spec = prod?.spec_wp ?? first?.products?.spec_wp ?? first?.spec_wp;
+  return moduleLabel(manufacturerName ?? null, spec);
+}
+
+/**
+ * "품명 / 품번 외 N건" 요약. 기본은 유상(paid) 라인만 카운트 (무상 스페어 제외).
+ */
+export function poLineSummary(
+  lines: _POLineLike[],
+  products: _ProductLike[] = [],
+  options?: { paidOnly?: boolean },
+): { productName: string; productCodeWithCount: string; paidCount: number } {
+  const paidOnly = options?.paidOnly !== false;
+  const filtered = paidOnly
+    ? lines.filter((l) => l.payment_type == null || l.payment_type === 'paid')
+    : lines;
+  const first = filtered[0];
+  const prod = first ? products.find((p) => p.product_id === first.product_id) : undefined;
+  const productName = prod?.product_name ?? first?.products?.product_name ?? first?.product_name ?? '—';
+  const code = prod?.product_code ?? first?.products?.product_code ?? first?.product_code ?? '—';
+  const productCodeWithCount = filtered.length > 1 ? `${code} 외 ${filtered.length - 1}건` : code;
+  return { productName, productCodeWithCount, paidCount: filtered.length };
 }
