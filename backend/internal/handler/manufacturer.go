@@ -158,6 +158,22 @@ func (h *ManufacturerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
 
+// Delete — DELETE /api/v1/manufacturers/{id} — 제조사 삭제
+// 비유: 명부에서 제조사 카드를 완전히 제거하는 것
+func (h *ManufacturerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _, err := h.DB.From("manufacturers").
+		Delete("", "").
+		Eq("manufacturer_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[제조사 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "제조사 삭제에 실패했습니다")
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, struct{ Status string `json:"status"` }{Status: "deleted"})
+}
+
 // ToggleStatus — PATCH /api/v1/manufacturers/{id}/status — 제조사 활성/비활성
 // 비유: 제조사 카드에 활동중/휴면 도장
 func (h *ManufacturerHandler) ToggleStatus(w http.ResponseWriter, r *http.Request) {

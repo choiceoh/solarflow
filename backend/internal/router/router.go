@@ -31,6 +31,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", companyH.GetByID)
 			r.Put("/{id}", companyH.Update)
 			r.Patch("/{id}/status", companyH.ToggleStatus)
+			r.Delete("/{id}", companyH.Delete)
 		})
 
 		mfgH := handler.NewManufacturerHandler(db)
@@ -40,6 +41,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", mfgH.GetByID)
 			r.Put("/{id}", mfgH.Update)
 			r.Patch("/{id}/status", mfgH.ToggleStatus)
+			r.Delete("/{id}", mfgH.Delete)
 		})
 
 		productH := handler.NewProductHandler(db)
@@ -49,6 +51,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", productH.GetByID)
 			r.Put("/{id}", productH.Update)
 			r.Patch("/{id}/status", productH.ToggleStatus)
+			r.Delete("/{id}", productH.Delete)
 		})
 
 		partnerH := handler.NewPartnerHandler(db)
@@ -58,6 +61,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", partnerH.GetByID)
 			r.Put("/{id}", partnerH.Update)
 			r.Patch("/{id}/status", partnerH.ToggleStatus)
+			r.Delete("/{id}", partnerH.Delete)
 		})
 
 		warehouseH := handler.NewWarehouseHandler(db)
@@ -67,6 +71,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", warehouseH.GetByID)
 			r.Put("/{id}", warehouseH.Update)
 			r.Patch("/{id}/status", warehouseH.ToggleStatus)
+			r.Delete("/{id}", warehouseH.Delete)
 		})
 
 		bankH := handler.NewBankHandler(db)
@@ -198,6 +203,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/{id}", siteH.GetByID)
 			r.Put("/{id}", siteH.Update)
 			r.Patch("/{id}/status", siteH.ToggleActive)
+			r.Delete("/{id}", siteH.Delete)
 		})
 
 		// 가용재고 배정 (판매예정/공사예정)

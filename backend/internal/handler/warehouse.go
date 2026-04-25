@@ -164,6 +164,22 @@ func (h *WarehouseHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
 
+// Delete — DELETE /api/v1/warehouses/{id} — 창고 삭제
+// 비유: 물류센터 안내도에서 장소 카드를 완전히 제거하는 것
+func (h *WarehouseHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _, err := h.DB.From("warehouses").
+		Delete("", "").
+		Eq("warehouse_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[창고 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "창고 삭제에 실패했습니다")
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, struct{ Status string `json:"status"` }{Status: "deleted"})
+}
+
 // ToggleStatus — PATCH /api/v1/warehouses/{id}/status — 창고 활성/비활성
 func (h *WarehouseHandler) ToggleStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

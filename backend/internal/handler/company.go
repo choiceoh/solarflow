@@ -158,6 +158,22 @@ func (h *CompanyHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
 
+// Delete — DELETE /api/v1/companies/{id} — 법인 삭제
+// 비유: 명함첩에서 명함을 완전히 제거하는 것
+func (h *CompanyHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _, err := h.DB.From("companies").
+		Delete("", "").
+		Eq("company_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[법인 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "법인 삭제에 실패했습니다")
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, struct{ Status string `json:"status"` }{Status: "deleted"})
+}
+
 // ToggleStatus — PATCH /api/v1/companies/{id}/status — 법인 활성/비활성 토글
 // 비유: 명함에 "활동중/휴면" 도장을 찍는 것
 func (h *CompanyHandler) ToggleStatus(w http.ResponseWriter, r *http.Request) {

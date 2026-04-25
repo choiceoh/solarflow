@@ -169,6 +169,22 @@ func (h *PartnerHandler) Update(w http.ResponseWriter, r *http.Request) {
 	response.RespondJSON(w, http.StatusOK, updated[0])
 }
 
+// Delete — DELETE /api/v1/partners/{id} — 거래처 삭제
+// 비유: 명함 보관함에서 거래처 명함을 완전히 제거하는 것
+func (h *PartnerHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	_, _, err := h.DB.From("partners").
+		Delete("", "").
+		Eq("partner_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[거래처 삭제 실패] id=%s, err=%v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "거래처 삭제에 실패했습니다")
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, struct{ Status string `json:"status"` }{Status: "deleted"})
+}
+
 // ToggleStatus — PATCH /api/v1/partners/{id}/status — 거래처 활성/비활성
 func (h *PartnerHandler) ToggleStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
