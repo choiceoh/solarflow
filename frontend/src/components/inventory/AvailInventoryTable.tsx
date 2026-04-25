@@ -17,11 +17,17 @@ function fmtKw(kw: number): string {
 const kwToEa = (kw: number, specWp: number): number =>
   specWp > 0 ? Math.round((kw * 1000) / specWp) : 0;
 
+const isFreeSpare = (a: InventoryAllocation) => a.notes?.startsWith('[무상스페어]') ?? false;
 const isSale = (a: InventoryAllocation) => a.purpose === 'sale' || a.purpose === 'other';
 const isConstruction = (a: InventoryAllocation) =>
   a.purpose === 'construction' ||
   a.purpose === 'construction_own' ||
   a.purpose === 'construction_epc';
+
+function allocCountLabel(mainCount: number, spareCount: number): string {
+  if (mainCount === 0 && spareCount > 0) return `무상 ${spareCount}건`;
+  return spareCount > 0 ? `${mainCount}건 · 무상 ${spareCount}건` : `${mainCount}건`;
+}
 
 /* ─── Props ────────────────────────────────────── */
 
@@ -76,13 +82,14 @@ function AllocSubTable({
     );
   }
 
-  const mainAllocs  = allocs.filter((a) => !(a.notes?.startsWith('[무상스페어]') ?? false));
-  const spareAllocs = allocs.filter((a) =>   a.notes?.startsWith('[무상스페어]') ?? false);
+  const mainAllocs  = allocs.filter((a) => !isFreeSpare(a));
+  const spareAllocs = allocs.filter(isFreeSpare);
   const claimedIds  = new Set<string>();
 
   const groups = mainAllocs.map((main) => {
     const spares = spareAllocs.filter(
-      (s) => !claimedIds.has(s.alloc_id) && s.customer_name === main.customer_name,
+      (s) => !claimedIds.has(s.alloc_id) &&
+        (s.group_id && main.group_id ? s.group_id === main.group_id : s.customer_name === main.customer_name),
     );
     spares.forEach((s) => claimedIds.add(s.alloc_id));
     return { main, spares };
@@ -90,28 +97,32 @@ function AllocSubTable({
   const standalone = spareAllocs.filter((s) => !claimedIds.has(s.alloc_id));
 
   const ActionButtons = ({ a, isFreeSpare }: { a: InventoryAllocation; isFreeSpare: boolean }) => (
-    <div className="flex items-center justify-center gap-1">
+    <div className="flex items-center justify-center gap-1.5">
       {a.status === 'pending' && (
         <>
           {!isFreeSpare && (
-            <button onClick={() => onConfirm(a)} title="수주 등록" className="p-1 rounded hover:bg-green-100 text-green-600">
-              <CheckCircle2 className="h-3.5 w-3.5" />
+            <button onClick={() => onConfirm(a)} className="inline-flex h-6 items-center gap-1 rounded border border-green-200 px-2 text-[11px] text-green-700 hover:bg-green-50">
+              <CheckCircle2 className="h-3 w-3" />
+              수주
             </button>
           )}
           {!isFreeSpare && (
-            <button onClick={() => onHold(a.alloc_id)} title="보류" className="p-1 rounded hover:bg-sky-100 text-sky-600">
-              <PauseCircle className="h-3.5 w-3.5" />
+            <button onClick={() => onHold(a.alloc_id)} className="inline-flex h-6 items-center gap-1 rounded border border-sky-200 px-2 text-[11px] text-sky-700 hover:bg-sky-50">
+              <PauseCircle className="h-3 w-3" />
+              보류
             </button>
           )}
         </>
       )}
       {a.status === 'hold' && (
-        <button onClick={() => onResume(a.alloc_id)} title="재개" className="p-1 rounded hover:bg-amber-100 text-amber-600">
-          <PlayCircle className="h-3.5 w-3.5" />
+        <button onClick={() => onResume(a.alloc_id)} className="inline-flex h-6 items-center gap-1 rounded border border-amber-200 px-2 text-[11px] text-amber-700 hover:bg-amber-50">
+          <PlayCircle className="h-3 w-3" />
+          재개
         </button>
       )}
-      <button onClick={() => onDelete(a.alloc_id)} title="삭제" className="p-1 rounded hover:bg-red-100 text-red-500">
-        <Trash2 className="h-3.5 w-3.5" />
+      <button onClick={() => onDelete(a.alloc_id)} className="inline-flex h-6 items-center gap-1 rounded border border-red-200 px-2 text-[11px] text-red-600 hover:bg-red-50">
+        <Trash2 className="h-3 w-3" />
+        삭제
       </button>
     </div>
   );
@@ -128,7 +139,7 @@ function AllocSubTable({
         <tr className="border-b bg-muted/20">
           <th className="text-left p-2 font-medium text-muted-foreground">거래처 / 현장</th>
           <th className="text-right p-2 font-medium text-muted-foreground">수량</th>
-          <th className="text-center p-2 font-medium text-muted-foreground">재원</th>
+          <th className="text-center p-2 font-medium text-muted-foreground">재고구분</th>
           <th className="text-center p-2 font-medium text-muted-foreground">상태</th>
           <th className="text-center p-2 font-medium text-muted-foreground">작업</th>
         </tr>
@@ -163,13 +174,13 @@ function AllocSubTable({
                 <ActionButtons a={main} isFreeSpare={false} />
               </td>
             </tr>
-            {/* 무상스페어 서브 행 */}
+            {/* 무상스페어는 메인 예약의 부속 정보로 표시 */}
             {spares.map((spare) => (
-              <tr key={spare.alloc_id} className="border-t bg-orange-50/40 hover:bg-orange-50/70 cursor-pointer transition-colors" onClick={() => onEdit(spare)}>
+              <tr key={spare.alloc_id} className="border-t bg-orange-50/40 hover:bg-orange-50/70 transition-colors">
                 <td className="p-2 pl-6">
                   <div className="flex items-center gap-1.5 text-[11px] text-orange-700">
                     <span className="text-muted-foreground/60 text-base leading-none">└</span>
-                    <span className="px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">무상스페어</span>
+                    <span className="px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">무상스페어 포함</span>
                   </div>
                 </td>
                 <td className="p-2 text-right font-mono whitespace-nowrap text-orange-700">
@@ -178,12 +189,8 @@ function AllocSubTable({
                     <div className="text-[10px] text-muted-foreground">{fmtKw(spare.capacity_kw)}</div>
                   )}
                 </td>
-                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}><SourceBadge a={spare} /></td>
-                <td className="p-2 text-center">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_STYLE[spare.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                    {STATUS_LABEL[spare.status] ?? spare.status}
-                  </span>
-                </td>
+                <td className="p-2 text-center text-muted-foreground">—</td>
+                <td className="p-2 text-center text-muted-foreground">—</td>
                 <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
                   <ActionButtons a={spare} isFreeSpare={true} />
                 </td>
@@ -286,12 +293,18 @@ export default function AvailInventoryTable({
             const itemAllocs = allocations.filter((a) => a.product_id === item.product_id);
             const saleAllocs = itemAllocs.filter(isSale);
             const constAllocs = itemAllocs.filter(isConstruction);
+            const mainAllocs = itemAllocs.filter((a) => !isFreeSpare(a));
+            const spareAllocs = itemAllocs.filter(isFreeSpare);
+            const saleMainCount = saleAllocs.filter((a) => !isFreeSpare(a)).length;
+            const saleSpareCount = saleAllocs.filter(isFreeSpare).length;
+            const constMainCount = constAllocs.filter((a) => !isFreeSpare(a)).length;
+            const constSpareCount = constAllocs.filter(isFreeSpare).length;
 
             const saleKw = saleAllocs.reduce((s, a) => s + (a.capacity_kw ?? 0), 0);
             const constKw = constAllocs.reduce((s, a) => s + (a.capacity_kw ?? 0), 0);
 
             return (
-              <>
+              <Fragment key={item.product_id}>
                 {/* 품목 행 */}
                 <tr
                   key={item.product_id}
@@ -315,9 +328,9 @@ export default function AvailInventoryTable({
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {item.product_code}
                       </span>
-                      {itemAllocs.length > 0 && (
+                      {mainAllocs.length + spareAllocs.length > 0 && (
                         <span className="text-[10px] text-muted-foreground">
-                          배정 {itemAllocs.length}건
+                          배정 {allocCountLabel(mainAllocs.length, spareAllocs.length)}
                         </span>
                       )}
                     </div>
@@ -354,7 +367,7 @@ export default function AvailInventoryTable({
                     {saleAllocs.length > 0 ? (
                       <>
                         <div className="font-semibold text-orange-600">{fmtKw(saleKw)}</div>
-                        <div className="text-[10px] text-muted-foreground">{saleAllocs.length}건</div>
+                        <div className="text-[10px] text-muted-foreground">{allocCountLabel(saleMainCount, saleSpareCount)}</div>
                       </>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -366,7 +379,7 @@ export default function AvailInventoryTable({
                     {constAllocs.length > 0 ? (
                       <>
                         <div className="font-semibold text-purple-600">{fmtKw(constKw)}</div>
-                        <div className="text-[10px] text-muted-foreground">{constAllocs.length}건</div>
+                        <div className="text-[10px] text-muted-foreground">{allocCountLabel(constMainCount, constSpareCount)}</div>
                       </>
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -390,49 +403,54 @@ export default function AvailInventoryTable({
                 {isOpen && (
                   <tr key={`${item.product_id}-expand`} className="border-t bg-muted/5">
                     <td colSpan={8} className="px-8 py-3">
-                      <div className="space-y-4">
+                      <div className="space-y-3">
+                        {itemAllocs.length === 0 && (
+                          <p className="text-xs text-muted-foreground px-2 py-1">등록된 예약 내역이 없습니다.</p>
+                        )}
 
-                        {/* 판매 예정 섹션 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-orange-50 text-orange-700">
-                              판매 예정 ({saleAllocs.length}건)
-                            </span>
+                        {saleAllocs.length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-orange-50 text-orange-700">
+                                판매 예약 {allocCountLabel(saleMainCount, saleSpareCount)}
+                              </span>
+                            </div>
+                            <AllocSubTable
+                              allocs={saleAllocs}
+                              colorClass=""
+                              onEdit={onEdit}
+                              onConfirm={onConfirm}
+                              onHold={onHold}
+                              onResume={onResume}
+                              onDelete={onDelete}
+                            />
                           </div>
-                          <AllocSubTable
-                            allocs={saleAllocs}
-                            colorClass=""
-                            onEdit={onEdit}
-                            onConfirm={onConfirm}
-                            onHold={onHold}
-                            onResume={onResume}
-                            onDelete={onDelete}
-                          />
-                        </div>
+                        )}
 
-                        {/* 공사 내역 섹션 */}
-                        <div>
-                          <div className="flex items-center gap-2 mb-2">
-                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700">
-                              공사 내역 ({constAllocs.length}건)
-                            </span>
+                        {constAllocs.length > 0 && (
+                          <div>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-purple-50 text-purple-700">
+                                공사 예약 {allocCountLabel(constMainCount, constSpareCount)}
+                              </span>
+                            </div>
+                            <AllocSubTable
+                              allocs={constAllocs}
+                              colorClass=""
+                              onEdit={onEdit}
+                              onConfirm={onConfirm}
+                              onHold={onHold}
+                              onResume={onResume}
+                              onDelete={onDelete}
+                            />
                           </div>
-                          <AllocSubTable
-                            allocs={constAllocs}
-                            colorClass=""
-                            onEdit={onEdit}
-                            onConfirm={onConfirm}
-                            onHold={onHold}
-                            onResume={onResume}
-                            onDelete={onDelete}
-                          />
-                        </div>
+                        )}
 
                       </div>
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>
