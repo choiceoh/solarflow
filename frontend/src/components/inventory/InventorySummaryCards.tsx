@@ -6,53 +6,152 @@ import type { InventorySummary, InventoryItem } from '@/types/inventory';
 
 interface Props {
   summary: InventorySummary;
-  items?: InventoryItem[];   // 전달 시 EA 자동 계산
+  items?: InventoryItem[];
+  onCardClick?: (tab: 'physical' | 'incoming' | 'avail') => void;
 }
-
-const CARD_DEFS = [
-  { key: 'total_physical_kw' as const,   label: '실재고',      icon: Package,     color: 'text-blue-600 bg-blue-50'   },
-  { key: 'total_incoming_kw' as const,   label: '미착품',      icon: Truck,        color: 'text-yellow-600 bg-yellow-50' },
-  { key: 'total_secured_kw' as const,    label: '가용재고',    icon: Shield,       color: 'text-green-600 bg-green-50'  },
-];
 
 const kwToEa = (kw: number, specWp: number) =>
   specWp > 0 ? Math.round((kw * 1000) / specWp) : 0;
 
-export default function InventorySummaryCards({ summary, items }: Props) {
-  // 품목별 spec_wp 기반으로 카테고리별 EA 합산
-  const eaTotals = useMemo(() => {
-    if (!items?.length) return null;
+/** kW → 자동 단위 (1,000kW 미만 = kW, 이상 = MW) */
+function fmw(kw: number): string {
+  if (kw <= 0) return '0 kW';
+  if (kw >= 1000) return (kw / 1000).toFixed(2) + ' MW';
+  return Math.round(kw).toLocaleString('ko-KR') + ' kW';
+}
+
+export default function InventorySummaryCards({ summary, items, onCardClick }: Props) {
+  // 품목별 수치 합산 (차감 내역 + EA)
+  const agg = useMemo(() => {
+    if (!items?.length) {
+      return {
+        reserved: 0, allocated: 0, incomingReserved: 0,
+        available: summary.total_available_kw,
+        availableIncoming: summary.total_secured_kw - summary.total_available_kw,
+        ea: { physical: 0, incoming: 0, secured: 0 },
+      };
+    }
     return {
-      total_physical_kw:  items.reduce((s, it) => s + kwToEa(it.physical_kw,       it.spec_wp), 0),
-      total_available_kw: items.reduce((s, it) => s + kwToEa(it.available_kw,      it.spec_wp), 0),
-      total_incoming_kw:  items.reduce((s, it) => s + kwToEa(it.incoming_kw,       it.spec_wp), 0),
-      total_secured_kw:   items.reduce((s, it) => s + kwToEa(it.total_secured_kw,  it.spec_wp), 0),
+      reserved:          items.reduce((s, it) => s + (it.reserved_kw          || 0), 0),
+      allocated:         items.reduce((s, it) => s + (it.allocated_kw         || 0), 0),
+      incomingReserved:  items.reduce((s, it) => s + (it.incoming_reserved_kw || 0), 0),
+      available:         items.reduce((s, it) => s + (it.available_kw         || 0), 0),
+      availableIncoming: items.reduce((s, it) => s + (it.available_incoming_kw|| 0), 0),
+      ea: {
+        physical: items.reduce((s, it) => s + kwToEa(it.physical_kw,      it.spec_wp), 0),
+        incoming: items.reduce((s, it) => s + kwToEa(it.incoming_kw,      it.spec_wp), 0),
+        secured:  items.reduce((s, it) => s + kwToEa(it.total_secured_kw, it.spec_wp), 0),
+      },
     };
-  }, [items]);
+  }, [items, summary]);
 
   return (
     <div className="grid grid-cols-3 gap-3">
-      {CARD_DEFS.map(({ key, label, icon: Icon, color }) => (
-        <Card key={key}>
-          <CardContent className="flex items-center gap-3 pt-4 pb-4">
-            <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${color}`}>
-              <Icon className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">{label}</p>
-              {/* 메인: MW */}
-              <p className="text-lg font-semibold leading-tight">{formatMW(summary[key])}</p>
-              {/* 보조: kW · EA */}
-              <p className="text-[10px] text-muted-foreground mt-0.5">
-                {Math.round(summary[key]).toLocaleString('ko-KR')}kW
-                {eaTotals != null && (
-                  <span className="ml-1">· {eaTotals[key].toLocaleString('ko-KR')}EA</span>
+      {/* 실재고 */}
+      <Card
+        className={onCardClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}
+        onClick={() => onCardClick?.('physical')}
+      >
+        <CardContent className="flex items-start gap-3 pt-4 pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg text-blue-600 bg-blue-50 shrink-0">
+            <Package className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">실재고</p>
+            <p className="text-lg font-semibold leading-tight tabular-nums">
+              {formatMW(summary.total_physical_kw)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+              {Math.round(summary.total_physical_kw).toLocaleString('ko-KR')}kW
+              {items?.length ? <span className="ml-1">· {agg.ea.physical.toLocaleString('ko-KR')}EA</span> : null}
+            </p>
+            {(agg.reserved > 0 || agg.allocated > 0) && (
+              <div className="mt-1.5 space-y-0.5">
+                {agg.reserved > 0 && (
+                  <div className="text-[10px] text-muted-foreground">
+                    <span className="text-red-400">− 수주예약</span>{' '}
+                    <span className="tabular-nums">{fmw(agg.reserved)}</span>
+                  </div>
                 )}
-              </p>
+                {agg.allocated > 0 && (
+                  <div className="text-[10px] text-muted-foreground">
+                    <span className="text-red-400">− 배정</span>{' '}
+                    <span className="tabular-nums">{fmw(agg.allocated)}</span>
+                  </div>
+                )}
+                <div className="text-[10px] border-t border-border/60 pt-0.5 mt-0.5 font-medium tabular-nums text-foreground">
+                  소계 {fmw(agg.available)}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 미착품 */}
+      <Card
+        className={onCardClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}
+        onClick={() => onCardClick?.('incoming')}
+      >
+        <CardContent className="flex items-start gap-3 pt-4 pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg text-yellow-600 bg-yellow-50 shrink-0">
+            <Truck className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">미착품</p>
+            <p className="text-lg font-semibold leading-tight tabular-nums">
+              {formatMW(summary.total_incoming_kw)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+              {Math.round(summary.total_incoming_kw).toLocaleString('ko-KR')}kW
+              {items?.length ? <span className="ml-1">· {agg.ea.incoming.toLocaleString('ko-KR')}EA</span> : null}
+            </p>
+            {agg.incomingReserved > 0 && (
+              <div className="mt-1.5 space-y-0.5">
+                <div className="text-[10px] text-muted-foreground">
+                  <span className="text-red-400">− 미착예약</span>{' '}
+                  <span className="tabular-nums">{fmw(agg.incomingReserved)}</span>
+                </div>
+                <div className="text-[10px] border-t border-border/60 pt-0.5 mt-0.5 font-medium tabular-nums text-foreground">
+                  소계 {fmw(agg.availableIncoming)}
+                </div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* 가용재고 */}
+      <Card
+        className={onCardClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}
+        onClick={() => onCardClick?.('avail')}
+      >
+        <CardContent className="flex items-start gap-3 pt-4 pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg text-green-600 bg-green-50 shrink-0">
+            <Shield className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs text-muted-foreground">가용재고</p>
+            <p className="text-lg font-semibold leading-tight tabular-nums text-green-700">
+              {formatMW(summary.total_secured_kw)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 tabular-nums">
+              {Math.round(summary.total_secured_kw).toLocaleString('ko-KR')}kW
+              {items?.length ? <span className="ml-1">· {agg.ea.secured.toLocaleString('ko-KR')}EA</span> : null}
+            </p>
+            <div className="mt-1.5 space-y-0.5">
+              <div className="text-[10px] text-muted-foreground">
+                현재고{' '}
+                <span className="tabular-nums text-foreground">{fmw(agg.available)}</span>
+              </div>
+              <div className="text-[10px] text-muted-foreground">
+                미착{' '}
+                <span className="tabular-nums text-foreground">{fmw(agg.availableIncoming)}</span>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

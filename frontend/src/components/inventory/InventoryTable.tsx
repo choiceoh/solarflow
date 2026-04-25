@@ -57,54 +57,20 @@ function MetricCell({
   );
 }
 
-/** 합계 행 수치 셀 (EA 없음, breakdown + 소계) */
-function TotalCell({
-  kw, deductions, mainClassName,
-}: {
-  kw: number;
-  deductions?: { label: string; kw: number }[];
-  mainClassName?: string;
-}) {
-  const activeDeductions = deductions?.filter((d) => d.kw > 0) ?? [];
-  const hasDeductions = activeDeductions.length > 0;
-  return (
-    <td className="p-3 text-right align-top">
-      <div className={`font-bold tabular-nums ${mainClassName ?? ''}`}>{fmw(kw)}</div>
-      {hasDeductions && (
-        <div className="mt-1 space-y-0.5">
-          {activeDeductions.map((d) => (
-            <div key={d.label} className="text-[10px] text-muted-foreground font-normal">
-              <span className="text-red-400">− {d.label}</span>{' '}
-              <span className="tabular-nums">{fmw(d.kw)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </td>
-  );
-}
-
 /** compact=true: 제품정보 + 가용재고만 표시 (2열 레이아웃 좌측 패널용) */
 export default function InventoryTable({ items, compact = false }: { items: InventoryItem[]; compact?: boolean }) {
   if (items.length === 0) return <EmptyState message="등록된 재고 데이터가 없습니다" />;
 
-  const totals = items.reduce(
-    (acc, it) => ({
-      physical:          acc.physical          + (it.physical_kw           || 0),
-      reserved:          acc.reserved          + (it.reserved_kw           || 0),
-      allocated:         acc.allocated         + (it.allocated_kw          || 0),
-      available:         acc.available         + (it.available_kw          || 0),
-      incoming:          acc.incoming          + (it.incoming_kw           || 0),
-      incomingReserved:  acc.incomingReserved  + (it.incoming_reserved_kw  || 0),
-      availableIncoming: acc.availableIncoming + (it.available_incoming_kw || 0),
-      totalSecured:      acc.totalSecured      + (it.total_secured_kw      || 0),
-    }),
-    { physical: 0, reserved: 0, allocated: 0, available: 0,
-      incoming: 0, incomingReserved: 0, availableIncoming: 0, totalSecured: 0 },
-  );
-
   /* ── compact 모드: 제품 + 가용재고만 ── */
   if (compact) {
+    const totals = items.reduce(
+      (acc, it) => ({
+        available:         acc.available         + (it.available_kw          || 0),
+        availableIncoming: acc.availableIncoming + (it.available_incoming_kw || 0),
+        totalSecured:      acc.totalSecured      + (it.total_secured_kw      || 0),
+      }),
+      { available: 0, availableIncoming: 0, totalSecured: 0 },
+    );
     return (
       <div className="rounded-md border overflow-hidden">
         <table className="w-full text-xs">
@@ -267,49 +233,6 @@ export default function InventoryTable({ items, compact = false }: { items: Inve
               </td>
             </tr>
           ))}
-
-          {/* ── 합계 행 ── */}
-          <tr className="border-t-2 bg-muted/50">
-            <td className="p-3 text-right text-muted-foreground font-semibold align-top">
-              합계
-            </td>
-
-            {/* 물리적 합계 */}
-            <TotalCell
-              kw={totals.physical}
-              deductions={[
-                { label: '수주예약', kw: totals.reserved  },
-                { label: '배정',    kw: totals.allocated },
-              ]}
-            />
-
-            {/* 미착품 합계 */}
-            <TotalCell
-              kw={totals.incoming}
-              deductions={[{ label: '미착예약', kw: totals.incomingReserved }]}
-            />
-
-            {/* 가용재고 합계 */}
-            <td className="p-3 text-right align-top">
-              <div className="font-bold tabular-nums text-green-600">
-                {fmw(totals.totalSecured)}
-              </div>
-              <div className="mt-1 space-y-0.5">
-                <div className="text-[10px] text-muted-foreground font-normal">
-                  현재고{' '}
-                  <span className="tabular-nums text-foreground">{fmw(totals.available)}</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground font-normal">
-                  미착{' '}
-                  <span className="tabular-nums text-foreground">
-                    {fmw(totals.availableIncoming)}
-                  </span>
-                </div>
-              </div>
-            </td>
-
-            <td />
-          </tr>
         </tbody>
       </table>
     </div>

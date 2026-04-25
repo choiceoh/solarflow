@@ -9,10 +9,10 @@ import { ChevronDown, Search, Check, AlertTriangle, Building2, Plus } from 'luci
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import { PartnerCombobox } from '@/components/common/PartnerCombobox';
-import { cn } from '@/lib/utils';
+import { cn, shortMfgName } from '@/lib/utils';
 import type { InventoryItem } from '@/types/inventory';
 import type { Partner, ConstructionSite, Product } from '@/types/masters';
-import type { BLShipment } from '@/types/inbound';
+import type { BLShipment, BLLineItem } from '@/types/inbound';
 import { statusLabel } from '@/types/inbound';
 
 /* ─── 타입 ─────────────────────────────────────── */
@@ -128,7 +128,7 @@ function ProductCombobox({ items, value, onChange, priceMap }: ProductComboboxPr
       >
         <span className="flex-1 text-left truncate">
           {selected
-            ? `${selected.manufacturer_name} | ${selected.product_name} | ${selected.spec_wp}Wp`
+            ? `${shortMfgName(selected.manufacturer_name)} | ${selected.product_name} | ${selected.spec_wp}Wp`
             : '품목 검색 (제조사·규격·품명)'}
         </span>
         <ChevronDown className="size-4 text-muted-foreground shrink-0" />
@@ -171,7 +171,7 @@ function ProductCombobox({ items, value, onChange, priceMap }: ProductComboboxPr
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate">
-                        {it.manufacturer_name} · {it.product_name} · {it.spec_wp}Wp
+                        {shortMfgName(it.manufacturer_name)} · {it.product_name} · {it.spec_wp}Wp
                       </div>
                       <div className="text-[10px] text-muted-foreground mt-0.5">
                         <span className="text-green-600">현재고 {stockEa.toLocaleString()}EA</span>
@@ -423,9 +423,28 @@ export default function AllocationForm({
   const [partners,          setPartners]          = useState<Partner[]>([]);
   const [selectedBlId,      setSelectedBlId]      = useState('');  // BL 연결 (원가 추적용)
   const [bls,               setBls]               = useState<BLShipment[]>([]);
+  // bl_id → 원화원가/Wp (KRW), bl_id → 수입단가/Wp (USD)
+  const [blPriceMap,    setBlPriceMap]    = useState<Map<string, number>>(new Map());
+  const [blUsdPriceMap, setBlUsdPriceMap] = useState<Map<string, number>>(new Map());
   const [products,          setProducts]          = useState<Product[]>([]);
 
   const noCompany = !selectedCompanyId || selectedCompanyId === 'all';
+
+  /* 법인별 재고 보유 여부 (noCompany 모드에서 법인 선택 시 비어있는 법인 비활성화) */
+  const [companyHasInv, setCompanyHasInv] = useState<Map<string, boolean>>(new Map());
+  useEffect(() => {
+    if (!open || !noCompany || companies.length === 0) return;
+    Promise.all(
+      companies.map((c) =>
+        fetchWithAuth<{ summary: { total_secured_kw: number } }>('/api/v1/calc/inventory', {
+          method: 'POST',
+          body: JSON.stringify({ company_id: c.company_id }),
+        })
+          .then((r) => [c.company_id, (r.summary?.total_secured_kw ?? 0) > 0] as [string, boolean])
+          .catch(() => [c.company_id, false] as [string, boolean])
+      )
+    ).then((entries) => setCompanyHasInv(new Map(entries)));
+  }, [open, noCompany, companies]);
 
   /* 거래처 목록 + 품목 목록 */
   useEffect(() => {
@@ -451,6 +470,40 @@ export default function AllocationForm({
       })
       .catch(() => setBls([]));
   }, [productId, products]);
+
+  /* BL 목록이 바뀌면 모든 BL의 해당 품목 단가를 병렬 조회 → blPriceMap(KRW) + blUsdPriceMap(USD) 갱신 */
+  useEffect(() => {
+    if (!productId || bls.length === 0) {
+      setBlPriceMap(new Map()); setBlUsdPriceMap(new Map()); return;
+    }
+    Promise.all(
+      bls.map((bl) =>
+        fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${bl.bl_id}/lines`)
+          .then((lines): [string, number | null, number | null] => {
+            const line = lines.find(
+              (l) => l.product_id === productId &&
+                     (l.unit_price_usd_wp != null || l.unit_price_krw_wp != null)
+            );
+            if (!line) return [bl.bl_id, null, null];
+            const usd = line.unit_price_usd_wp ?? null;
+            let krw: number | null = null;
+            if (usd != null && bl.exchange_rate) krw = usd * bl.exchange_rate;
+            else if (line.unit_price_krw_wp != null) krw = line.unit_price_krw_wp;
+            return [bl.bl_id, krw, usd];
+          })
+          .catch((): [string, number | null, number | null] => [bl.bl_id, null, null])
+      )
+    ).then((entries) => {
+      const krwMap = new Map<string, number>();
+      const usdMap = new Map<string, number>();
+      for (const [id, krw, usd] of entries) {
+        if (krw != null) krwMap.set(id, krw);
+        if (usd != null) usdMap.set(id, usd);
+      }
+      setBlPriceMap(krwMap);
+      setBlUsdPriceMap(usdMap);
+    });
+  }, [bls, productId]);
 
   /* 공사 현장 목록 — purpose가 construction_own/epc이고 법인이 선택된 경우만 로드 */
   useEffect(() => {
@@ -522,6 +575,12 @@ export default function AllocationForm({
       if (matched) setCustomerPartnerId(matched.partner_id);
     }
   }, [open, editData, partners]);
+
+  /* 선택된 BL 객체 — bls가 로드되기 전엔 undefined (IIFE 대신 memo로 안정화) */
+  const selectedBl = useMemo(
+    () => bls.find((b) => b.bl_id === selectedBlId),
+    [bls, selectedBlId],
+  );
 
   /* 배정 가능한 품목만 (현재고 or 미착품이 있는 것) */
   const allocatableItems = useMemo(
@@ -697,9 +756,23 @@ export default function AllocationForm({
                 <Txt text={companies.find(c => c.company_id === selectedCompanyId)?.company_name ?? '법인 선택'} placeholder="법인 선택" />
               </SelectTrigger>
               <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.company_id} value={c.company_id}>{c.company_name}</SelectItem>
-                ))}
+                {companies.map((c) => {
+                  const hasInv = companyHasInv.size === 0 || companyHasInv.get(c.company_id) !== false;
+                  return (
+                    <SelectItem
+                      key={c.company_id}
+                      value={c.company_id}
+                      disabled={!hasInv}
+                    >
+                      <span className={hasInv ? '' : 'text-muted-foreground'}>
+                        {c.company_name}
+                      </span>
+                      {!hasInv && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">(재고 없음)</span>
+                      )}
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -854,14 +927,18 @@ export default function AllocationForm({
               >
                 <SelectTrigger className="w-full">
                   <Txt
-                    text={selectedBlId
+                    text={selectedBl
                       ? (() => {
-                          const bl = bls.find(b => b.bl_id === selectedBlId);
-                          if (!bl) return selectedBlId.slice(0, 8);
-                          const date = bl.actual_arrival?.slice(0, 10) ?? bl.eta?.slice(0, 10) ?? '—';
-                          const stKo = statusLabel(bl.inbound_type, bl.status);
+                          const mfg  = selectedItem?.manufacturer_name ?? '—';
                           const spec = selectedItem?.spec_wp ? ` ${selectedItem.spec_wp}W` : '';
-                          return `${bl.manufacturer_name ?? '—'}${spec} | ${bl.bl_number} | ${date} | ${stKo}`;
+                          const dateLabel = selectedBl.actual_arrival
+                            ? `입항일: ${selectedBl.actual_arrival.slice(0, 10)}`
+                            : `ETA: ${selectedBl.eta?.slice(0, 10) ?? '—'}`;
+                          const stKo = ['completed','erp_done'].includes(selectedBl.status) ? '입고완료' : statusLabel(selectedBl.inbound_type, selectedBl.status);
+                          const usdStr = blUsdPriceMap.has(selectedBlId)
+                            ? ` | $${blUsdPriceMap.get(selectedBlId)!.toFixed(4)}/Wp`
+                            : '';
+                          return `[${stKo}] ${mfg}${spec} | ${selectedBl.bl_number} | ${dateLabel}${usdStr}`;
                         })()
                       : ''}
                     placeholder="B/L 선택 안함"
@@ -870,30 +947,44 @@ export default function AllocationForm({
                 <SelectContent>
                   <SelectItem value="_none">선택 안함</SelectItem>
                   {bls.map((b) => {
-                    const date = b.actual_arrival?.slice(0, 10) ?? b.eta?.slice(0, 10) ?? '—';
-                    const stKo = statusLabel(b.inbound_type, b.status);
-                    const isCompleted = ['completed', 'erp_done'].includes(b.status);
+                    const mfg  = selectedItem?.manufacturer_name ?? '—';
                     const spec = selectedItem?.spec_wp ? ` ${selectedItem.spec_wp}W` : '';
+                    const dateLabel = b.actual_arrival
+                      ? `입항일: ${b.actual_arrival.slice(0, 10)}`
+                      : `ETA: ${b.eta?.slice(0, 10) ?? '—'}`;
+                    const isCompleted = ['completed', 'erp_done'].includes(b.status);
+                    const stKo = isCompleted ? '입고완료' : statusLabel(b.inbound_type, b.status);
                     return (
                       <SelectItem key={b.bl_id} value={b.bl_id}>
                         <span className={cn('text-xs font-medium mr-1.5', isCompleted ? 'text-green-600' : 'text-blue-600')}>
                           [{stKo}]
                         </span>
-                        {b.manufacturer_name ?? '—'}{spec} | {b.bl_number} | {date}
+                        {mfg}{spec} | {b.bl_number} | {dateLabel}
+                        {blUsdPriceMap.has(b.bl_id) && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">
+                            ${blUsdPriceMap.get(b.bl_id)!.toFixed(4)}/Wp
+                          </span>
+                        )}
                       </SelectItem>
                     );
                   })}
                 </SelectContent>
               </Select>
-              {selectedBlId && (() => {
-                const bl = bls.find(b => b.bl_id === selectedBlId);
-                if (!bl) return null;
+              {selectedBl && (() => {
+                const bl = selectedBl;
                 return (
-                  <div className="rounded border bg-blue-50 px-3 py-1.5 text-[10px] text-blue-700 flex gap-4">
+                  <div className="rounded border bg-blue-50 px-3 py-1.5 text-[10px] text-blue-700 flex flex-wrap gap-x-4 gap-y-1">
+                    {blUsdPriceMap.has(selectedBlId)
+                      ? <span>수입단가: ${blUsdPriceMap.get(selectedBlId)!.toFixed(4)}/Wp</span>
+                      : null}
                     <span>항구: {bl.port ?? '—'}</span>
                     <span>포워더: {bl.forwarder ?? '—'}</span>
-                    <span>ETA: {bl.eta?.slice(0,10) ?? '—'}</span>
                     {bl.exchange_rate && <span>환율: {bl.exchange_rate.toLocaleString('ko-KR')}</span>}
+                    {blPriceMap.has(selectedBlId) && (
+                      <span className="font-semibold text-blue-800">
+                        원화원가: ₩{blPriceMap.get(selectedBlId)!.toLocaleString('ko-KR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/Wp
+                      </span>
+                    )}
                   </div>
                 );
               })()}

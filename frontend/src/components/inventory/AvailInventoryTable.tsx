@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { ChevronRight, ChevronDown, Plus, CheckCircle2, PauseCircle, PlayCircle, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import EmptyState from '@/components/common/EmptyState';
@@ -76,6 +76,52 @@ function AllocSubTable({
     );
   }
 
+  const mainAllocs  = allocs.filter((a) => !(a.notes?.startsWith('[무상스페어]') ?? false));
+  const spareAllocs = allocs.filter((a) =>   a.notes?.startsWith('[무상스페어]') ?? false);
+  const claimedIds  = new Set<string>();
+
+  const groups = mainAllocs.map((main) => {
+    const spares = spareAllocs.filter(
+      (s) => !claimedIds.has(s.alloc_id) && s.customer_name === main.customer_name,
+    );
+    spares.forEach((s) => claimedIds.add(s.alloc_id));
+    return { main, spares };
+  });
+  const standalone = spareAllocs.filter((s) => !claimedIds.has(s.alloc_id));
+
+  const ActionButtons = ({ a, isFreeSpare }: { a: InventoryAllocation; isFreeSpare: boolean }) => (
+    <div className="flex items-center justify-center gap-1">
+      {a.status === 'pending' && (
+        <>
+          {!isFreeSpare && (
+            <button onClick={() => onConfirm(a)} title="수주 등록" className="p-1 rounded hover:bg-green-100 text-green-600">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {!isFreeSpare && (
+            <button onClick={() => onHold(a.alloc_id)} title="보류" className="p-1 rounded hover:bg-sky-100 text-sky-600">
+              <PauseCircle className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </>
+      )}
+      {a.status === 'hold' && (
+        <button onClick={() => onResume(a.alloc_id)} title="재개" className="p-1 rounded hover:bg-amber-100 text-amber-600">
+          <PlayCircle className="h-3.5 w-3.5" />
+        </button>
+      )}
+      <button onClick={() => onDelete(a.alloc_id)} title="삭제" className="p-1 rounded hover:bg-red-100 text-red-500">
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+
+  const SourceBadge = ({ a }: { a: InventoryAllocation }) => (
+    <span className={`text-[10px] px-1.5 py-0.5 rounded ${a.source_type === 'incoming' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+      {a.source_type === 'incoming' ? '미착품' : '현재고'}
+    </span>
+  );
+
   return (
     <table className={`w-full text-xs ${colorClass}`}>
       <thead>
@@ -88,99 +134,87 @@ function AllocSubTable({
         </tr>
       </thead>
       <tbody>
-        {allocs.map((a) => {
-          const isFreeSpare = a.notes?.startsWith('[무상스페어]') ?? false;
-          return (
-            <tr
-              key={a.alloc_id}
-              className={`border-t hover:bg-muted/30 cursor-pointer transition-colors ${isFreeSpare ? 'bg-orange-50/40' : ''}`}
-              onClick={() => onEdit(a)}
-            >
-              {/* 거래처/현장 */}
+        {groups.map(({ main, spares }) => (
+          <Fragment key={main.alloc_id}>
+            {/* 메인 행 */}
+            <tr className="border-t hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => onEdit(main)}>
               <td className="p-2">
-                <div className="font-medium leading-tight">
-                  {a.customer_name ?? a.site_name ?? '—'}
-                </div>
-                {a.customer_name && a.site_name && (
-                  <div className="text-[10px] text-muted-foreground">{a.site_name}</div>
+                <div className="font-medium leading-tight">{main.customer_name ?? main.site_name ?? '—'}</div>
+                {main.customer_name && main.site_name && (
+                  <div className="text-[10px] text-muted-foreground">{main.site_name}</div>
                 )}
-                {isFreeSpare && (
-                  <span className="text-[10px] px-1 py-0.5 rounded bg-orange-100 text-orange-700">무상스페어</span>
+                {spares.length > 0 && (
+                  <span className="text-[10px] text-orange-600 mt-0.5">+무상스페어 {spares.length}건</span>
                 )}
               </td>
-
-              {/* 수량 */}
               <td className="p-2 text-right font-mono whitespace-nowrap">
-                <div>{a.quantity.toLocaleString('ko-KR')} EA</div>
-                {a.capacity_kw != null && a.capacity_kw > 0 && (
-                  <div className="text-[10px] text-muted-foreground">{fmtKw(a.capacity_kw)}</div>
+                <div>{main.quantity.toLocaleString('ko-KR')} EA</div>
+                {main.capacity_kw != null && main.capacity_kw > 0 && (
+                  <div className="text-[10px] text-muted-foreground">{fmtKw(main.capacity_kw)}</div>
                 )}
               </td>
-
-              {/* 재원 */}
-              <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded ${
-                    a.source_type === 'incoming'
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-green-100 text-green-700'
-                  }`}
-                >
-                  {a.source_type === 'incoming' ? '미착품' : '현재고'}
-                </span>
-              </td>
-
-              {/* 상태 */}
+              <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}><SourceBadge a={main} /></td>
               <td className="p-2 text-center">
-                <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_STYLE[a.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                  {STATUS_LABEL[a.status] ?? a.status}
+                <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_STYLE[main.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                  {STATUS_LABEL[main.status] ?? main.status}
                 </span>
               </td>
-
-              {/* 작업 */}
               <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center justify-center gap-1">
-                  {a.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => onConfirm(a)}
-                        title="수주 등록"
-                        className="p-1 rounded hover:bg-green-100 text-green-600"
-                      >
-                        <CheckCircle2 className="h-3.5 w-3.5" />
-                      </button>
-                      {!isFreeSpare && (
-                        <button
-                          onClick={() => onHold(a.alloc_id)}
-                          title="보류"
-                          className="p-1 rounded hover:bg-sky-100 text-sky-600"
-                        >
-                          <PauseCircle className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </>
-                  )}
-                  {a.status === 'hold' && (
-                    <button
-                      onClick={() => onResume(a.alloc_id)}
-                      title="재개"
-                      className="p-1 rounded hover:bg-amber-100 text-amber-600"
-                    >
-                      <PlayCircle className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onDelete(a.alloc_id)}
-                    title="삭제"
-                    className="p-1 rounded hover:bg-red-100 text-red-500"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+                <ActionButtons a={main} isFreeSpare={false} />
               </td>
             </tr>
-          );
-        })}
+            {/* 무상스페어 서브 행 */}
+            {spares.map((spare) => (
+              <tr key={spare.alloc_id} className="border-t bg-orange-50/40 hover:bg-orange-50/70 cursor-pointer transition-colors" onClick={() => onEdit(spare)}>
+                <td className="p-2 pl-6">
+                  <div className="flex items-center gap-1.5 text-[11px] text-orange-700">
+                    <span className="text-muted-foreground/60 text-base leading-none">└</span>
+                    <span className="px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">무상스페어</span>
+                  </div>
+                </td>
+                <td className="p-2 text-right font-mono whitespace-nowrap text-orange-700">
+                  <div>{spare.quantity.toLocaleString('ko-KR')} EA</div>
+                  {spare.capacity_kw != null && spare.capacity_kw > 0 && (
+                    <div className="text-[10px] text-muted-foreground">{fmtKw(spare.capacity_kw)}</div>
+                  )}
+                </td>
+                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}><SourceBadge a={spare} /></td>
+                <td className="p-2 text-center">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_STYLE[spare.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                    {STATUS_LABEL[spare.status] ?? spare.status}
+                  </span>
+                </td>
+                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+                  <ActionButtons a={spare} isFreeSpare={true} />
+                </td>
+              </tr>
+            ))}
+          </Fragment>
+        ))}
+        {/* 단독 무상스페어 (매칭된 메인 행 없음) */}
+        {standalone.map((a) => (
+          <tr key={a.alloc_id} className="border-t bg-orange-50/40 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => onEdit(a)}>
+            <td className="p-2">
+              <div className="font-medium leading-tight">{a.customer_name ?? a.site_name ?? '—'}</div>
+              <span className="text-[10px] px-1 py-0.5 rounded bg-orange-100 text-orange-700">무상스페어</span>
+            </td>
+            <td className="p-2 text-right font-mono whitespace-nowrap">
+              <div>{a.quantity.toLocaleString('ko-KR')} EA</div>
+              {a.capacity_kw != null && a.capacity_kw > 0 && (
+                <div className="text-[10px] text-muted-foreground">{fmtKw(a.capacity_kw)}</div>
+              )}
+            </td>
+            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}><SourceBadge a={a} /></td>
+            <td className="p-2 text-center">
+              <span className={`text-[10px] px-1.5 py-0.5 rounded ${STATUS_STYLE[a.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                {STATUS_LABEL[a.status] ?? a.status}
+              </span>
+            </td>
+            <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
+              <ActionButtons a={a} isFreeSpare={true} />
+            </td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );

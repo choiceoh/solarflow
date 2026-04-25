@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,15 @@ import type { InventorySummary } from '@/types/inventory';
 export default function InventoryPage() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const location = useLocation();
+  const navigate = useNavigate();
+  const tabRefPhysical  = useRef<HTMLButtonElement>(null);
+  const tabRefIncoming  = useRef<HTMLButtonElement>(null);
+  const tabRefAvail     = useRef<HTMLButtonElement>(null);
+  const handleCardClick = (tab: 'physical' | 'incoming' | 'avail') => {
+    if (tab === 'physical')  tabRefPhysical.current?.click();
+    else if (tab === 'incoming') tabRefIncoming.current?.click();
+    else if (tab === 'avail')    tabRefAvail.current?.click();
+  };
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [mfgFilter, setMfgFilter] = useState<string>('');
   const [wpFilter, setWpFilter] = useState<string>('');
@@ -76,6 +85,20 @@ export default function InventoryPage() {
 
   // location.key가 바뀔 때마다 (다른 메뉴→재고로 돌아올 때) 배정 목록 갱신
   useEffect(() => { fetchAllocations(); }, [fetchAllocations, location.key]);
+
+  // ?action=alloc 처리 — TopNav 빠른 등록에서 진입 시 사용예약 모달 자동 오픈
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('action') === 'alloc') {
+      setPrefilledProductId(undefined);
+      setEditingAlloc(undefined);
+      setAllocFormOpen(true);
+      // URL에서 action 파라미터 제거 (뒤로 가기 후 재오픈 방지)
+      params.delete('action');
+      const newSearch = params.toString();
+      navigate(`/inventory${newSearch ? '?' + newSearch : ''}`, { replace: true });
+    }
+  }, [location.search, navigate]);
 
   // 수주 등록 페이지 이동 헬퍼
   const navigateToOrder = (alloc: InventoryAllocation, linkedAllocId?: string) => {
@@ -257,9 +280,9 @@ export default function InventoryPage() {
 
       <Tabs defaultValue="avail">
         <TabsList>
-          <TabsTrigger value="avail"><Shield className="h-3.5 w-3.5" />가용재고</TabsTrigger>
-          <TabsTrigger value="physical"><Package className="h-3.5 w-3.5" />실재고</TabsTrigger>
-          <TabsTrigger value="incoming"><Truck className="h-3.5 w-3.5" />미착품</TabsTrigger>
+          <TabsTrigger ref={tabRefAvail}     value="avail"><Shield className="h-3.5 w-3.5" />가용재고</TabsTrigger>
+          <TabsTrigger ref={tabRefPhysical}  value="physical"><Package className="h-3.5 w-3.5" />실재고</TabsTrigger>
+          <TabsTrigger ref={tabRefIncoming}  value="incoming"><Truck className="h-3.5 w-3.5" />미착품</TabsTrigger>
           <TabsTrigger value="forecast"><TrendingUp className="h-3.5 w-3.5" />수급 전망</TabsTrigger>
         </TabsList>
         <div className="flex gap-2 mt-3">
@@ -297,7 +320,11 @@ export default function InventoryPage() {
           )}
           {invLoading ? <LoadingSpinner /> : invData && (
             <div className="space-y-4">
-              <InventorySummaryCards summary={invData.summary} items={invData.items} />
+              <InventorySummaryCards
+                summary={invData.summary}
+                items={invData.items}
+                onCardClick={handleCardClick}
+              />
               <div className="space-y-1">
                 <h2 className="text-sm font-semibold">품목별 실재고</h2>
                 <InventoryTable items={invData.items} />
@@ -318,7 +345,11 @@ export default function InventoryPage() {
 
           {/* KPI 카드 */}
           {invLoading ? <LoadingSpinner /> : invData && (
-            <InventorySummaryCards summary={invData.summary} items={invData.items} />
+            <InventorySummaryCards
+              summary={invData.summary}
+              items={invData.items}
+              onCardClick={handleCardClick}
+            />
           )}
 
           {/* 품목별 가용재고 + 배정 현황 통합 테이블 */}
@@ -359,9 +390,38 @@ export default function InventoryPage() {
               <AlertDescription>{invError}</AlertDescription>
             </Alert>
           )}
+          {/* KPI 카드 */}
           {invLoading ? <LoadingSpinner /> : invData && (
-            <IncomingTable items={invData.items} summary={invData.summary} />
+            <InventorySummaryCards
+              summary={invData.summary}
+              items={invData.items}
+              onCardClick={handleCardClick}
+            />
           )}
+          {/* 품목별 미착품 + 배정 현황 */}
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">품목별 미착품 / 배정 현황</h2>
+              <Button size="sm" onClick={() => { setPrefilledProductId(undefined); setEditingAlloc(undefined); setAllocFormOpen(true); }}>
+                <Plus className="h-3.5 w-3.5 mr-1" />사용 예약
+              </Button>
+            </div>
+            {invLoading ? <LoadingSpinner /> : invData ? (
+              <IncomingTable
+                items={invData.items}
+                allocations={visibleAllocs}
+                onNewAlloc={(productId) => { setPrefilledProductId(productId); setEditingAlloc(undefined); setAllocFormOpen(true); }}
+                onEdit={(alloc) => { setEditingAlloc(alloc); setPrefilledProductId(undefined); setAllocFormOpen(true); }}
+                onConfirm={handleConfirmAlloc}
+                onHold={handleHoldAlloc}
+                onResume={handleResumeAlloc}
+                onDelete={handleDeleteAlloc}
+              />
+            ) : null}
+            {invData && (
+              <p className="text-[10px] text-muted-foreground text-right">기준: {invData.calculated_at}</p>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="forecast">
