@@ -5,19 +5,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Button } from '@/components/ui/button';
 import {
   AlertTriangle,
-  ArrowRight,
-  CheckCircle2,
   Clock,
-  ClipboardList,
   Package,
   PackageCheck,
   PackageX,
-  PauseCircle,
   Plus,
-  ReceiptText,
   Shield,
   Truck,
-  type LucideIcon,
   TrendingUp,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -32,7 +26,6 @@ import { useInventory } from '@/hooks/useInventory';
 import { useForecast } from '@/hooks/useForecast';
 import { fetchWithAuth } from '@/lib/api';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
-import InventorySummaryCards from '@/components/inventory/InventorySummaryCards';
 import InventoryTable from '@/components/inventory/InventoryTable';
 import AvailInventoryTable from '@/components/inventory/AvailInventoryTable';
 import IncomingTable from '@/components/inventory/IncomingTable';
@@ -46,15 +39,13 @@ function formatAutoKw(kw: number): string {
   return `${Math.round(kw).toLocaleString('ko-KR')} kW`;
 }
 
-function WorkbenchMetric({
-  icon: Icon,
+function CompactMetric({
   label,
   value,
   sub,
   tone,
   onClick,
 }: {
-  icon: LucideIcon;
   label: string;
   value: string;
   sub?: string;
@@ -62,23 +53,18 @@ function WorkbenchMetric({
   onClick?: () => void;
 }) {
   const toneClass = {
-    green: 'bg-green-50 text-green-700 border-green-100',
-    blue: 'bg-blue-50 text-blue-700 border-blue-100',
-    amber: 'bg-amber-50 text-amber-700 border-amber-100',
-    sky: 'bg-sky-50 text-sky-700 border-sky-100',
-    slate: 'bg-slate-50 text-slate-700 border-slate-100',
+    green: 'text-green-700',
+    blue: 'text-blue-700',
+    amber: 'text-amber-700',
+    sky: 'text-sky-700',
+    slate: 'text-slate-700',
   }[tone];
 
   const content = (
     <>
-      <div className={`flex h-9 w-9 items-center justify-center rounded-md border ${toneClass}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1 text-left">
-        <div className="text-[11px] text-muted-foreground">{label}</div>
-        <div className="font-semibold tabular-nums leading-tight">{value}</div>
-        {sub ? <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{sub}</div> : null}
-      </div>
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`font-semibold tabular-nums ${toneClass}`}>{value}</span>
+      {sub ? <span className="text-muted-foreground">{sub}</span> : null}
     </>
   );
 
@@ -87,7 +73,7 @@ function WorkbenchMetric({
       <button
         type="button"
         onClick={onClick}
-        className="flex min-h-[72px] items-center gap-3 rounded-md border bg-background px-3 py-2 text-left transition-colors hover:bg-muted/40"
+        className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs text-left transition-colors hover:bg-muted"
       >
         {content}
       </button>
@@ -95,7 +81,7 @@ function WorkbenchMetric({
   }
 
   return (
-    <div className="flex min-h-[72px] items-center gap-3 rounded-md border bg-background px-3 py-2">
+    <div className="inline-flex min-h-8 items-center gap-1.5 rounded px-2 text-xs">
       {content}
     </div>
   );
@@ -466,26 +452,12 @@ export default function InventoryPage() {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 space-y-2">
-          <h1 className="text-lg font-semibold">가용재고 작업대</h1>
-          <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-            {[
-              { icon: Shield, label: '가용 확인' },
-              { icon: ClipboardList, label: '예약' },
-              { icon: CheckCircle2, label: '수주' },
-              { icon: Truck, label: '출고' },
-              { icon: ReceiptText, label: '계산서' },
-            ].map((step, index, steps) => (
-              <div key={step.label} className="flex items-center gap-1.5">
-                <span className="inline-flex h-6 items-center gap-1 rounded-md border bg-background px-2">
-                  <step.icon className="h-3.5 w-3.5" />
-                  {step.label}
-                </span>
-                {index < steps.length - 1 ? <ArrowRight className="h-3 w-3 text-muted-foreground/60" /> : null}
-              </div>
-            ))}
-          </div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold">가용재고</h1>
+          <p className="text-xs text-muted-foreground">
+            실재고와 LC/B/L 미착품을 기준으로 예약 가능 수량을 확인합니다.
+          </p>
         </div>
         <Button size="sm" onClick={() => openAllocationForm()}>
           <Plus className="h-3.5 w-3.5 mr-1" />예약 등록
@@ -493,40 +465,33 @@ export default function InventoryPage() {
       </div>
 
       {inventoryStats && (
-        <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-          <WorkbenchMetric
-            icon={Shield}
-            label="가용재고"
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border bg-background px-3 py-2">
+          <CompactMetric
+            label="가용"
             value={formatAutoKw(inventoryStats.totalSecuredKw)}
             sub={`${inventoryStats.productCount.toLocaleString('ko-KR')}개 품목`}
             tone="green"
             onClick={() => handleCardClick('avail')}
           />
-          <WorkbenchMetric
-            icon={Package}
-            label="실재고 가용"
+          <CompactMetric
+            label="실재고"
             value={formatAutoKw(inventoryStats.stockAvailableKw)}
-            sub="창고 출고 가능"
             tone="blue"
             onClick={() => handleCardClick('physical')}
           />
-          <WorkbenchMetric
-            icon={Truck}
-            label="미착 가용"
+          <CompactMetric
+            label="미착"
             value={formatAutoKw(inventoryStats.incomingAvailableKw)}
-            sub="LC/B/L 등록분"
             tone="sky"
             onClick={() => handleCardClick('incoming')}
           />
-          <WorkbenchMetric
-            icon={ClipboardList}
-            label="예약 대기"
+          <CompactMetric
+            label="예약"
             value={`${allocationStats.pendingCount.toLocaleString('ko-KR')}건`}
-            sub={`${formatAutoKw(allocationStats.pendingKw)} · 수주 ${formatAutoKw(allocationStats.salePendingKw)}`}
+            sub={formatAutoKw(allocationStats.pendingKw)}
             tone="amber"
           />
-          <WorkbenchMetric
-            icon={PauseCircle}
+          <CompactMetric
             label="보류"
             value={`${allocationStats.holdCount.toLocaleString('ko-KR')}건`}
             sub={formatAutoKw(allocationStats.holdKw)}
@@ -543,35 +508,37 @@ export default function InventoryPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="avail"><Shield className="h-3.5 w-3.5" />가용재고</TabsTrigger>
-          <TabsTrigger value="physical"><Package className="h-3.5 w-3.5" />실재고</TabsTrigger>
-          <TabsTrigger value="incoming"><Truck className="h-3.5 w-3.5" />미착품</TabsTrigger>
-          <TabsTrigger value="forecast"><TrendingUp className="h-3.5 w-3.5" />수급 전망</TabsTrigger>
-        </TabsList>
-        <div className="flex gap-2 mt-3">
-          <Select value={mfgFilter || 'all'} onValueChange={(v) => setMfgFilter(v === 'all' ? '' : (v ?? ''))}>
-            <SelectTrigger className="h-8 w-36 text-xs">
-              <FT text={mfgFilter ? (manufacturers.find(m => m.manufacturer_id === mfgFilter)?.name_kr ?? '') : '제조사'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">제조사 (전체)</SelectItem>
-              {manufacturers.map((m) => (
-                <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={wpFilter || 'all'} onValueChange={(v) => setWpFilter(v === 'all' ? '' : (v ?? ''))}>
-            <SelectTrigger className="h-8 w-28 text-xs" disabled={!mfgFilter}>
-              <FT text={wpFilter ? `${wpFilter}Wp` : '규격'} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">규격 (전체)</SelectItem>
-              {availableWps.map((wp) => (
-                <SelectItem key={wp} value={String(wp)}>{wp}Wp</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <TabsList className="h-8">
+            <TabsTrigger value="avail" className="h-7"><Shield className="h-3.5 w-3.5" />가용재고</TabsTrigger>
+            <TabsTrigger value="physical" className="h-7"><Package className="h-3.5 w-3.5" />실재고</TabsTrigger>
+            <TabsTrigger value="incoming" className="h-7"><Truck className="h-3.5 w-3.5" />미착품</TabsTrigger>
+            <TabsTrigger value="forecast" className="h-7"><TrendingUp className="h-3.5 w-3.5" />수급 전망</TabsTrigger>
+          </TabsList>
+          <div className="flex flex-wrap gap-2">
+            <Select value={mfgFilter || 'all'} onValueChange={(v) => setMfgFilter(v === 'all' ? '' : (v ?? ''))}>
+              <SelectTrigger className="h-8 w-36 text-xs">
+                <FT text={mfgFilter ? (manufacturers.find(m => m.manufacturer_id === mfgFilter)?.name_kr ?? '') : '제조사'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">제조사 (전체)</SelectItem>
+                {manufacturers.map((m) => (
+                  <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={wpFilter || 'all'} onValueChange={(v) => setWpFilter(v === 'all' ? '' : (v ?? ''))}>
+              <SelectTrigger className="h-8 w-28 text-xs" disabled={!mfgFilter}>
+                <FT text={wpFilter ? `${wpFilter}Wp` : '규격'} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">규격 (전체)</SelectItem>
+                {availableWps.map((wp) => (
+                  <SelectItem key={wp} value={String(wp)}>{wp}Wp</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* 실재고 탭 — 창고 보유 물리적 재고 */}
@@ -583,17 +550,10 @@ export default function InventoryPage() {
             </Alert>
           )}
           {invLoading ? <LoadingSpinner /> : invData && (
-            <div className="space-y-4">
-              <InventorySummaryCards
-                summary={invData.summary}
-                items={invData.items}
-                onCardClick={handleCardClick}
-              />
-              <div className="space-y-1">
-                <h2 className="text-sm font-semibold">품목별 실재고</h2>
-                <InventoryTable items={invData.items} />
-                <p className="text-[10px] text-muted-foreground text-right">계산 시점: {invData.calculated_at}</p>
-              </div>
+            <div className="mt-3 space-y-1">
+              <h2 className="text-sm font-semibold">품목별 실재고</h2>
+              <InventoryTable items={invData.items} />
+              <p className="text-[10px] text-muted-foreground text-right">계산 시점: {invData.calculated_at}</p>
             </div>
           )}
         </TabsContent>
@@ -606,27 +566,9 @@ export default function InventoryPage() {
               <AlertDescription>{invError}</AlertDescription>
             </Alert>
           )}
-
-          {/* KPI 카드 */}
-          {invLoading ? <LoadingSpinner /> : invData && (
-            <InventorySummaryCards
-              summary={invData.summary}
-              items={invData.items}
-              onCardClick={handleCardClick}
-            />
-          )}
-
           {/* 품목별 가용재고 + 배정 현황 통합 테이블 */}
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">품목별 가용재고 / 배정 현황</h2>
-              <Button
-                size="sm"
-                onClick={() => openAllocationForm()}
-              >
-                <Plus className="h-3.5 w-3.5 mr-1" />예약 등록
-              </Button>
-            </div>
+          <div className="mt-3 space-y-2">
+            <h2 className="text-sm font-semibold">품목별 가용재고 / 배정 현황</h2>
             {invLoading ? <LoadingSpinner /> : invData ? (
               <AvailInventoryTable
                 items={invData.items}
@@ -654,22 +596,9 @@ export default function InventoryPage() {
               <AlertDescription>{invError}</AlertDescription>
             </Alert>
           )}
-          {/* KPI 카드 */}
-          {invLoading ? <LoadingSpinner /> : invData && (
-            <InventorySummaryCards
-              summary={invData.summary}
-              items={invData.items}
-              onCardClick={handleCardClick}
-            />
-          )}
           {/* 품목별 미착품 + 배정 현황 */}
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold">품목별 미착품 / 배정 현황</h2>
-              <Button size="sm" onClick={() => openAllocationForm()}>
-                <Plus className="h-3.5 w-3.5 mr-1" />예약 등록
-              </Button>
-            </div>
+          <div className="mt-3 space-y-2">
+            <h2 className="text-sm font-semibold">품목별 미착품 / 배정 현황</h2>
             {invLoading ? <LoadingSpinner /> : invData ? (
               <IncomingTable
                 items={invData.items}
