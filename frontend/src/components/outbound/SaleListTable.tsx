@@ -2,10 +2,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import EmptyState from '@/components/common/EmptyState';
 import { formatDate, formatNumber } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import type { Outbound, Sale } from '@/types/outbound';
+import type { SaleListItem } from '@/types/outbound';
 
 interface Props {
-  items: (Outbound & { sale: Sale })[];
+  items: SaleListItem[];
 }
 
 export default function SaleListTable({ items }: Props) {
@@ -16,7 +16,8 @@ export default function SaleListTable({ items }: Props) {
       <Table className="text-xs">
         <TableHeader>
           <TableRow>
-            <TableHead>출고일</TableHead>
+            <TableHead>기준일</TableHead>
+            <TableHead>구분</TableHead>
             <TableHead>거래처</TableHead>
             <TableHead>품명</TableHead>
             <TableHead>규격</TableHead>
@@ -31,8 +32,15 @@ export default function SaleListTable({ items }: Props) {
         </TableHeader>
         <TableBody>
           {items.map((item) => (
-            <TableRow key={item.outbound_id}>
-              <TableCell>{formatDate(item.outbound_date)}</TableCell>
+            <TableRow key={item.sale_id}>
+              <TableCell>{formatDate(item.outbound_date ?? item.order_date ?? '')}</TableCell>
+              <TableCell>
+                {item.outbound_id ? (
+                  <span className="rounded-full bg-green-100 text-green-700 px-1.5 py-0.5 text-[10px] font-medium">출고</span>
+                ) : (
+                  <span className="rounded-full bg-blue-100 text-blue-700 px-1.5 py-0.5 text-[10px] font-medium">수주</span>
+                )}
+              </TableCell>
               <TableCell>{item.sale.customer_name ?? '—'}</TableCell>
               <TableCell>{item.product_name ?? '—'}</TableCell>
               <TableCell>{item.spec_wp ? `${item.spec_wp}` : '—'}</TableCell>

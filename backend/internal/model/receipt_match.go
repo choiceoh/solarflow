@@ -5,7 +5,8 @@ package model
 type ReceiptMatch struct {
 	MatchID       string  `json:"match_id"`
 	ReceiptID     string  `json:"receipt_id"`
-	OutboundID    string  `json:"outbound_id"`
+	OutboundID    *string `json:"outbound_id,omitempty"`
+	SaleID        *string `json:"sale_id,omitempty"`
 	MatchedAmount float64 `json:"matched_amount"`
 }
 
@@ -13,7 +14,8 @@ type ReceiptMatch struct {
 // 비유: "수금 매칭 등록 신청서" — 수금, 출고, 매칭 금액을 필수 기재
 type CreateReceiptMatchRequest struct {
 	ReceiptID     string  `json:"receipt_id"`
-	OutboundID    string  `json:"outbound_id"`
+	OutboundID    *string `json:"outbound_id,omitempty"`
+	SaleID        *string `json:"sale_id,omitempty"`
 	MatchedAmount float64 `json:"matched_amount"`
 }
 
@@ -23,8 +25,8 @@ func (req *CreateReceiptMatchRequest) Validate() string {
 	if req.ReceiptID == "" {
 		return "receipt_id는 필수 항목입니다"
 	}
-	if req.OutboundID == "" {
-		return "outbound_id는 필수 항목입니다"
+	if (req.OutboundID == nil || *req.OutboundID == "") && (req.SaleID == nil || *req.SaleID == "") {
+		return "outbound_id 또는 sale_id 중 하나는 필수 항목입니다"
 	}
 	if req.MatchedAmount <= 0 {
 		return "matched_amount는 양수여야 합니다"

@@ -118,7 +118,8 @@ export default function InventoryPage() {
     }
     if (linkedAllocId) params.set('linked_alloc_id', linkedAllocId);
     if (alloc.bl_id) params.set('bl_id', alloc.bl_id);
-    window.location.href = `/orders?${params.toString()}`;
+    if (alloc.expected_price_per_wp) params.set('expected_price_per_wp', String(alloc.expected_price_per_wp));
+    navigate(`/orders?${params.toString()}`);
   };
 
   // 확정 → 수주 등록 페이지로 pre-fill 이동
@@ -164,7 +165,7 @@ export default function InventoryPage() {
     await fetchWithAuth(`/api/v1/inventory/allocations/${incomingAlloc.alloc_id}`, {
       method: 'PUT',
       body: JSON.stringify({ status: 'hold' }),
-    }).catch(() => {});
+    });
     fetchAllocations();
     reloadInv();
     navigateToOrder(stockAlloc);
@@ -178,7 +179,7 @@ export default function InventoryPage() {
     setIncomingDialog({ open: false, stockAlloc: null, incomingAlloc: null });
     await fetchWithAuth(`/api/v1/inventory/allocations/${incomingAlloc.alloc_id}`, {
       method: 'DELETE',
-    }).catch(() => {});
+    });
     fetchAllocations();
     reloadInv();
     navigateToOrder(stockAlloc);
@@ -189,7 +190,7 @@ export default function InventoryPage() {
     await fetchWithAuth(`/api/v1/inventory/allocations/${allocId}`, {
       method: 'PUT',
       body: JSON.stringify({ status: 'hold' }),
-    }).catch(() => {});
+    });
     fetchAllocations();
     reloadInv();
   };
@@ -199,14 +200,14 @@ export default function InventoryPage() {
     await fetchWithAuth(`/api/v1/inventory/allocations/${allocId}`, {
       method: 'PUT',
       body: JSON.stringify({ status: 'pending' }),
-    }).catch(() => {});
+    });
     fetchAllocations();
     reloadInv();
   };
 
   const handleDeleteAlloc = async (allocId: string) => {
     if (!confirm('삭제하면 복원할 수 없습니다. 삭제할까요?')) return;
-    await fetchWithAuth(`/api/v1/inventory/allocations/${allocId}`, { method: 'DELETE' }).catch(() => {});
+    await fetchWithAuth(`/api/v1/inventory/allocations/${allocId}`, { method: 'DELETE' });
     fetchAllocations();
     reloadInv();
   };

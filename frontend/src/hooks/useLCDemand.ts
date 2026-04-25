@@ -41,7 +41,7 @@ export function useLCDemand() {
         fetchWithAuth<TTRemittance[]>(companyQueryUrl('/api/v1/tts', selectedCompanyId)),
         fetchWithAuth<LCRecord[]>(companyQueryUrl('/api/v1/lcs', selectedCompanyId)),
       ]);
-      const activePOs = poData.filter((p) => p.status === 'contracted' || p.status === 'shipping');
+      const activePOs = poData.filter((p) => p.status === 'contracted' || p.status === 'in_progress');
       setPos(activePOs);
       setTts(ttData);
       setLcs(lcData);

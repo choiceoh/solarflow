@@ -239,11 +239,28 @@ func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// outbound_bl_items는 ON DELETE CASCADE로 자동 삭제
-	// 연결된 매출 먼저 삭제 (FK 제약)
-	_, _, _ = h.DB.From("sales").
-		Delete("", "").
-		Eq("outbound_id", id).
-		Execute()
+	// 수주 기준 계산서는 보존하고 outbound 연결만 해제한다. 출고만 있는 계산서는 같이 삭제한다.
+	if saleData, _, err := h.DB.From("sales").Select("sale_id, order_id", "exact", false).Eq("outbound_id", id).Execute(); err == nil {
+		var linkedSales []struct {
+			SaleID  string  `json:"sale_id"`
+			OrderID *string `json:"order_id"`
+		}
+		if json.Unmarshal(saleData, &linkedSales) == nil {
+			for _, sale := range linkedSales {
+				if sale.OrderID != nil && *sale.OrderID != "" {
+					_, _, _ = h.DB.From("sales").
+						Update(map[string]interface{}{"outbound_id": nil}, "", "").
+						Eq("sale_id", sale.SaleID).
+						Execute()
+				} else {
+					_, _, _ = h.DB.From("sales").
+						Delete("", "").
+						Eq("sale_id", sale.SaleID).
+						Execute()
+				}
+			}
+		}
+	}
 
 	_, _, err := h.DB.From("outbounds").
 		Delete("", "").

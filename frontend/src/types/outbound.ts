@@ -47,9 +47,12 @@ export interface Outbound {
 
 export interface Sale {
   sale_id: string;
-  outbound_id: string;
+  outbound_id?: string;
+  order_id?: string;
   customer_id: string;
   customer_name?: string;
+  quantity?: number;
+  capacity_kw?: number;
   unit_price_wp: number;
   unit_price_ea?: number;
   supply_amount?: number;
@@ -60,6 +63,32 @@ export interface Sale {
   erp_closed?: boolean;
   erp_closed_date?: string;
   memo?: string;
+}
+
+export interface SaleListItem {
+  sale_id: string;
+  outbound_id?: string;
+  order_id?: string;
+  outbound_date?: string;
+  order_date?: string;
+  order_number?: string;
+  company_id?: string;
+  customer_id: string;
+  customer_name?: string;
+  product_id?: string;
+  product_name?: string;
+  product_code?: string;
+  spec_wp?: number;
+  quantity: number;
+  capacity_kw?: number;
+  site_name?: string;
+  unit_price_wp: number;
+  unit_price_ea?: number;
+  supply_amount?: number;
+  vat_amount?: number;
+  total_amount?: number;
+  tax_invoice_date?: string;
+  sale: Sale;
 }
 
 export const OUTBOUND_STATUS_LABEL: Record<OutboundStatus, string> = {

@@ -56,6 +56,34 @@ func (h *InventoryAllocationHandler) List(w http.ResponseWriter, r *http.Request
 	response.RespondJSON(w, http.StatusOK, items)
 }
 
+// GetByID — GET /api/v1/inventory/allocations/{id}
+func (h *InventoryAllocationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	data, _, err := h.DB.From("inventory_allocations").
+		Select("*", "exact", false).
+		Eq("alloc_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[배정 상세 조회 실패] id=%s, %v", id, err)
+		response.RespondError(w, http.StatusInternalServerError, "배정 조회에 실패했습니다")
+		return
+	}
+
+	var items []model.InventoryAllocation
+	if err := json.Unmarshal(data, &items); err != nil {
+		log.Printf("[배정 상세 디코딩 실패] %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "응답 데이터 처리에 실패했습니다")
+		return
+	}
+	if len(items) == 0 {
+		response.RespondError(w, http.StatusNotFound, "배정을 찾을 수 없습니다")
+		return
+	}
+
+	response.RespondJSON(w, http.StatusOK, items[0])
+}
+
 // Create — POST /api/v1/inventory/allocations
 func (h *InventoryAllocationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var req model.CreateInventoryAllocationRequest
@@ -66,6 +94,9 @@ func (h *InventoryAllocationHandler) Create(w http.ResponseWriter, r *http.Reque
 	if msg := req.Validate(); msg != "" {
 		response.RespondError(w, http.StatusBadRequest, msg)
 		return
+	}
+	if req.Status == "" {
+		req.Status = "pending"
 	}
 
 	// "representation" → PostgREST가 Prefer: return=representation 헤더를 보내 삽입된 행을 응답
@@ -82,7 +113,9 @@ func (h *InventoryAllocationHandler) Create(w http.ResponseWriter, r *http.Reque
 	if err := json.Unmarshal(data, &created); err != nil || len(created) == 0 {
 		// 삽입 자체는 성공했으나 응답 파싱 불가 시 성공으로 처리
 		log.Printf("[배정 등록 응답 파싱 주의] data=%s err=%v", string(data), err)
-		response.RespondJSON(w, http.StatusCreated, struct{ Status string `json:"status"` }{Status: "created"})
+		response.RespondJSON(w, http.StatusCreated, struct {
+			Status string `json:"status"`
+		}{Status: "created"})
 		return
 	}
 	response.RespondJSON(w, http.StatusCreated, created[0])

@@ -685,9 +685,11 @@ func (h *ImportHandler) Sales(w http.ResponseWriter, r *http.Request) {
 		vatAmount := supplyAmount * 0.1
 		totalAmount := supplyAmount + vatAmount
 
+		invoiceQty := int(quantity)
 		saleReq := model.CreateSaleRequest{
-			OutboundID:      outboundID,
+			OutboundID:      &outboundID,
 			CustomerID:      customerID,
+			Quantity:        &invoiceQty,
 			UnitPriceWp:     unitPriceWp,
 			UnitPriceEa:     &unitPriceEa,
 			SupplyAmount:    &supplyAmount,
@@ -861,7 +863,7 @@ func (h *ImportHandler) Declarations(w http.ResponseWriter, r *http.Request) {
 		costReq := model.CreateCostDetailRequest{
 			DeclarationID:  declID,
 			ProductID:      productID,
-			Quantity:        qty,
+			Quantity:       qty,
 			CapacityKw:     &capacityKW,
 			FobUnitUsd:     getFloatPtr(row, "fob_unit_usd"),
 			FobTotalUsd:    getFloatPtr(row, "fob_total_usd"),

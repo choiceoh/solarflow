@@ -76,11 +76,11 @@ pub async fn calculate_forecast(pool: &PgPool, req: &SupplyForecastRequest) -> R
 
     // PO 잔량 (B/L 미생성분)
     let po_total = kw_map(sqlx::query_as::<_, KwRow>(
-        "SELECT pol.product_id, COALESCE(SUM(pol.quantity*p.wattage_kw),0)::float8 as kw FROM po_line_items pol JOIN products p ON pol.product_id=p.product_id JOIN purchase_orders po ON pol.po_id=po.po_id WHERE po.status IN ('contracted','shipping') AND po.company_id=$1 AND ($2::uuid IS NULL OR pol.product_id=$2) AND ($3::uuid IS NULL OR p.manufacturer_id=$3) GROUP BY pol.product_id"
+        "SELECT pol.product_id, COALESCE(SUM(pol.quantity*p.wattage_kw),0)::float8 as kw FROM po_line_items pol JOIN products p ON pol.product_id=p.product_id JOIN purchase_orders po ON pol.po_id=po.po_id WHERE po.status IN ('contracted','in_progress') AND po.company_id=$1 AND ($2::uuid IS NULL OR pol.product_id=$2) AND ($3::uuid IS NULL OR p.manufacturer_id=$3) GROUP BY pol.product_id"
     ).bind(company_id).bind(pid).bind(mid).fetch_all(pool).await?);
 
     let bl_total = kw_map(sqlx::query_as::<_, KwRow>(
-        "SELECT bli.product_id, COALESCE(SUM(bli.capacity_kw),0)::float8 as kw FROM bl_line_items bli JOIN bl_shipments bl ON bli.bl_id=bl.bl_id JOIN products p ON bli.product_id=p.product_id WHERE bl.po_id IN (SELECT po_id FROM purchase_orders WHERE status IN ('contracted','shipping') AND company_id=$1) AND ($2::uuid IS NULL OR bli.product_id=$2) AND ($3::uuid IS NULL OR p.manufacturer_id=$3) GROUP BY bli.product_id"
+        "SELECT bli.product_id, COALESCE(SUM(bli.capacity_kw),0)::float8 as kw FROM bl_line_items bli JOIN bl_shipments bl ON bli.bl_id=bl.bl_id JOIN products p ON bli.product_id=p.product_id WHERE bl.po_id IN (SELECT po_id FROM purchase_orders WHERE status IN ('contracted','in_progress') AND company_id=$1) AND ($2::uuid IS NULL OR bli.product_id=$2) AND ($3::uuid IS NULL OR p.manufacturer_id=$3) GROUP BY bli.product_id"
     ).bind(company_id).bind(pid).bind(mid).fetch_all(pool).await?);
 
     // 3. 출고예정 — 판매

@@ -21,6 +21,7 @@ import {
 } from '@/types/orders';
 import type { Product, Partner, ConstructionSite } from '@/types/masters';
 import type { BLShipment } from '@/types/inbound';
+import type { InventoryResponse } from '@/types/inventory';
 import { statusLabel } from '@/types/inbound';
 
 function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: string }) {
@@ -59,6 +60,7 @@ export interface OrderPrefillData {
   site_name?: string;
   order_number?: string;        // 고객 발주번호
   bl_id?: string;               // 사용예약에서 이어받은 BL (원가 추적용)
+  expected_price_per_wp?: number;
 }
 
 interface Props {
@@ -125,17 +127,18 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
   // 충당소스 변경 시 재고 정보 표시
   useEffect(() => {
     if (!fulfillmentSource || !selectedCompanyId) { setInventoryInfo(null); return; }
-    fetchWithAuth<{ available_kw?: number; incoming_kw?: number }>('/api/v1/calc/inventory', {
+    fetchWithAuth<InventoryResponse>('/api/v1/calc/inventory', {
       method: 'POST',
       body: JSON.stringify({ company_id: selectedCompanyId }),
     }).then((result) => {
+      const item = selectedProductId ? result.items.find((it) => it.product_id === selectedProductId) : undefined;
       if (fulfillmentSource === 'stock') {
-        setInventoryInfo(`현재 가용재고: ${(result.available_kw ?? 0).toFixed(1)} kW`);
+        setInventoryInfo(`현재 가용재고: ${(item?.available_kw ?? result.summary.total_available_kw ?? 0).toFixed(1)} kW`);
       } else {
-        setInventoryInfo(`가용 미착품: ${(result.incoming_kw ?? 0).toFixed(1)} kW`);
+        setInventoryInfo(`가용 미착품: ${(item?.available_incoming_kw ?? 0).toFixed(1)} kW`);
       }
     }).catch(() => setInventoryInfo(null));
-  }, [fulfillmentSource, selectedCompanyId]);
+  }, [fulfillmentSource, selectedCompanyId, selectedProductId]);
 
   useEffect(() => {
     if (open) {
@@ -176,7 +179,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
           fulfillment_source: prefillData.fulfillment_source ?? '',
           product_id: prefillData.product_id ?? '',
           quantity: prefillData.quantity ?? ('' as unknown as number),
-          unit_price_wp: '' as unknown as number,
+          unit_price_wp: prefillData.expected_price_per_wp ?? ('' as unknown as number),
           site_id: '',
           site_name: prefillData.site_name ?? '',
           site_address: '', site_contact: '', site_phone: '',

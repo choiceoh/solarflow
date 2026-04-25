@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	supa "github.com/supabase-community/supabase-go"
@@ -37,6 +38,9 @@ func (h *SaleHandler) List(w http.ResponseWriter, r *http.Request) {
 	if outID := r.URL.Query().Get("outbound_id"); outID != "" {
 		query = query.Eq("outbound_id", outID)
 	}
+	if orderID := r.URL.Query().Get("order_id"); orderID != "" {
+		query = query.Eq("order_id", orderID)
+	}
 
 	// 비유: ?customer_id=xxx — 특정 고객의 판매만 필터
 	if custID := r.URL.Query().Get("customer_id"); custID != "" {
@@ -62,7 +66,178 @@ func (h *SaleHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.RespondJSON(w, http.StatusOK, sales)
+	items := h.enrichSales(sales)
+	companyID := r.URL.Query().Get("company_id")
+	month := r.URL.Query().Get("month")
+	invoiceStatus := r.URL.Query().Get("invoice_status")
+	filtered := make([]model.SaleListItem, 0, len(items))
+	for _, item := range items {
+		if companyID != "" && companyID != "all" && (item.CompanyID == nil || *item.CompanyID != companyID) {
+			continue
+		}
+		if month != "" && (item.Sale.TaxInvoiceDate == nil || !strings.HasPrefix(*item.Sale.TaxInvoiceDate, month)) {
+			continue
+		}
+		if invoiceStatus == "issued" && item.Sale.TaxInvoiceDate == nil {
+			continue
+		}
+		if invoiceStatus == "pending" && item.Sale.TaxInvoiceDate != nil {
+			continue
+		}
+		filtered = append(filtered, item)
+	}
+
+	response.RespondJSON(w, http.StatusOK, filtered)
+}
+
+type saleOrderRow struct {
+	OrderID     string   `json:"order_id"`
+	OrderNumber *string  `json:"order_number"`
+	OrderDate   string   `json:"order_date"`
+	CompanyID   string   `json:"company_id"`
+	CustomerID  string   `json:"customer_id"`
+	ProductID   string   `json:"product_id"`
+	Quantity    int      `json:"quantity"`
+	CapacityKw  *float64 `json:"capacity_kw"`
+	SiteName    *string  `json:"site_name"`
+}
+
+type saleOutboundRow struct {
+	OutboundID   string   `json:"outbound_id"`
+	OutboundDate string   `json:"outbound_date"`
+	CompanyID    string   `json:"company_id"`
+	ProductID    string   `json:"product_id"`
+	Quantity     int      `json:"quantity"`
+	CapacityKw   *float64 `json:"capacity_kw"`
+	SiteName     *string  `json:"site_name"`
+	OrderID      *string  `json:"order_id"`
+}
+
+type saleProductRow struct {
+	ProductID   string   `json:"product_id"`
+	ProductName string   `json:"product_name"`
+	ProductCode string   `json:"product_code"`
+	SpecWp      *float64 `json:"spec_wp"`
+}
+
+type salePartnerRow struct {
+	PartnerID   string `json:"partner_id"`
+	PartnerName string `json:"partner_name"`
+}
+
+func ptrString(v string) *string { return &v }
+
+func (h *SaleHandler) enrichSales(sales []model.Sale) []model.SaleListItem {
+	var orders []saleOrderRow
+	var outbounds []saleOutboundRow
+	var products []saleProductRow
+	var partners []salePartnerRow
+
+	if data, _, err := h.DB.From("orders").Select("order_id, order_number, order_date, company_id, customer_id, product_id, quantity, capacity_kw, site_name", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &orders)
+	}
+	if data, _, err := h.DB.From("outbounds").Select("outbound_id, outbound_date, company_id, product_id, quantity, capacity_kw, site_name, order_id", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &outbounds)
+	}
+	if data, _, err := h.DB.From("products").Select("product_id, product_name, product_code, spec_wp", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &products)
+	}
+	if data, _, err := h.DB.From("partners").Select("partner_id, partner_name", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &partners)
+	}
+
+	orderMap := make(map[string]saleOrderRow, len(orders))
+	for _, o := range orders {
+		orderMap[o.OrderID] = o
+	}
+	outboundMap := make(map[string]saleOutboundRow, len(outbounds))
+	for _, ob := range outbounds {
+		outboundMap[ob.OutboundID] = ob
+	}
+	productMap := make(map[string]saleProductRow, len(products))
+	for _, p := range products {
+		productMap[p.ProductID] = p
+	}
+	partnerMap := make(map[string]salePartnerRow, len(partners))
+	for _, p := range partners {
+		partnerMap[p.PartnerID] = p
+	}
+
+	items := make([]model.SaleListItem, 0, len(sales))
+	for _, sale := range sales {
+		item := model.SaleListItem{
+			SaleID:         sale.SaleID,
+			OutboundID:     sale.OutboundID,
+			OrderID:        sale.OrderID,
+			CustomerID:     sale.CustomerID,
+			Quantity:       0,
+			CapacityKw:     sale.CapacityKw,
+			UnitPriceWp:    sale.UnitPriceWp,
+			UnitPriceEa:    sale.UnitPriceEa,
+			SupplyAmount:   sale.SupplyAmount,
+			VatAmount:      sale.VatAmount,
+			TotalAmount:    sale.TotalAmount,
+			TaxInvoiceDate: sale.TaxInvoiceDate,
+			Sale:           sale,
+		}
+		if sale.Quantity != nil {
+			item.Quantity = *sale.Quantity
+		}
+		if p, ok := partnerMap[sale.CustomerID]; ok {
+			item.CustomerName = &p.PartnerName
+			item.Sale.CustomerName = &p.PartnerName
+		}
+
+		var productID *string
+		if sale.OutboundID != nil {
+			if ob, ok := outboundMap[*sale.OutboundID]; ok {
+				item.OutboundDate = &ob.OutboundDate
+				item.CompanyID = &ob.CompanyID
+				item.SiteName = ob.SiteName
+				productID = &ob.ProductID
+				if item.Quantity == 0 {
+					item.Quantity = ob.Quantity
+				}
+				if item.CapacityKw == nil {
+					item.CapacityKw = ob.CapacityKw
+				}
+				if item.OrderID == nil && ob.OrderID != nil {
+					item.OrderID = ob.OrderID
+				}
+			}
+		}
+		if item.OrderID != nil {
+			if ord, ok := orderMap[*item.OrderID]; ok {
+				item.OrderDate = &ord.OrderDate
+				item.OrderNumber = ord.OrderNumber
+				if item.CompanyID == nil {
+					item.CompanyID = &ord.CompanyID
+				}
+				if item.SiteName == nil {
+					item.SiteName = ord.SiteName
+				}
+				if productID == nil {
+					productID = &ord.ProductID
+				}
+				if item.Quantity == 0 {
+					item.Quantity = ord.Quantity
+				}
+				if item.CapacityKw == nil {
+					item.CapacityKw = ord.CapacityKw
+				}
+			}
+		}
+		if productID != nil {
+			item.ProductID = productID
+			if p, ok := productMap[*productID]; ok {
+				item.ProductName = ptrString(p.ProductName)
+				item.ProductCode = ptrString(p.ProductCode)
+				item.SpecWp = p.SpecWp
+			}
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 // GetByID — GET /api/v1/sales/{id} — 판매 상세 조회
@@ -109,6 +284,7 @@ func (h *SaleHandler) Create(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusBadRequest, msg)
 		return
 	}
+	h.fillSaleDefaults(&req)
 
 	data, _, err := h.DB.From("sales").
 		Insert(req, false, "", "", "").
@@ -132,6 +308,52 @@ func (h *SaleHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.RespondJSON(w, http.StatusCreated, created[0])
+}
+
+func (h *SaleHandler) fillSaleDefaults(req *model.CreateSaleRequest) {
+	if req.Quantity != nil && req.CapacityKw != nil {
+		return
+	}
+	if req.OutboundID != nil && *req.OutboundID != "" {
+		data, _, err := h.DB.From("outbounds").
+			Select("quantity, capacity_kw", "exact", false).
+			Eq("outbound_id", *req.OutboundID).
+			Execute()
+		if err == nil {
+			var rows []struct {
+				Quantity   int      `json:"quantity"`
+				CapacityKw *float64 `json:"capacity_kw"`
+			}
+			if json.Unmarshal(data, &rows) == nil && len(rows) > 0 {
+				if req.Quantity == nil {
+					req.Quantity = &rows[0].Quantity
+				}
+				if req.CapacityKw == nil {
+					req.CapacityKw = rows[0].CapacityKw
+				}
+			}
+		}
+	}
+	if req.OrderID != nil && *req.OrderID != "" {
+		data, _, err := h.DB.From("orders").
+			Select("quantity, capacity_kw", "exact", false).
+			Eq("order_id", *req.OrderID).
+			Execute()
+		if err == nil {
+			var rows []struct {
+				Quantity   int      `json:"quantity"`
+				CapacityKw *float64 `json:"capacity_kw"`
+			}
+			if json.Unmarshal(data, &rows) == nil && len(rows) > 0 {
+				if req.Quantity == nil {
+					req.Quantity = &rows[0].Quantity
+				}
+				if req.CapacityKw == nil {
+					req.CapacityKw = rows[0].CapacityKw
+				}
+			}
+		}
+	}
 }
 
 // Update — PUT /api/v1/sales/{id} — 판매 수정

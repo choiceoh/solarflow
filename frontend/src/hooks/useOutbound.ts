@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { useAppStore } from '@/stores/appStore';
 import { companyParams } from '@/lib/companyUtils';
-import type { Outbound, Sale } from '@/types/outbound';
+import type { Outbound, SaleListItem } from '@/types/outbound';
 
 export function useOutboundList(filters: { status?: string; usage_category?: string; manufacturer_id?: string } = {}) {
   const [data, setData] = useState<Outbound[]>([]);
@@ -52,7 +52,7 @@ export function useOutboundDetail(outboundId: string | null) {
 }
 
 export function useSaleList(filters: { customer_id?: string; month?: string; invoice_status?: string } = {}) {
-  const [data, setData] = useState<(Outbound & { sale: Sale })[]>([]);
+  const [data, setData] = useState<SaleListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
@@ -66,7 +66,7 @@ export function useSaleList(filters: { customer_id?: string; month?: string; inv
       if (filters.customer_id) params.set('customer_id', filters.customer_id);
       if (filters.month) params.set('month', filters.month);
       if (filters.invoice_status) params.set('invoice_status', filters.invoice_status);
-      const list = await fetchWithAuth<(Outbound & { sale: Sale })[]>(`/api/v1/sales?${params}`);
+      const list = await fetchWithAuth<SaleListItem[]>(`/api/v1/sales?${params}`);
       setData(list);
     } catch (err) {
       setError(err instanceof Error ? err.message : '조회 실패');

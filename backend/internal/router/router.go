@@ -211,6 +211,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 		r.Route("/inventory/allocations", func(r chi.Router) {
 			r.Get("/", allocH.List)
 			r.Post("/", allocH.Create)
+			r.Get("/{id}", allocH.GetByID)
 			r.Put("/{id}", allocH.Update)
 			r.Delete("/{id}", allocH.Delete)
 		})

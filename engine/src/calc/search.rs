@@ -298,7 +298,7 @@ async fn search_po_payment(pool: &PgPool, company_id: Uuid, pq: &ParsedQuery) ->
     let rows = sqlx::query_as::<_, Row>(
         r#"SELECT po.po_id, po.po_number, po.status, m.name_kr as manufacturer_name
            FROM purchase_orders po JOIN manufacturers m ON po.manufacturer_id=m.manufacturer_id
-           WHERE po.company_id=$1 AND ($2::uuid IS NULL OR po.manufacturer_id=$2) AND po.status IN ('draft','contracted','shipping')
+           WHERE po.company_id=$1 AND ($2::uuid IS NULL OR po.manufacturer_id=$2) AND po.status IN ('draft','contracted','in_progress')
            ORDER BY po.contract_date DESC LIMIT 20"#
     ).bind(company_id).bind(mfg_id).fetch_all(pool).await?;
 

@@ -13,7 +13,9 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
+import { companyParams } from '@/lib/companyUtils';
 import { USAGE_CATEGORY_LABEL, type Outbound, type UsageCategory } from '@/types/outbound';
+import type { Order } from '@/types/orders';
 import type { Product, Warehouse } from '@/types/masters';
 import type { BLShipment } from '@/types/inbound';
 import { statusLabel } from '@/types/inbound';
@@ -59,7 +61,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
   const companies = useAppStore((s) => s.companies);
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [orders, setOrders] = useState<{ order_id: string; order_number: string; remaining_qty?: number }[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [bls, setBls] = useState<BLShipment[]>([]);
   const [blEntries, setBlEntries] = useState<BLEntry[]>([]);
   const [submitError, setSubmitError] = useState('');
@@ -91,9 +93,10 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
 
   useEffect(() => {
     if (!selectedCompanyId) return;
-    fetchWithAuth<{ order_id: string; order_number: string; remaining_qty?: number }[]>(
-      `/api/v1/orders?company_id=${selectedCompanyId}`
-    ).then(setOrders).catch(() => {});
+    const params = companyParams(selectedCompanyId);
+    fetchWithAuth<Order[]>(`/api/v1/orders?${params}`)
+      .then((list) => setOrders(list.filter((o) => o.status !== 'completed' && o.status !== 'cancelled')))
+      .catch(() => {});
   }, [selectedCompanyId]);
 
   // 품번 선택 시 해당 제조사의 B/L 목록 로드 (완료/ERP등록 상태만)
@@ -104,7 +107,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
     )
       .then((list) => {
         const done = (list ?? []).filter((b) =>
-          ['completed', 'erp_done', 'arrived', 'customs'].includes(b.status)
+          ['completed', 'erp_done'].includes(b.status)
         );
         setBls(done);
       })
@@ -155,6 +158,17 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
     }
   }, [open, editData, reset]);
 
+  useEffect(() => {
+    if (!open || editData || !selectedOrder) return;
+    const remaining = selectedOrder.remaining_qty ?? selectedOrder.quantity - (selectedOrder.shipped_qty ?? 0);
+    setValue('product_id', selectedOrder.product_id, { shouldDirty: true, shouldValidate: true });
+    setValue('quantity', remaining as unknown as number, { shouldDirty: true, shouldValidate: true });
+    setQtyDisplay(fmtInt(remaining));
+    setValue('usage_category', selectedOrder.management_category === 'sale' ? 'sale' : 'construction', { shouldDirty: true });
+    setValue('site_name', selectedOrder.site_name ?? '', { shouldDirty: true });
+    setValue('site_address', selectedOrder.site_address ?? '', { shouldDirty: true });
+  }, [open, editData, selectedOrder, setValue]);
+
   const addBlEntry = () => setBlEntries(prev => [...prev, { bl_id: '', quantity: '' }]);
   const removeBlEntry = (i: number) => setBlEntries(prev => prev.filter((_, idx) => idx !== i));
   const updateBlEntry = (i: number, field: keyof BLEntry, val: string) =>
@@ -165,6 +179,16 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
     const validBLItems = blEntries
       .filter(e => e.bl_id && e.quantity && parseInt(e.quantity) > 0)
       .map(e => ({ bl_id: e.bl_id, quantity: parseInt(e.quantity.replace(/[^0-9]/g, ''), 10) }));
+    const outboundQty = Number(data.quantity) || 0;
+    if (selectedOrder?.remaining_qty != null && outboundQty > selectedOrder.remaining_qty) {
+      setSubmitError(`출고 수량이 수주 잔량 ${selectedOrder.remaining_qty.toLocaleString('ko-KR')}EA를 초과합니다`);
+      return;
+    }
+    const blQty = validBLItems.reduce((sum, item) => sum + item.quantity, 0);
+    if (validBLItems.length > 0 && blQty !== outboundQty) {
+      setSubmitError(`B/L 연결 수량 합계(${blQty.toLocaleString('ko-KR')}EA)가 출고 수량과 같아야 합니다`);
+      return;
+    }
 
     const payload: Record<string, unknown> = {
       ...data,
@@ -191,7 +215,9 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
   const productLabel = selectedProduct ? `${selectedProduct.product_code} — ${selectedProduct.product_name}` : '';
   const warehouseLabel = warehouses.find(w => w.warehouse_id === warehouseId)?.warehouse_name ?? '';
   const usageCatLabel = (USAGE_CATEGORY_LABEL as Record<string, string>)[usageCat] ?? '';
-  const orderLabel = selectedOrder?.order_number ?? (selectedOrderId ? '' : '');
+  const orderLabel = selectedOrder
+    ? `${selectedOrder.order_number ?? selectedOrder.order_id.slice(0, 8)} · 잔량 ${(selectedOrder.remaining_qty ?? selectedOrder.quantity - (selectedOrder.shipped_qty ?? 0)).toLocaleString('ko-KR')}EA`
+    : (selectedOrderId ? '' : '');
   const targetLabel = companies.find(c => c.company_id === targetCompanyId)?.company_name ?? '';
 
   return (
@@ -375,7 +401,9 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData }:
               <SelectContent>
                 <SelectItem value="_none">연결 안함</SelectItem>
                 {orders.map((o) => (
-                  <SelectItem key={o.order_id} value={o.order_id}>{o.order_number}</SelectItem>
+                  <SelectItem key={o.order_id} value={o.order_id}>
+                    {o.order_number ?? o.order_id.slice(0, 8)} · {o.product_name ?? o.product_code ?? ''} · 잔량 {(o.remaining_qty ?? o.quantity - (o.shipped_qty ?? 0)).toLocaleString('ko-KR')}EA
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, Pencil, Plus, Trash2 } from 'lucide-react';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import FulfillmentSourceBadge from './FulfillmentSourceBadge';
 import OrderForm from './OrderForm';
+import SaleForm from '@/components/outbound/SaleForm';
 import LinkedMemoWidget from '@/components/memo/LinkedMemoWidget';
 import { useOrderDetail, useOrderOutbounds } from '@/hooks/useOrders';
 import { fetchWithAuth } from '@/lib/api';
@@ -18,6 +19,7 @@ import {
   MANAGEMENT_CATEGORY_LABEL,
 } from '@/types/orders';
 import { USAGE_CATEGORY_LABEL } from '@/types/outbound';
+import type { Sale } from '@/types/outbound';
 
 interface Props {
   orderId: string;
@@ -40,6 +42,17 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [saleFormOpen, setSaleFormOpen] = useState(false);
+  const [sales, setSales] = useState<Sale[]>([]);
+
+  const loadSales = async () => {
+    const list = await fetchWithAuth<Array<{ sale?: Sale } & Sale>>(`/api/v1/sales?order_id=${orderId}`);
+    setSales(list.map((item) => item.sale ?? item));
+  };
+
+  useEffect(() => {
+    loadSales().catch(() => setSales([]));
+  }, [orderId]);
 
   if (loading || !order) return <LoadingSpinner />;
 
@@ -62,6 +75,16 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
       setDeleteError(err instanceof Error ? err.message : '삭제에 실패했습니다');
     }
     setDeleting(false);
+  };
+
+  const handleSaleSubmit = async (data: Record<string, unknown>) => {
+    const existing = sales[0];
+    if (existing) {
+      await fetchWithAuth(`/api/v1/sales/${existing.sale_id}`, { method: 'PUT', body: JSON.stringify(data) });
+    } else {
+      await fetchWithAuth('/api/v1/sales', { method: 'POST', body: JSON.stringify(data) });
+    }
+    await loadSales();
   };
 
   return (
@@ -125,6 +148,34 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
       <Separator />
 
       <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">계산서</h3>
+        <Button size="sm" onClick={() => setSaleFormOpen(true)}>
+          <Plus className="mr-1 h-3.5 w-3.5" />{sales[0] ? '계산서 수정' : '출고 전 계산서'}
+        </Button>
+      </div>
+
+      {sales.length > 0 ? (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+              <Field label="거래처" value={sales[0].customer_name ?? order.customer_name} />
+              <Field label="수량" value={sales[0].quantity ? formatNumber(sales[0].quantity) : formatNumber(order.quantity)} />
+              <Field label="Wp단가" value={`${formatNumber(sales[0].unit_price_wp)}원/Wp`} />
+              <Field label="공급가" value={sales[0].supply_amount ? `${formatNumber(sales[0].supply_amount)}원` : undefined} />
+              <Field label="부가세" value={sales[0].vat_amount ? `${formatNumber(sales[0].vat_amount)}원` : undefined} />
+              <Field label="합계" value={sales[0].total_amount ? `${formatNumber(sales[0].total_amount)}원` : undefined} />
+              <Field label="계산서 발행일" value={sales[0].tax_invoice_date ? formatDate(sales[0].tax_invoice_date) : undefined} />
+              <Field label="출고 연결" value={sales[0].outbound_id ? '연결됨' : '출고 전'} />
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="text-center py-6 text-sm text-muted-foreground">등록된 계산서가 없습니다</div>
+      )}
+
+      <Separator />
+
+      <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold">연결된 출고</h3>
         <p className="text-xs text-muted-foreground">
           출고: {formatNumber(totalShipped)} / 잔량: {formatNumber(remaining)}
@@ -174,6 +225,13 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
       <LinkedMemoWidget linkedTable="orders" linkedId={orderId} />
 
       <OrderForm open={editOpen} onOpenChange={setEditOpen} onSubmit={handleUpdate} editData={order} />
+      <SaleForm
+        open={saleFormOpen}
+        onOpenChange={setSaleFormOpen}
+        onSubmit={handleSaleSubmit}
+        order={order}
+        editData={sales[0] ?? null}
+      />
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

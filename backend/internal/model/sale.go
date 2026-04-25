@@ -4,8 +4,12 @@ package model
 // 비유: "판매 전표" — 출고에 연결된 판매 금액, 세금계산서 정보
 type Sale struct {
 	SaleID          string   `json:"sale_id"`
-	OutboundID      string   `json:"outbound_id"`
+	OutboundID      *string  `json:"outbound_id,omitempty"`
+	OrderID         *string  `json:"order_id,omitempty"`
 	CustomerID      string   `json:"customer_id"`
+	CustomerName    *string  `json:"customer_name,omitempty"`
+	Quantity        *int     `json:"quantity,omitempty"`
+	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
 	UnitPriceWp     float64  `json:"unit_price_wp"`
 	UnitPriceEa     *float64 `json:"unit_price_ea"`
 	SupplyAmount    *float64 `json:"supply_amount"`
@@ -18,11 +22,42 @@ type Sale struct {
 	Memo            *string  `json:"memo"`
 }
 
+// SaleListItem — 매출 현황 화면용 응답
+// 비유: "계산서 카드" — 계산서 원본(sale)과 수주/출고 문맥을 한 줄에 같이 표시
+type SaleListItem struct {
+	SaleID         string   `json:"sale_id"`
+	OutboundID     *string  `json:"outbound_id,omitempty"`
+	OrderID        *string  `json:"order_id,omitempty"`
+	OutboundDate   *string  `json:"outbound_date,omitempty"`
+	OrderDate      *string  `json:"order_date,omitempty"`
+	OrderNumber    *string  `json:"order_number,omitempty"`
+	CompanyID      *string  `json:"company_id,omitempty"`
+	CustomerID     string   `json:"customer_id"`
+	CustomerName   *string  `json:"customer_name,omitempty"`
+	ProductID      *string  `json:"product_id,omitempty"`
+	ProductName    *string  `json:"product_name,omitempty"`
+	ProductCode    *string  `json:"product_code,omitempty"`
+	SpecWp         *float64 `json:"spec_wp,omitempty"`
+	Quantity       int      `json:"quantity"`
+	CapacityKw     *float64 `json:"capacity_kw,omitempty"`
+	SiteName       *string  `json:"site_name,omitempty"`
+	UnitPriceWp    float64  `json:"unit_price_wp"`
+	UnitPriceEa    *float64 `json:"unit_price_ea,omitempty"`
+	SupplyAmount   *float64 `json:"supply_amount,omitempty"`
+	VatAmount      *float64 `json:"vat_amount,omitempty"`
+	TotalAmount    *float64 `json:"total_amount,omitempty"`
+	TaxInvoiceDate *string  `json:"tax_invoice_date,omitempty"`
+	Sale           Sale     `json:"sale"`
+}
+
 // CreateSaleRequest — 판매 등록 시 클라이언트가 보내는 데이터
-// 비유: "판매 등록 신청서" — 출고, 고객, Wp 단가를 필수 기재
+// 비유: "판매 등록 신청서" — 출고 전이면 수주, 출고 후이면 출고 전표와 연결
 type CreateSaleRequest struct {
-	OutboundID      string   `json:"outbound_id"`
+	OutboundID      *string  `json:"outbound_id,omitempty"`
+	OrderID         *string  `json:"order_id,omitempty"`
 	CustomerID      string   `json:"customer_id"`
+	Quantity        *int     `json:"quantity,omitempty"`
+	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
 	UnitPriceWp     float64  `json:"unit_price_wp"`
 	UnitPriceEa     *float64 `json:"unit_price_ea"`
 	SupplyAmount    *float64 `json:"supply_amount"`
@@ -38,11 +73,14 @@ type CreateSaleRequest struct {
 // Validate — 판매 등록 요청의 입력값을 검증
 // 비유: 접수 창구에서 판매 신청서 필수 항목 확인
 func (req *CreateSaleRequest) Validate() string {
-	if req.OutboundID == "" {
-		return "outbound_id는 필수 항목입니다"
+	if (req.OutboundID == nil || *req.OutboundID == "") && (req.OrderID == nil || *req.OrderID == "") {
+		return "order_id 또는 outbound_id 중 하나는 필수 항목입니다"
 	}
 	if req.CustomerID == "" {
 		return "customer_id는 필수 항목입니다"
+	}
+	if req.Quantity != nil && *req.Quantity <= 0 {
+		return "quantity는 양수여야 합니다"
 	}
 	if req.UnitPriceWp <= 0 {
 		return "unit_price_wp는 양수여야 합니다"
@@ -54,7 +92,10 @@ func (req *CreateSaleRequest) Validate() string {
 // 비유: "판매 전표 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateSaleRequest struct {
 	OutboundID      *string  `json:"outbound_id,omitempty"`
+	OrderID         *string  `json:"order_id,omitempty"`
 	CustomerID      *string  `json:"customer_id,omitempty"`
+	Quantity        *int     `json:"quantity,omitempty"`
+	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
 	UnitPriceWp     *float64 `json:"unit_price_wp,omitempty"`
 	UnitPriceEa     *float64 `json:"unit_price_ea,omitempty"`
 	SupplyAmount    *float64 `json:"supply_amount,omitempty"`
@@ -72,8 +113,14 @@ func (req *UpdateSaleRequest) Validate() string {
 	if req.OutboundID != nil && *req.OutboundID == "" {
 		return "outbound_id는 빈 값으로 변경할 수 없습니다"
 	}
+	if req.OrderID != nil && *req.OrderID == "" {
+		return "order_id는 빈 값으로 변경할 수 없습니다"
+	}
 	if req.CustomerID != nil && *req.CustomerID == "" {
 		return "customer_id는 빈 값으로 변경할 수 없습니다"
+	}
+	if req.Quantity != nil && *req.Quantity <= 0 {
+		return "quantity는 양수여야 합니다"
 	}
 	if req.UnitPriceWp != nil && *req.UnitPriceWp <= 0 {
 		return "unit_price_wp는 양수여야 합니다"

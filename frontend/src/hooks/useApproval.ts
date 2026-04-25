@@ -157,7 +157,7 @@ export function useType3() {
       const sales = await fetchWithAuth<Sale[]>(`/api/v1/sales?customer_id=${customerId}`);
 
       // outbound_id로 outbound 정보 가져오기
-      const outboundIds = [...new Set(sales.map((s) => s.outbound_id))];
+      const outboundIds = [...new Set(sales.map((s) => s.outbound_id).filter((id): id is string => !!id))];
       const outboundMap = new Map<string, Outbound>();
       for (const obId of outboundIds) {
         try {
@@ -169,6 +169,7 @@ export function useType3() {
       // 기간 필터 (outbound_date 기준)
       const items = sales
         .filter((s) => {
+          if (!s.outbound_id) return false;
           const ob = outboundMap.get(s.outbound_id);
           if (!ob) return false;
           if (from && ob.outbound_date < from) return false;
@@ -176,7 +177,7 @@ export function useType3() {
           return true;
         })
         .map((s) => {
-          const ob = outboundMap.get(s.outbound_id);
+          const ob = s.outbound_id ? outboundMap.get(s.outbound_id) : undefined;
           return {
             siteName: ob?.site_name ?? '-',
             productName: ob?.product_name ?? '',

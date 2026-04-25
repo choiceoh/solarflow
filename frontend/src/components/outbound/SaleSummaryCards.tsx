@@ -1,9 +1,9 @@
 import { Card, CardContent } from '@/components/ui/card';
 import { formatNumber } from '@/lib/utils';
-import type { Outbound, Sale } from '@/types/outbound';
+import type { SaleListItem } from '@/types/outbound';
 
 interface Props {
-  items: (Outbound & { sale: Sale })[];
+  items: SaleListItem[];
 }
 
 export default function SaleSummaryCards({ items }: Props) {

@@ -13,10 +13,12 @@ import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { fetchWithAuth } from '@/lib/api';
 import { formatNumber } from '@/lib/utils';
 import type { Outbound, Sale } from '@/types/outbound';
+import type { Order } from '@/types/orders';
 import type { Partner } from '@/types/masters';
 
 const schema = z.object({
   customer_id: z.string().min(1, '거래처는 필수입니다'),
+  quantity: z.coerce.number().positive('양수 필수'),
   unit_price_wp: z.coerce.number().positive('양수 필수'),
   tax_invoice_date: z.string().optional(),
   tax_invoice_email: z.string().email('이메일 형식').optional().or(z.literal('')),
@@ -30,13 +32,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
-  outbound: Outbound;
+  outbound?: Outbound;
+  order?: Order;
   editData?: Sale | null;
   costPerWp?: number | null;  // BL 원가 (원/Wp) — OutboundDetailView에서 계산해 전달
 }
 
 // 비유: Wp단가 하나만 입력하면 EA단가→공급가→부가세→합계가 자동 계산되는 계산기
-export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editData, costPerWp }: Props) {
+export default function SaleForm({ open, onOpenChange, onSubmit, outbound, order, editData, costPerWp }: Props) {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [submitError, setSubmitError] = useState('');
 
@@ -45,9 +48,14 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
     resolver: zodResolver(schema) as any,
   });
 
+  const source = outbound ?? order;
+  const sourceKind = outbound ? 'outbound' : 'order';
   const unitPriceWp = watch('unit_price_wp') || 0;
-  const specWp = outbound.spec_wp ?? 0;
-  const quantity = outbound.quantity ?? 0;
+  const formQuantity = watch('quantity') || 0;
+  const specWp = source?.spec_wp ?? 0;
+  const wattageKw = source?.wattage_kw ?? (specWp ? specWp / 1000 : 0);
+  const quantity = formQuantity || source?.quantity || 0;
+  const capacityKw = quantity * wattageKw;
   const erpClosed = watch('erp_closed') ?? false;
 
   // 자동 계산
@@ -68,6 +76,7 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
       if (editData) {
         reset({
           customer_id: editData.customer_id,
+          quantity: editData.quantity ?? source?.quantity ?? ('' as unknown as number),
           unit_price_wp: editData.unit_price_wp,
           tax_invoice_date: editData.tax_invoice_date?.slice(0, 10) ?? '',
           tax_invoice_email: editData.tax_invoice_email ?? '',
@@ -77,19 +86,23 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
         });
       } else {
         reset({
-          customer_id: '', unit_price_wp: '' as unknown as number,
+          customer_id: source && 'customer_id' in source ? source.customer_id : '',
+          quantity: source?.quantity ?? ('' as unknown as number),
+          unit_price_wp: order?.unit_price_wp ?? ('' as unknown as number),
           tax_invoice_date: '', tax_invoice_email: '',
           erp_closed: false, erp_closed_date: '', memo: '',
         });
       }
     }
-  }, [open, editData, reset]);
+  }, [open, editData, reset, source, order?.unit_price_wp]);
 
   const handle = async (data: FormData) => {
     setSubmitError('');
     const payload: Record<string, unknown> = {
       ...data,
-      outbound_id: outbound.outbound_id,
+      ...(outbound ? { outbound_id: outbound.outbound_id } : {}),
+      ...(order ? { order_id: order.order_id } : {}),
+      capacity_kw: capacityKw,
       unit_price_ea: unitPriceEa,
       supply_amount: supplyAmount,
       vat_amount: vatAmount,
@@ -122,10 +135,10 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
         )}
         {/* 출고 품목 정보 박스 */}
         <div className="rounded-md border p-3 bg-muted/30 text-xs grid grid-cols-4 gap-2">
-          <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{outbound.product_name ?? '—'}</div></div>
-          <div><div className="text-muted-foreground">규격</div><div className="font-medium">{outbound.product_code ?? `${outbound.spec_wp ?? '—'}Wp`}</div></div>
-          <div><div className="text-muted-foreground">수량</div><div className="font-mono font-medium">{outbound.quantity.toLocaleString('ko-KR')}장</div></div>
-          <div><div className="text-muted-foreground">용량</div><div className="font-mono font-medium">{(outbound.capacity_kw ?? 0).toFixed(1)}kW</div></div>
+          <div><div className="text-muted-foreground">기준</div><div className="font-medium">{sourceKind === 'outbound' ? '출고' : '수주'}</div></div>
+          <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{source?.product_name ?? '—'}</div></div>
+          <div><div className="text-muted-foreground">규격</div><div className="font-medium">{source?.product_code ?? `${source?.spec_wp ?? '—'}Wp`}</div></div>
+          <div><div className="text-muted-foreground">기준수량</div><div className="font-mono font-medium">{(source?.quantity ?? 0).toLocaleString('ko-KR')}장</div></div>
         </div>
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="space-y-1.5">
@@ -139,9 +152,21 @@ export default function SaleForm({ open, onOpenChange, onSubmit, outbound, editD
             {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>계산서 수량 *</Label>
+              <Input type="number" step="1" className="text-right" {...register('quantity')} />
+              {errors.quantity && <p className="text-xs text-destructive">{errors.quantity.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label>계산서 용량</Label>
+              <Input readOnly className="bg-muted text-right" value={capacityKw ? capacityKw.toFixed(3) : '—'} />
+            </div>
+          </div>
+
           <div className="space-y-1.5">
             <Label>Wp 단가 (원/Wp) *</Label>
-            <Input type="number" step="0.01" {...register('unit_price_wp')} />
+            <Input type="number" step="0.01" className="text-right" {...register('unit_price_wp')} />
             {errors.unit_price_wp && <p className="text-xs text-destructive">{errors.unit_price_wp.message}</p>}
           </div>
 

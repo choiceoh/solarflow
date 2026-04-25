@@ -117,7 +117,7 @@ export function useAlerts(companyId: string | null) {
     let sales: Sale[] = [];
     if (outResult.status === 'fulfilled') outbounds = outResult.value;
     if (saleResult.status === 'fulfilled') sales = saleResult.value;
-    const saleOutboundIds = new Set(sales.map((s) => s.outbound_id));
+    const saleOutboundIds = new Set(sales.map((s) => s.outbound_id).filter(Boolean));
     const noInvoice = outbounds.filter((o) => o.status === 'active' && !saleOutboundIds.has(o.outbound_id)).length;
     if (noInvoice > 0) items.push({ id: String(++id), type: 'no_invoice', severity: 'warning', icon: 'FileText', title: '계산서 미발행', description: `출고완료+미등록 ${noInvoice}건`, count: noInvoice, link: '/outbound?tab=sales' });
 

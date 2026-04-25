@@ -22,6 +22,7 @@ import OutboundDetailView from '@/components/outbound/OutboundDetailView';
 import OutboundForm from '@/components/outbound/OutboundForm';
 import SaleListTable from '@/components/outbound/SaleListTable';
 import SaleSummaryCards from '@/components/outbound/SaleSummaryCards';
+import type { InventoryAllocation } from '@/components/inventory/AllocationForm';
 import {
   ORDER_STATUS_LABEL, MANAGEMENT_CATEGORY_LABEL,
   type OrderStatus, type ManagementCategory, type Receipt,
@@ -70,6 +71,7 @@ export default function OrdersPage() {
     const orderNo       = params.get('order_no') ?? undefined;
     const linkedAllocId = params.get('linked_alloc_id') ?? undefined;
     const blId          = params.get('bl_id') ?? undefined;
+    const expectedPrice = params.get('expected_price_per_wp');
 
     setPendingAllocId(allocId);
     if (linkedAllocId) setPendingLinkedAllocId(linkedAllocId);
@@ -82,6 +84,7 @@ export default function OrdersPage() {
       site_name: site,
       order_number: orderNo,
       bl_id: blId,
+      expected_price_per_wp: expectedPrice ? Number(expectedPrice) : undefined,
     });
     setOrderFormOpen(true);
     // URL 정리 (파라미터 제거)
@@ -171,6 +174,11 @@ export default function OrdersPage() {
   }
 
   const handleCreateOrder = async (formData: Record<string, unknown>) => {
+    const requestedQty = Number(formData.quantity) || 0;
+    if (pendingAllocId && orderFormPrefill?.quantity && requestedQty > orderFormPrefill.quantity) {
+      throw new Error('예약 수량보다 많은 수주는 먼저 가용재고에서 추가 예약한 뒤 등록해주세요.');
+    }
+
     const created = await fetchWithAuth<{ order_id: string }>(
       '/api/v1/orders', { method: 'POST', body: JSON.stringify(formData) }
     );
@@ -179,12 +187,57 @@ export default function OrdersPage() {
     const origAllocId        = pendingAllocId;
     const origLinkedAllocId  = pendingLinkedAllocId;
 
-    // ① 메인 배정 confirmed + order_id 설정
+    const createdOrderId = created?.order_id;
+
+    // ① 메인 배정 confirmed + order_id 설정. 일부 수주이면 잔량 처리 선택
     if (origAllocId && created?.order_id) {
+      const originalAlloc = await fetchWithAuth<InventoryAllocation>(`/api/v1/inventory/allocations/${origAllocId}`);
+      const orderQty = Number(formData.quantity) || 0;
+      const orderKw = Number(formData.capacity_kw) || 0;
+      const unitKw = orderQty > 0 ? orderKw / orderQty : ((originalAlloc.capacity_kw ?? 0) / originalAlloc.quantity);
+      const remainingQty = Math.max(originalAlloc.quantity - orderQty, 0);
+
       await fetchWithAuth(`/api/v1/inventory/allocations/${origAllocId}`, {
         method: 'PUT',
-        body: JSON.stringify({ order_id: created.order_id, status: 'confirmed' }),
-      }).catch(() => {});
+        body: JSON.stringify({
+          order_id: created.order_id,
+          status: 'confirmed',
+          quantity: orderQty,
+          capacity_kw: orderQty * unitKw,
+        }),
+      });
+
+      if (remainingQty > 0) {
+        let residualStatus: 'pending' | 'hold' | 'cancelled' = 'cancelled';
+        if (window.confirm(`예약 잔량 ${remainingQty.toLocaleString('ko-KR')}EA를 계속 예약으로 유지할까요?`)) {
+          residualStatus = 'pending';
+        } else if (window.confirm('예약 잔량을 보류로 남길까요? 취소하면 잔량 예약은 삭제됩니다.')) {
+          residualStatus = 'hold';
+        }
+
+        if (residualStatus !== 'cancelled') {
+          await fetchWithAuth('/api/v1/inventory/allocations', {
+            method: 'POST',
+            body: JSON.stringify({
+              company_id: originalAlloc.company_id,
+              product_id: originalAlloc.product_id,
+              quantity: remainingQty,
+              capacity_kw: remainingQty * unitKw,
+              purpose: originalAlloc.purpose,
+              source_type: originalAlloc.source_type,
+              customer_name: originalAlloc.customer_name,
+              site_name: originalAlloc.site_name,
+              site_id: originalAlloc.site_id,
+              notes: originalAlloc.notes,
+              expected_price_per_wp: originalAlloc.expected_price_per_wp,
+              free_spare_qty: originalAlloc.free_spare_qty,
+              group_id: originalAlloc.group_id,
+              bl_id: originalAlloc.bl_id,
+              status: residualStatus,
+            }),
+          });
+        }
+      }
       setPendingAllocId(null);
       setOrderFormPrefill(null);
     }
@@ -194,86 +247,48 @@ export default function OrdersPage() {
       await fetchWithAuth(`/api/v1/inventory/allocations/${origLinkedAllocId}`, {
         method: 'PUT',
         body: JSON.stringify({ order_id: created.order_id, status: 'confirmed' }),
-      }).catch(() => {});
+      });
       setPendingLinkedAllocId(null);
     }
 
     // ③ 스페어 처리 — 예정등록 → 수주 흐름에서만
     //   - 예정 시 스페어 있었음 → pending 상태의 [무상스페어] alloc을 confirmed로 전환
     //   - 예정 시 스페어 없었음 + 수주 시 새로 입력됨 → 신규 스페어 alloc 생성 후 confirmed
-    if (created?.order_id && origAllocId && formData.product_id) {
-      try {
-        const spareQty = Number(formData.spare_qty) || 0;
-        // 같은 품목·법인의 pending 무상스페어 배정 탐색 (예정등록 시 자동 생성된 것)
-        const pendingList = await fetchWithAuth<Array<{ alloc_id: string; notes?: string }>>(
-          `/api/v1/inventory/allocations?company_id=${selectedCompanyId}&product_id=${formData.product_id as string}&status=pending`
-        ).catch(() => [] as Array<{ alloc_id: string; notes?: string }>);
+    if (createdOrderId && origAllocId && formData.product_id) {
+      const spareQty = Number(formData.spare_qty) || 0;
+      // 같은 품목·법인의 pending 무상스페어 배정 탐색 (예정등록 시 자동 생성된 것)
+      const pendingList = await fetchWithAuth<Array<{ alloc_id: string; notes?: string }>>(
+        `/api/v1/inventory/allocations?company_id=${selectedCompanyId}&product_id=${formData.product_id as string}&status=pending`
+      );
 
-        const reservationSpare = pendingList.find(a => a.notes?.startsWith('[무상스페어]'));
+      const reservationSpare = pendingList.find(a => a.notes?.startsWith('[무상스페어]'));
 
-        if (reservationSpare) {
-          // 예정 시 스페어 있었음 → confirm 처리 (order_id 연결)
-          await fetchWithAuth(`/api/v1/inventory/allocations/${reservationSpare.alloc_id}`, {
-            method: 'PUT',
-            body: JSON.stringify({ order_id: created.order_id, status: 'confirmed' }),
-          }).catch(() => {});
-        } else if (spareQty > 0) {
-          // 예정 시 스페어 없었음 + 수주 시 신규 입력 → 가용재고 차감 allocation 생성
-          const orderQty = Number(formData.quantity) || 1;
-          const capKw    = Number(formData.capacity_kw) || 0;
-          const spareCapKw = orderQty > 0 ? (capKw / orderQty) * spareQty : 0;
-          await fetchWithAuth('/api/v1/inventory/allocations', {
-            method: 'POST',
-            body: JSON.stringify({
-              company_id:    selectedCompanyId,
-              product_id:    formData.product_id,
-              quantity:      spareQty,
-              capacity_kw:   spareCapKw,
-              purpose:       'sale',
-              source_type:   'stock',
-              status:        'confirmed',
-              order_id:      created.order_id,
-              free_spare_qty: 0,
-              notes:         '[무상스페어]',
-            }),
-          }).catch(() => {});
-        }
-      } catch {
-        // 스페어 처리 실패는 수주 저장 자체에 영향 없음
-      }
-    }
-
-    // ④ 수주 수량 ≠ 배정 수량 → 가용재고 차감/복원 조정
-    //   delta > 0: 수주가 배정보다 많음 → 초과분 confirmed allocation 신규 생성
-    //   delta < 0: 수주가 배정보다 적음 → 배정 수량 축소 (초과 배정 가용재고로 복원)
-    if (created?.order_id && origAllocId && orderFormPrefill?.quantity && formData.product_id) {
-      const orderQty = Number(formData.quantity) || 0;
-      const allocQty = orderFormPrefill.quantity;
-      const delta    = orderQty - allocQty;
-      const capKw    = Number(formData.capacity_kw) || 0;
-
-      if (delta > 0) {
-        const deltaKw = orderQty > 0 ? (capKw / orderQty) * delta : 0;
+      if (reservationSpare) {
+        // 예정 시 스페어 있었음 → confirm 처리 (order_id 연결)
+        await fetchWithAuth(`/api/v1/inventory/allocations/${reservationSpare.alloc_id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ order_id: created.order_id, status: 'confirmed' }),
+        });
+      } else if (spareQty > 0) {
+        // 예정 시 스페어 없었음 + 수주 시 신규 입력 → 가용재고 차감 allocation 생성
+        const orderQty = Number(formData.quantity) || 1;
+        const capKw    = Number(formData.capacity_kw) || 0;
+        const spareCapKw = orderQty > 0 ? (capKw / orderQty) * spareQty : 0;
         await fetchWithAuth('/api/v1/inventory/allocations', {
           method: 'POST',
           body: JSON.stringify({
-            company_id:  selectedCompanyId,
-            product_id:  formData.product_id,
-            quantity:    delta,
-            capacity_kw: deltaKw,
-            purpose:     'sale',
-            source_type: 'stock',
-            status:      'confirmed',
-            order_id:    created.order_id,
-            notes:       '[수주증가분]',
+            company_id:    selectedCompanyId,
+            product_id:    formData.product_id,
+            quantity:      spareQty,
+            capacity_kw:   spareCapKw,
+            purpose:       'sale',
+            source_type:   'stock',
+            status:        'confirmed',
+            order_id:      created.order_id,
+            free_spare_qty: 0,
+            notes:         '[무상스페어]',
           }),
-        }).catch(() => {});
-      } else if (delta < 0) {
-        // 배정 alloc 수량 축소 (이미 confirmed 상태이므로 PUT 가능)
-        await fetchWithAuth(`/api/v1/inventory/allocations/${origAllocId}`, {
-          method: 'PUT',
-          body: JSON.stringify({ quantity: orderQty, capacity_kw: capKw }),
-        }).catch(() => {});
+        });
       }
     }
 
@@ -513,7 +528,7 @@ export default function OrdersPage() {
         onOpenChange={(o) => {
           setOrderFormOpen(o);
           // 폼 닫힐 때(저장 취소) 배정 연동 상태 초기화
-          if (!o) { setPendingAllocId(null); setOrderFormPrefill(null); }
+          if (!o) { setPendingAllocId(null); setPendingLinkedAllocId(null); setOrderFormPrefill(null); }
         }}
         onSubmit={handleCreateOrder}
         prefillData={orderFormPrefill}

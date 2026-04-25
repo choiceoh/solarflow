@@ -55,7 +55,8 @@ export interface Receipt {
 export interface ReceiptMatch {
   match_id: string;
   receipt_id: string;
-  outbound_id: string;
+  outbound_id?: string;
+  sale_id?: string;
   matched_amount: number;
 }
 
