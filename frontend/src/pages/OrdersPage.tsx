@@ -74,6 +74,7 @@ export default function OrdersPage() {
     const params = new URLSearchParams(window.location.search);
     if (params.get('new') !== '1') return;
     const allocId  = params.get('alloc_id');
+    const companyId = params.get('company_id') ?? undefined;
     const productId = params.get('product_id');
     const qty = params.get('qty');
     if (!allocId || !productId || !qty) return;
@@ -91,6 +92,7 @@ export default function OrdersPage() {
     setPendingAllocId(allocId);
     if (linkedAllocId) setPendingLinkedAllocId(linkedAllocId);
     setOrderFormPrefill({
+      company_id: companyId,
       product_id: productId,
       quantity: parseInt(qty, 10),
       management_category: purpose === 'construction' ? 'construction' : 'sale',
@@ -275,7 +277,7 @@ export default function OrdersPage() {
       const originalAlloc = await fetchWithAuth<InventoryAllocation>(`/api/v1/inventory/allocations/${origAllocId}`);
       // 같은 예약에 딸린 pending 무상스페어만 탐색 (다른 거래처의 무상스페어 오연결 방지)
       const pendingList = await fetchWithAuth<InventoryAllocation[]>(
-        `/api/v1/inventory/allocations?company_id=${selectedCompanyId}&product_id=${formData.product_id as string}&status=pending`
+        `/api/v1/inventory/allocations?company_id=${originalAlloc.company_id}&product_id=${formData.product_id as string}&status=pending`
       );
 
       const reservationSpare = pendingList.find((a) => isLinkedFreeSpare(originalAlloc, a));
@@ -294,7 +296,7 @@ export default function OrdersPage() {
         await fetchWithAuth('/api/v1/inventory/allocations', {
           method: 'POST',
           body: JSON.stringify({
-            company_id:    selectedCompanyId,
+            company_id:    originalAlloc.company_id,
             product_id:    formData.product_id,
             quantity:      spareQty,
             capacity_kw:   spareCapKw,
@@ -311,6 +313,13 @@ export default function OrdersPage() {
     }
 
     reloadOrders();
+  };
+
+  const handlePrefillCancel = () => {
+    setPendingAllocId(null);
+    setPendingLinkedAllocId(null);
+    setOrderFormPrefill(null);
+    navigate('/inventory', { replace: true });
   };
 
   const handleCreateOutbound = async (formData: Record<string, unknown>) => {
@@ -549,6 +558,7 @@ export default function OrdersPage() {
           if (!o) { setPendingAllocId(null); setPendingLinkedAllocId(null); setOrderFormPrefill(null); }
         }}
         onSubmit={handleCreateOrder}
+        onPrefillCancel={handlePrefillCancel}
         prefillData={orderFormPrefill}
       />
       <OutboundForm open={obFormOpen} onOpenChange={setObFormOpen} onSubmit={handleCreateOutbound} />

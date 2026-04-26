@@ -52,6 +52,7 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>;
 
 export interface OrderPrefillData {
+  company_id?: string;
   product_id?: string;
   quantity?: number;
   management_category?: string; // purpose → management_category 매핑
@@ -68,6 +69,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: Record<string, unknown>) => Promise<void>;
+  onPrefillCancel?: () => void;
   editData?: Order | null;
   prefillData?: OrderPrefillData | null;
 }
@@ -87,7 +89,12 @@ function formatKrwWp(v?: number): string {
   return v != null ? `₩${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}/Wp` : '—';
 }
 
-export default function OrderForm({ open, onOpenChange, onSubmit, editData, prefillData }: Props) {
+function formatKwField(v: number): string {
+  if (!Number.isFinite(v) || v <= 0) return '—';
+  return v.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+
+export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCancel, editData, prefillData }: Props) {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [products, setProducts] = useState<Product[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -121,6 +128,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
   const productOptionText = (p?: Product | null) => p ? `${productModuleText(p)} | ${p.product_code} | ${p.product_name}` : '';
   // 가용재고 배정 → 수주 자동 입력 모드 (일부 필드 잠금 + amber 표시)
   const isPrefill = !!(prefillData && !editData);
+  const effectiveCompanyId = isPrefill && prefillData?.company_id ? prefillData.company_id : selectedCompanyId;
 
   useEffect(() => {
     fetchWithAuth<Product[]>('/api/v1/products')
@@ -130,11 +138,13 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
     fetchWithAuth<Partner[]>('/api/v1/partners')
       .then((list) => setPartners(list.filter((p) => p.is_active && (p.partner_type === 'customer' || p.partner_type === 'both'))))
       .catch(() => {});
-    if (selectedCompanyId && selectedCompanyId !== 'all') {
-      fetchWithAuth<ConstructionSite[]>(`/api/v1/construction-sites?company_id=${selectedCompanyId}`)
+    if (effectiveCompanyId && effectiveCompanyId !== 'all') {
+      fetchWithAuth<ConstructionSite[]>(`/api/v1/construction-sites?company_id=${effectiveCompanyId}`)
         .then(setSites).catch(() => {});
+    } else {
+      setSites([]);
     }
-  }, [selectedCompanyId]);
+  }, [effectiveCompanyId]);
 
   // 품번 선택 시 해당 제조사의 입고완료 BL 목록 로드
   useEffect(() => {
@@ -175,10 +185,10 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
 
   // 충당소스 변경 시 재고 정보 표시
   useEffect(() => {
-    if (!fulfillmentSource || !selectedCompanyId) { setInventoryInfo(null); return; }
+    if (!fulfillmentSource || !effectiveCompanyId) { setInventoryInfo(null); return; }
     fetchWithAuth<InventoryResponse>('/api/v1/calc/inventory', {
       method: 'POST',
-      body: JSON.stringify({ company_id: selectedCompanyId }),
+      body: JSON.stringify({ company_id: effectiveCompanyId }),
     }).then((result) => {
       const item = selectedProductId ? result.items.find((it) => it.product_id === selectedProductId) : undefined;
       if (fulfillmentSource === 'stock') {
@@ -187,7 +197,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
         setInventoryInfo(`가용 미착품: ${(item?.available_incoming_kw ?? 0).toFixed(1)} kW`);
       }
     }).catch(() => setInventoryInfo(null));
-  }, [fulfillmentSource, selectedCompanyId, selectedProductId]);
+  }, [fulfillmentSource, effectiveCompanyId, selectedProductId]);
 
   useEffect(() => {
     if (open) {
@@ -266,7 +276,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
     setSubmitError('');
     const payload: Record<string, unknown> = {
       ...data,
-      company_id: selectedCompanyId,
+      company_id: effectiveCompanyId,
       capacity_kw: capacityKw,
       status: editData?.status ?? 'received',
     };
@@ -283,31 +293,31 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
     }
   };
 
+  const requestOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isPrefill) onPrefillCancel?.();
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-3xl w-[95vw] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={requestOpenChange}>
+      <DialogContent className="flex max-h-[90vh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        <DialogHeader className="shrink-0 border-b px-5 py-4">
           <DialogTitle>{editData ? '수주 수정' : '수주 등록'}</DialogTitle>
         </DialogHeader>
-        {isPrefill && (
-          <div className="rounded-md bg-blue-50 border border-blue-200 px-3 py-2 text-xs text-blue-700 space-y-1">
-            <div className="font-medium flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5 shrink-0" />
-              가용재고 배정에서 자동 입력 — 일부 항목 잠금
+        <form onSubmit={handleSubmit(handle)} className="flex min-h-0 flex-1 flex-col">
+          <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {isPrefill && (
+            <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div className="font-medium">가용재고 예약에서 수주 전환</div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
+                {prefillData.customer_hint && <span>거래처 <b>{prefillData.customer_hint}</b></span>}
+                <span>관리구분 <b>{MANAGEMENT_CATEGORY_LABEL[watch('management_category') as ManagementCategory] ?? '—'}</b></span>
+                <span>충당소스 <b>{FULFILLMENT_SOURCE_LABEL[fulfillmentSource as FulfillmentSource] ?? '—'}</b></span>
+              </div>
             </div>
-            <div className="text-blue-600 leading-relaxed">
-              <span className="inline-flex items-center gap-0.5 text-[10px] bg-slate-200/80 text-slate-600 rounded px-1.5 py-0.5 mr-1">배정고정</span>
-              표시 항목은 변경할 수 없습니다. &nbsp;
-              <span className="text-amber-600 font-semibold">주황 테두리</span> 필드를 새로 입력하세요.
-            </div>
-            {prefillData.customer_hint && (
-              <div>예약 거래처: <span className="font-semibold">{prefillData.customer_hint}</span></div>
-            )}
-          </div>
-        )}
-        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
-        <form onSubmit={handleSubmit(handle)} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
+          )}
+          {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>발주번호</Label>
               <Input {...register('order_number')} placeholder="없으면 비워두세요" />
@@ -335,7 +345,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             {errors.customer_id && <p className="text-xs text-destructive">{errors.customer_id.message}</p>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5">
                 접수방법 *
@@ -360,10 +370,9 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             <div className="space-y-1.5">
               <Label>관리구분 *</Label>
               {isPrefill ? (
-                <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm select-none">
+                <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm select-none">
                   <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                   <span className="flex-1 truncate">{MANAGEMENT_CATEGORY_LABEL[watch('management_category') as ManagementCategory] ?? '—'}</span>
-                  <span className="text-[10px] text-muted-foreground/70 bg-slate-200/60 px-1.5 py-0.5 rounded shrink-0">배정고정</span>
                 </div>
               ) : (
                 <Select value={watch('management_category') ?? ''} onValueChange={(v) => setValue('management_category', v ?? '')}>
@@ -382,7 +391,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
           <div className="space-y-1.5">
             <Label>충당소스 *</Label>
             {isPrefill ? (
-              <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm select-none">
+              <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm select-none">
                 <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                 <span className={cn(
                   'text-xs font-medium px-2 py-0.5 rounded',
@@ -392,7 +401,6 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
                 )}>
                   {FULFILLMENT_SOURCE_LABEL[fulfillmentSource as FulfillmentSource] ?? '—'}
                 </span>
-                <span className="ml-auto text-[10px] text-muted-foreground/70 bg-slate-200/60 px-1.5 py-0.5 rounded shrink-0">배정고정</span>
               </div>
             ) : (
               <>
@@ -413,13 +421,13 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
           <div className="space-y-1.5">
             <Label>품번 *</Label>
             {isPrefill ? (
-              <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm select-none">
-                <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                <span className="flex-1 truncate">
-                  {selectedProduct ? productOptionText(selectedProduct) : '—'}
-                </span>
-                <span className="text-[10px] text-muted-foreground/70 bg-slate-200/60 px-1.5 py-0.5 rounded shrink-0">배정고정</span>
-              </div>
+              selectedProduct && (
+                <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted/20 p-2 text-xs sm:grid-cols-3">
+                  <div><div className="text-muted-foreground">제조사/규격</div><div className="font-medium">{productModuleText(selectedProduct)}</div></div>
+                  <div><div className="text-muted-foreground">품번</div><div className="font-medium truncate">{selectedProduct.product_code}</div></div>
+                  <div><div className="text-muted-foreground">모델명</div><div className="font-medium truncate">{selectedProduct.product_name}</div></div>
+                </div>
+              )
             ) : (
               <Select value={watch('product_id') ?? ''} onValueChange={(v) => setValue('product_id', v ?? '')}>
                 <SelectTrigger><Txt text={(() => { const p = products.find(p => p.product_id === watch('product_id')); return productOptionText(p); })()} /></SelectTrigger>
@@ -433,8 +441,8 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
               </Select>
             )}
             {errors.product_id && !isPrefill && <p className="text-xs text-destructive">{errors.product_id.message}</p>}
-            {selectedProduct && (
-              <div className="rounded-md border p-2 bg-muted/30 text-xs grid grid-cols-3 gap-2">
+            {selectedProduct && !isPrefill && (
+              <div className="grid grid-cols-1 gap-2 rounded-md border bg-muted/30 p-2 text-xs sm:grid-cols-3">
                 <div><div className="text-muted-foreground">제조사/규격</div><div className="font-medium">{productModuleText(selectedProduct)}</div></div>
                 <div><div className="text-muted-foreground">품번</div><div className="font-medium truncate">{selectedProduct.product_code}</div></div>
                 <div><div className="text-muted-foreground">모델명</div><div className="font-medium truncate">{selectedProduct.product_name}</div></div>
@@ -494,7 +502,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             </div>
           )}
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label>유상 수량 *</Label>
               <Input
@@ -521,7 +529,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             </div>
             <div className="space-y-1.5">
               <Label>용량 (kW)</Label>
-              <Input value={capacityKw ? capacityKw.toFixed(1) : '—'} readOnly className="bg-muted" />
+              <Input value={formatKwField(capacityKw)} readOnly className="bg-muted text-right tabular-nums" />
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5">
@@ -548,7 +556,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             <ConstructionSiteCombobox
               sites={sites}
               value={watch('site_id') ?? ''}
-              companyId={selectedCompanyId}
+              companyId={effectiveCompanyId}
               onChange={(siteId, siteName) => {
                 setValue('site_id', siteId, { shouldDirty: true });
                 setValue('site_name', siteName, { shouldDirty: true });
@@ -559,7 +567,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             <p className="text-[10px] text-muted-foreground">현장 검색을 위해 공사현장을 입력할 수 있습니다.</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5"><Label className="text-muted-foreground text-xs">현장 주소</Label><Input {...register('site_address')} placeholder="납품 주소" /></div>
             <div className="space-y-1.5"><Label className="text-muted-foreground text-xs">현장 담당자 / 전화</Label>
               <div className="flex gap-2">
@@ -569,7 +577,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="space-y-1.5"><Label>결제조건</Label><Input {...register('payment_terms')} placeholder="자유기재" /></div>
             <div className="space-y-1.5">
               <Label>선수금율 (%)</Label>
@@ -596,8 +604,9 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
           </div>
           <div className="space-y-1.5"><Label>메모</Label><Textarea {...register('memo')} rows={2} /></div>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
+          </div>
+          <DialogFooter className="shrink-0 border-t bg-background px-5 py-3">
+            <Button type="button" variant="outline" onClick={() => requestOpenChange(false)}>취소</Button>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>
           </DialogFooter>
         </form>

@@ -195,6 +195,7 @@ export default function InventoryPage() {
     const params = new URLSearchParams({
       new: '1',
       alloc_id: alloc.alloc_id,
+      company_id: alloc.company_id,
       product_id: alloc.product_id,
       qty: String(alloc.quantity),
       purpose: alloc.purpose,
