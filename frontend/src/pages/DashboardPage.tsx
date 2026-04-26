@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/stores/appStore';
 import { useDashboard } from '@/hooks/useDashboard';
@@ -6,6 +7,9 @@ import { useInventory } from '@/hooks/useInventory';
 import { useForecast } from '@/hooks/useForecast';
 import { usePermission } from '@/hooks/usePermission';
 import StrategicDashboard from '@/components/dashboard/StrategicDashboard';
+import { fetchWithAuth } from '@/lib/api';
+import { sortManufacturers } from '@/lib/manufacturerPriority';
+import type { Manufacturer } from '@/types/masters';
 import {
   canAccessMenu, hasFeature, getDashboardType,
   ROLE_LABELS, type Role,
@@ -36,6 +40,7 @@ export default function DashboardPage() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [searchParams] = useSearchParams();
   const realPerm = usePermission();
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
 
   // [DEV 전용] ?role= 오버라이드
   const overrideRoleParam = searchParams.get('role');
@@ -66,6 +71,12 @@ export default function DashboardPage() {
   const inventory = useInventory();
   const forecast = useForecast();
 
+  useEffect(() => {
+    fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers')
+      .then((list) => setManufacturers(sortManufacturers(list.filter((m) => m.is_active))))
+      .catch(() => {});
+  }, []);
+
   // 현재 모든 정의된 역할의 dashboardType='strategic'으로 통일 (operational은 예비 타입).
   // 추후 운영 뷰가 다시 필요해지면 여기에 분기 추가.
   void dashboardType;
@@ -92,6 +103,7 @@ export default function DashboardPage() {
         turnover={{ data: turnover.data, loading: turnover.loading, error: turnover.error }}
         forecast={{ data: forecast.data, loading: forecast.loading, error: forecast.error }}
         outstanding={outstanding}
+        manufacturers={manufacturers}
         longTermWarning={longTermWarning}
         longTermCritical={longTermCritical}
         flags={{ showPrice, showMargin, showSales, showDetail, showReceivable, showLcLimit }}

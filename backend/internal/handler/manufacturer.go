@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/supabase-community/postgrest-go"
 	supa "github.com/supabase-community/supabase-go"
 
 	"solarflow-backend/internal/model"
@@ -28,6 +29,8 @@ func NewManufacturerHandler(db *supa.Client) *ManufacturerHandler {
 func (h *ManufacturerHandler) List(w http.ResponseWriter, r *http.Request) {
 	data, _, err := h.DB.From("manufacturers").
 		Select("*", "exact", false).
+		Order("priority_rank", &postgrest.OrderOpts{Ascending: true}).
+		Order("name_kr", &postgrest.OrderOpts{Ascending: true}).
 		Execute()
 	if err != nil {
 		log.Printf("[제조사 목록 조회 실패] %v", err)

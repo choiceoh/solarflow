@@ -9,6 +9,8 @@ type Manufacturer struct {
 	NameKR          string  `json:"name_kr"`
 	NameEN          string  `json:"name_en"`
 	ShortName       *string `json:"short_name"` // 약칭 (예: 진코, 론지, 트리나) — 화면 표시용
+	Tier            int     `json:"tier"`       // 내부 공급사 등급 (예: Tier1, Tier2)
+	PriorityRank    int     `json:"priority_rank"` // 화면 표시 우선순위 (낮을수록 먼저)
 	Country         string  `json:"country"`
 	DomesticForeign string  `json:"domestic_foreign"`
 	IsActive        bool    `json:"is_active"`
@@ -20,6 +22,8 @@ type CreateManufacturerRequest struct {
 	NameKR          string  `json:"name_kr"`
 	NameEN          string  `json:"name_en"`
 	ShortName       *string `json:"short_name,omitempty"`
+	Tier            *int    `json:"tier,omitempty"`
+	PriorityRank    *int    `json:"priority_rank,omitempty"`
 	Country         string  `json:"country"`
 	DomesticForeign string  `json:"domestic_foreign"`
 }
@@ -45,6 +49,12 @@ func (req *CreateManufacturerRequest) Validate() string {
 	if req.DomesticForeign != "국내" && req.DomesticForeign != "해외" {
 		return "domestic_foreign은 \"국내\" 또는 \"해외\"만 허용됩니다"
 	}
+	if req.Tier != nil && (*req.Tier < 1 || *req.Tier > 9) {
+		return "tier는 1부터 9 사이여야 합니다"
+	}
+	if req.PriorityRank != nil && *req.PriorityRank < 1 {
+		return "priority_rank는 1 이상이어야 합니다"
+	}
 	return ""
 }
 
@@ -54,6 +64,8 @@ type UpdateManufacturerRequest struct {
 	NameKR          *string `json:"name_kr,omitempty"`
 	NameEN          *string `json:"name_en,omitempty"`
 	ShortName       *string `json:"short_name,omitempty"`
+	Tier            *int    `json:"tier,omitempty"`
+	PriorityRank    *int    `json:"priority_rank,omitempty"`
 	Country         *string `json:"country,omitempty"`
 	DomesticForeign *string `json:"domestic_foreign,omitempty"`
 }
@@ -81,6 +93,12 @@ func (req *UpdateManufacturerRequest) Validate() string {
 		if *req.DomesticForeign != "국내" && *req.DomesticForeign != "해외" {
 			return "domestic_foreign은 \"국내\" 또는 \"해외\"만 허용됩니다"
 		}
+	}
+	if req.Tier != nil && (*req.Tier < 1 || *req.Tier > 9) {
+		return "tier는 1부터 9 사이여야 합니다"
+	}
+	if req.PriorityRank != nil && *req.PriorityRank < 1 {
+		return "priority_rank는 1 이상이어야 합니다"
 	}
 	return ""
 }

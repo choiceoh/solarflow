@@ -6,12 +6,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { cn, moduleLabel } from '@/lib/utils';
+import { manufacturerRankByName } from '@/lib/manufacturerPriority';
 import type { ForecastResponse, ProductForecast } from '@/types/inventory';
 import type { TurnoverResponse } from '@/types/turnover';
+import type { Manufacturer } from '@/types/masters';
 
 interface Props {
   forecast: ForecastResponse;
   turnover?: TurnoverResponse | null;
+  manufacturers?: Manufacturer[];
 }
 
 function mw(value: number | null | undefined, digits = 1): string {
@@ -38,7 +41,7 @@ function minAvailable(product: ProductForecast): number {
   return Math.min(...product.months.map((m) => m.available_kw));
 }
 
-export default function ModuleSupplyOutlook({ forecast, turnover }: Props) {
+export default function ModuleSupplyOutlook({ forecast, turnover, manufacturers = [] }: Props) {
   const months = forecast.summary.months.slice(0, 6);
   const products = forecast.products || [];
   const totalIncoming = months.reduce((sum, month) => sum + month.total_incoming_kw, 0);
@@ -62,6 +65,8 @@ export default function ModuleSupplyOutlook({ forecast, turnover }: Props) {
       const aDemand = a.saleKw + a.constructionKw;
       const bDemand = b.saleKw + b.constructionKw;
       if (aDemand !== bDemand) return bDemand - aDemand;
+      const rankDiff = manufacturerRankByName(a.product.manufacturer_name, manufacturers) - manufacturerRankByName(b.product.manufacturer_name, manufacturers);
+      if (rankDiff !== 0) return rankDiff;
       if (a.endingAvailableKw !== b.endingAvailableKw) return b.endingAvailableKw - a.endingAvailableKw;
       return a.minAvailableKw - b.minAvailableKw;
     })

@@ -7,6 +7,7 @@ import StatusBadge from '@/components/common/StatusBadge';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import ManufacturerForm from '@/components/masters/ManufacturerForm';
 import { fetchWithAuth } from '@/lib/api';
+import { sortManufacturers } from '@/lib/manufacturerPriority';
 import type { Manufacturer } from '@/types/masters';
 
 export default function ManufacturerPage() {
@@ -23,7 +24,8 @@ export default function ManufacturerPage() {
     setLoading(true);
     try {
       const list = await fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers');
-      setData(list); setFiltered(list);
+      const sorted = sortManufacturers(list);
+      setData(sorted); setFiltered(sorted);
     } catch { /* empty */ }
     setLoading(false);
   }, []);
@@ -72,6 +74,8 @@ export default function ManufacturerPage() {
   };
 
   const columns: Column<Manufacturer>[] = [
+    { key: 'priority_rank', label: '순위', sortable: true },
+    { key: 'tier', label: 'Tier', sortable: true, render: (r) => `Tier${r.tier ?? 3}` },
     { key: 'name_kr', label: '제조사명(한)', sortable: true },
     { key: 'name_en', label: '제조사명(영)', sortable: true },
     { key: 'country', label: '국가', sortable: true },

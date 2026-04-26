@@ -23,12 +23,14 @@ import PriceTrendChart from './PriceTrendChart';
 import ManufacturerMatrix from './ManufacturerMatrix';
 import CustomerRevenueTable from './CustomerRevenueTable';
 import ModuleSupplyOutlook from './ModuleSupplyOutlook';
+import ModuleMixPanel from './ModuleMixPanel';
 import type {
   DashboardSectionState, DashboardSummary, MonthlyRevenue, PriceTrend,
 } from '@/types/dashboard';
 import type { ForecastResponse, InventoryResponse } from '@/types/inventory';
 import type { TurnoverResponse } from '@/types/turnover';
 import type { CustomerAnalysis } from '@/hooks/useDashboard';
+import type { Manufacturer } from '@/types/masters';
 
 interface StrategicFlags {
   showPrice: boolean;      // 단가/재고금액
@@ -47,6 +49,7 @@ interface Props {
   turnover: { data: TurnoverResponse | null; loading: boolean; error: string | null };
   forecast: { data: ForecastResponse | null; loading: boolean; error: string | null };
   outstanding: DashboardSectionState<CustomerAnalysis>;
+  manufacturers: Manufacturer[];
   longTermWarning: number;
   longTermCritical: number;
   flags: StrategicFlags;
@@ -58,7 +61,7 @@ function SectionError({ msg }: { msg: string }) {
 
 export default function StrategicDashboard({
   summary, revenue, priceTrend, inventory, turnover, forecast, outstanding,
-  longTermWarning, longTermCritical, flags,
+  manufacturers, longTermWarning, longTermCritical, flags,
 }: Props) {
   void longTermWarning;
   void longTermCritical;
@@ -90,7 +93,7 @@ export default function StrategicDashboard({
       {forecast.loading ? <LoadingSpinner /> : forecast.error ? (
         <SectionError msg={forecast.error} />
       ) : forecast.data ? (
-        <ModuleSupplyOutlook forecast={forecast.data} turnover={turnover.data} />
+        <ModuleSupplyOutlook forecast={forecast.data} turnover={turnover.data} manufacturers={manufacturers} />
       ) : null}
 
       {/* 3. 재고 매트릭스 + 거래처별 매출/이익 */}
@@ -99,7 +102,7 @@ export default function StrategicDashboard({
         inventory.error ? <SectionError msg={inventory.error} /> :
         turnover.error ? <SectionError msg={turnover.error} /> :
         inventory.data && turnover.data ? (
-          <ManufacturerMatrix inventory={inventory.data.items} matrix={turnover.data.matrix} />
+          <ManufacturerMatrix inventory={inventory.data.items} matrix={turnover.data.matrix} manufacturers={manufacturers} />
         ) : null}
 
         {flags.showSales && outstanding.data && (
@@ -110,6 +113,10 @@ export default function StrategicDashboard({
           />
         )}
       </div>
+
+      {turnover.data && forecast.data && (
+        <ModuleMixPanel turnover={turnover.data} forecast={forecast.data} manufacturers={manufacturers} />
+      )}
 
       {/* 4. 매출·단가 차트 — 단가 추이는 보조지표로 축소 */}
       {(flags.showSales || flags.showPrice) && (

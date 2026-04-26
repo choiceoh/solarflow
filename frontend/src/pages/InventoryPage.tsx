@@ -28,6 +28,7 @@ import { useInventory } from '@/hooks/useInventory';
 import { useForecast } from '@/hooks/useForecast';
 import { fetchWithAuth } from '@/lib/api';
 import { shortMfgName } from '@/lib/utils';
+import { manufacturerRankByName, sortManufacturers } from '@/lib/manufacturerPriority';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import InventoryTable from '@/components/inventory/InventoryTable';
@@ -382,7 +383,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers')
-      .then((list) => setManufacturers(list.filter((m) => m.is_active)))
+      .then((list) => setManufacturers(sortManufacturers(list.filter((m) => m.is_active))))
       .catch(() => {});
   }, []);
 
@@ -495,8 +496,13 @@ export default function InventoryPage() {
       if (forecastScope === 'current' && !hasForecastActivity(product)) return false;
       if (!matchesForecastSearch(product, forecastSearch)) return false;
       return true;
+    }).sort((a, b) => {
+      const rankDiff = manufacturerRankByName(a.manufacturer_name, manufacturers) - manufacturerRankByName(b.manufacturer_name, manufacturers);
+      if (rankDiff !== 0) return rankDiff;
+      if (a.spec_wp !== b.spec_wp) return a.spec_wp - b.spec_wp;
+      return a.product_name.localeCompare(b.product_name, 'ko');
     });
-  }, [fcData, forecastScope, forecastSearch, wpFilter]);
+  }, [fcData, forecastScope, forecastSearch, manufacturers, wpFilter]);
 
   const activeForecastProductCount = useMemo(
     () => fcData?.products.filter(hasForecastActivity).length ?? 0,

@@ -14,13 +14,16 @@
 import { useMemo, useState } from 'react';
 import { Box, Factory } from 'lucide-react';
 import { cn, shortMfgName } from '@/lib/utils';
+import { manufacturerRankByName } from '@/lib/manufacturerPriority';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { InventoryItem } from '@/types/inventory';
 import type { TurnoverMatrixCell } from '@/types/turnover';
+import type { Manufacturer } from '@/types/masters';
 
 interface Props {
   inventory: InventoryItem[];
   matrix: TurnoverMatrixCell[];
+  manufacturers?: Manufacturer[];
 }
 
 type ViewMode = 'manufacturer' | 'moduleSize';
@@ -34,7 +37,7 @@ function ratioColor(ratio: number): string {
   return 'bg-emerald-50 text-emerald-700';                  // 60일 미만
 }
 
-export default function ManufacturerMatrix({ inventory, matrix }: Props) {
+export default function ManufacturerMatrix({ inventory, matrix, manufacturers = [] }: Props) {
   const [mode, setMode] = useState<ViewMode>('manufacturer');
   const modeOptions: { value: ViewMode; label: string; icon: typeof Factory }[] = [
     { value: 'manufacturer', label: '제조사 × 출력', icon: Factory },
@@ -59,9 +62,13 @@ export default function ManufacturerMatrix({ inventory, matrix }: Props) {
       }
     }
     const rows = Array.from(mfrAgg.entries())
-      .sort((a, b) => b[1].total - a[1].total);
+      .sort((a, b) => {
+        const rankDiff = manufacturerRankByName(a[1].name, manufacturers) - manufacturerRankByName(b[1].name, manufacturers);
+        if (rankDiff !== 0) return rankDiff;
+        return b[1].total - a[1].total;
+      });
     return { wps, rows };
-  }, [matrix]);
+  }, [manufacturers, matrix]);
 
   // 모듈크기 뷰: inventory에서 width × height로 집계
   const sizeView = useMemo(() => {
