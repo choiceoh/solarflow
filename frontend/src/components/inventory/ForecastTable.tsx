@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -7,6 +8,11 @@ import {
 import { cn, formatKw, formatWp } from '@/lib/utils';
 import EmptyState from '@/components/common/EmptyState';
 import type { ProductForecast } from '@/types/inventory';
+
+interface Props {
+  products: ProductForecast[];
+  onReserve?: (productId: string) => void;
+}
 
 function ForecastCell({ value, insufficient }: { value: number; insufficient?: boolean }) {
   return (
@@ -20,19 +26,51 @@ function ForecastCell({ value, insufficient }: { value: number; insufficient?: b
   );
 }
 
-function ProductForecastBlock({ product }: { product: ProductForecast }) {
+function ProductForecastBlock({
+  product,
+  onReserve,
+}: {
+  product: ProductForecast;
+  onReserve?: (productId: string) => void;
+}) {
   const [open, setOpen] = useState(true);
   const hasUnscheduled = product.unscheduled.sale_kw > 0 || product.unscheduled.construction_kw > 0 || product.unscheduled.incoming_kw > 0;
+  const currentAvailable = product.months[0]?.available_kw ?? 0;
+  const minAvailable = product.months.reduce((min, month) => Math.min(min, month.available_kw), currentAvailable);
 
   return (
     <div className="space-y-2">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 text-sm font-medium hover:text-foreground text-muted-foreground"
-      >
-        {open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        {product.manufacturer_name} — {product.product_name} ({formatWp(product.spec_wp)}, {product.module_width_mm}x{product.module_height_mm}mm)
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+        >
+          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+          <span className="truncate">
+            {product.manufacturer_name} — {product.product_name} ({formatWp(product.spec_wp)}, {product.module_width_mm}x{product.module_height_mm}mm)
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <div className="text-right text-[11px] leading-tight">
+            <div className="font-semibold text-green-700">현재 가용 {formatKw(currentAvailable)}</div>
+            <div className={cn('text-muted-foreground', minAvailable < 0 && 'text-red-600 font-medium')}>
+              6개월 최저 {formatKw(minAvailable)}
+            </div>
+          </div>
+          {onReserve && (
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onReserve(product.product_id)}
+            >
+              <Plus className="mr-0.5 h-3 w-3" />
+              예약
+            </Button>
+          )}
+        </div>
+      </div>
 
       {open && (
         <>
@@ -93,13 +131,13 @@ function ProductForecastBlock({ product }: { product: ProductForecast }) {
   );
 }
 
-export default function ForecastTable({ products }: { products: ProductForecast[] }) {
+export default function ForecastTable({ products, onReserve }: Props) {
   if (products.length === 0) return <EmptyState message="수급 전망 데이터가 없습니다" />;
 
   return (
     <div className="space-y-4">
       {products.map((p) => (
-        <ProductForecastBlock key={p.product_id} product={p} />
+        <ProductForecastBlock key={p.product_id} product={p} onReserve={onReserve} />
       ))}
     </div>
   );

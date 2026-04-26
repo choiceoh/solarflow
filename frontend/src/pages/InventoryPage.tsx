@@ -734,7 +734,7 @@ export default function InventoryPage() {
                   표시 {forecastProducts.length.toLocaleString('ko-KR')}건 · 현재 관련 {activeForecastProductCount.toLocaleString('ko-KR')}건
                 </div>
               </div>
-              <ForecastTable products={forecastProducts} />
+              <ForecastTable products={forecastProducts} onReserve={openAllocationForm} />
               <p className="text-[10px] text-muted-foreground text-right">계산 시점: {fcData.calculated_at}</p>
             </div>
           )}
