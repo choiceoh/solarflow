@@ -679,6 +679,13 @@ export default function AllocationForm({
     }
 
     const isConstruction = purpose === 'construction_own' || purpose === 'construction_epc';
+    if (isConstruction && !selectedSiteId) {
+      setError('공사사용 예약은 공사 현장을 선택해야 합니다'); return;
+    }
+    if (selectedItem && bls.length > 0 && !selectedBlId) {
+      setError('원가 추적을 위해 B/L 연결을 선택해주세요'); return;
+    }
+
     const partnerName = partners.find((p) => p.partner_id === customerPartnerId)?.partner_name;
     const parsedPrice = parseFloat(expectedPrice);
     const parsedSpare = purpose === 'sale' ? parseInt(freeSpareQty, 10) : NaN;
@@ -996,12 +1003,12 @@ export default function AllocationForm({
             </div>
           </div>
 
-          {/* ③-b B/L 연결 (원가 추적용, 선택) */}
+          {/* ③-b B/L 연결 (원가 추적용, 필수) */}
           {selectedItem && bls.length > 0 && (
             <div className="space-y-1.5">
               <Label>
                 B/L 연결
-                <span className="ml-1 text-muted-foreground font-normal text-xs">(원가 추적용, 선택)</span>
+                <span className="ml-1 text-muted-foreground font-normal text-xs">(원가 추적용, 필수)</span>
               </Label>
               <Select
                 value={selectedBlId || '_none'}
@@ -1022,7 +1029,7 @@ export default function AllocationForm({
                           return `[${stKo}] ${modLabel} | ${selectedBl.bl_number} | ${dateLabel}${usdStr}`;
                         })()
                       : ''}
-                    placeholder="B/L 선택 안함"
+                    placeholder="B/L을 선택해주세요"
                   />
                 </SelectTrigger>
                 <SelectContent>
@@ -1117,7 +1124,7 @@ export default function AllocationForm({
             /* 공사 현장 선택 모드 */
             <div className="space-y-1.5">
               <Label>
-                공사 현장 <span className="text-muted-foreground font-normal text-xs">(선택)</span>
+                공사 현장 <span className="text-destructive">*</span>
               </Label>
               <SiteCombobox
                 sites={sites}
