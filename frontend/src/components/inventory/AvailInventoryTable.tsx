@@ -145,23 +145,33 @@ function AllocSubTable({
         </tr>
       </thead>
       <tbody>
-        {groups.map(({ main, spares }) => (
-          <Fragment key={main.alloc_id}>
-            {/* 메인 행 */}
-            <tr className="border-t hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => onEdit(main)}>
+        {groups.map(({ main, spares }) => {
+          const spareQty = spares.reduce((sum, spare) => sum + spare.quantity, 0);
+          const spareKw = spares.reduce((sum, spare) => sum + (spare.capacity_kw ?? 0), 0);
+
+          return (
+            <tr key={main.alloc_id} className="border-t hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => onEdit(main)}>
               <td className="p-2">
                 <div className="font-medium leading-tight">{main.customer_name ?? main.site_name ?? '—'}</div>
                 {main.customer_name && main.site_name && (
                   <div className="text-[10px] text-muted-foreground">{main.site_name}</div>
                 )}
-                {spares.length > 0 && (
-                  <span className="text-[10px] text-orange-600 mt-0.5">+무상스페어 {spares.length}건</span>
+                {spareQty > 0 && (
+                  <span className="mt-0.5 inline-flex rounded bg-orange-50 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
+                    무상 포함
+                  </span>
                 )}
               </td>
               <td className="p-2 text-right font-mono whitespace-nowrap">
                 <div>{main.quantity.toLocaleString('ko-KR')} EA</div>
                 {main.capacity_kw != null && main.capacity_kw > 0 && (
                   <div className="text-[10px] text-muted-foreground">{fmtKw(main.capacity_kw)}</div>
+                )}
+                {spareQty > 0 && (
+                  <div className="mt-0.5 text-[10px] text-orange-600">
+                    + 무상 {spareQty.toLocaleString('ko-KR')} EA
+                    {spareKw > 0 ? ` · ${fmtKw(spareKw)}` : ''}
+                  </div>
                 )}
               </td>
               <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}><SourceBadge a={main} /></td>
@@ -174,30 +184,8 @@ function AllocSubTable({
                 <ActionButtons a={main} isFreeSpare={false} />
               </td>
             </tr>
-            {/* 무상스페어는 메인 예약의 부속 정보로 표시 */}
-            {spares.map((spare) => (
-              <tr key={spare.alloc_id} className="border-t bg-orange-50/40 hover:bg-orange-50/70 transition-colors">
-                <td className="p-2 pl-6">
-                  <div className="flex items-center gap-1.5 text-[11px] text-orange-700">
-                    <span className="text-muted-foreground/60 text-base leading-none">└</span>
-                    <span className="px-1 py-0.5 rounded bg-orange-100 text-orange-700 font-medium">무상스페어 포함</span>
-                  </div>
-                </td>
-                <td className="p-2 text-right font-mono whitespace-nowrap text-orange-700">
-                  <div>{spare.quantity.toLocaleString('ko-KR')} EA</div>
-                  {spare.capacity_kw != null && spare.capacity_kw > 0 && (
-                    <div className="text-[10px] text-muted-foreground">{fmtKw(spare.capacity_kw)}</div>
-                  )}
-                </td>
-                <td className="p-2 text-center text-muted-foreground">—</td>
-                <td className="p-2 text-center text-muted-foreground">—</td>
-                <td className="p-2 text-center" onClick={(e) => e.stopPropagation()}>
-                  <ActionButtons a={spare} isFreeSpare={true} />
-                </td>
-              </tr>
-            ))}
-          </Fragment>
-        ))}
+          );
+        })}
         {/* 단독 무상스페어 (매칭된 메인 행 없음) */}
         {standalone.map((a) => (
           <tr key={a.alloc_id} className="border-t bg-orange-50/40 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => onEdit(a)}>
