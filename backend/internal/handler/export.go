@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xuri/excelize/v2"
 	supa "github.com/supabase-community/supabase-go"
+	"github.com/xuri/excelize/v2"
 
 	"solarflow-backend/internal/response"
 )
@@ -34,7 +34,7 @@ var inboundHeaders = []string{
 	"부가세포함단가", "공급가", "부가세", "합계액", "외화단가",
 	"외화금액", "장소코드", "LOT번호", "관리구분", "프로젝트코드",
 	"비고(내역)", "발주번호", "발주순번", "수입선적번호", "수입선적순번",
-	"입고의뢰번호", "입고의뢰순번", "검사번호", "검사순번",
+	"입고의뢰번호", "입고의뢰순번", "입고검사번호", "입고검사순번",
 }
 
 var inboundERPCodes = []string{
@@ -44,7 +44,7 @@ var inboundERPCodes = []string{
 	"VAT_UM", "RCVG_AM", "RCVV_AM", "RCVH_AM", "EXCH_UM",
 	"EXCH_AM", "LC_CD", "LOT_NB", "MGMT_CD", "PJT_CD",
 	"REMARKD_DC", "PO_NB", "PO_SQ", "IBL_NB", "IBL_SQ",
-	"", "", "", "",
+	"REQ_NB", "REQ_SQ", "QC_NB", "QC_SQ",
 }
 
 // --- 출고 35컬럼 헤더 ---
@@ -55,8 +55,8 @@ var outboundHeaders = []string{
 	"품번", "출고수량", "재고단위수량", "단가유형", "부가세미포함단가",
 	"부가세포함단가", "공급가", "부가세", "합계액", "장소코드",
 	"관리구분", "프로젝트코드", "비고(내역)", "납품처코드", "지역",
-	"외화단가", "외화금액",
-	"", "", "", "", "", "", "", "",
+	"외화단가", "외화금액", "배송방법", "LOT번호", "주문번호",
+	"주문순번", "출고의뢰번호", "출고의뢰순번", "출고검사번호", "출고검사순번",
 }
 
 var outboundERPCodes = []string{
@@ -65,22 +65,22 @@ var outboundERPCodes = []string{
 	"ITEM_CD", "SO_QT", "ISU_QT", "UM_FG", "ISU_UM",
 	"VAT_UM", "ISUG_AM", "ISUV_AM", "ISUH_AM", "LC_CD",
 	"MGMT_CD", "PJT_CD", "REMARK_DC_D", "SHIP_CD", "AREA_CD",
-	"EXCH_UM", "EXCH_AM",
-	"", "", "", "", "", "", "", "",
+	"EXCH_UM", "EXCH_AM", "SHIP_FG", "LOT_NB", "SO_NB",
+	"SO_SQ", "REQ_NB", "REQ_SQ", "QC_NB", "QC_SQ",
 }
 
 // --- 입고 내보내기 구조체 (DB 조회용) ---
 
 type inboundExportRow struct {
 	// bl_shipments
-	BLNumber       string   `json:"bl_number"`
-	InboundType    string   `json:"inbound_type"`
-	Currency       string   `json:"currency"`
-	ExchangeRate   *float64 `json:"exchange_rate"`
-	ETA            *string  `json:"eta"`
-	ActualArrival  *string  `json:"actual_arrival"`
-	POID           *string  `json:"po_id"`
-	Memo           *string  `json:"memo"`
+	BLNumber      string   `json:"bl_number"`
+	InboundType   string   `json:"inbound_type"`
+	Currency      string   `json:"currency"`
+	ExchangeRate  *float64 `json:"exchange_rate"`
+	ETA           *string  `json:"eta"`
+	ActualArrival *string  `json:"actual_arrival"`
+	POID          *string  `json:"po_id"`
+	Memo          *string  `json:"memo"`
 
 	// bl_line_items (nested)
 	BLLineID         string   `json:"bl_line_id"`
@@ -92,8 +92,8 @@ type inboundExportRow struct {
 	LineMemo         *string  `json:"line_memo"`
 
 	// joined
-	Products     *inboundProductJoin     `json:"products"`
-	Warehouses   *inboundWarehouseJoin   `json:"warehouses"`
+	Products      *inboundProductJoin      `json:"products"`
+	Warehouses    *inboundWarehouseJoin    `json:"warehouses"`
 	Manufacturers *inboundManufacturerJoin `json:"manufacturers"`
 }
 
@@ -114,13 +114,13 @@ type inboundManufacturerJoin struct {
 // --- 출고 내보내기 구조체 (DB 조회용) ---
 
 type outboundExportRow struct {
-	OutboundID    string   `json:"outbound_id"`
-	OutboundDate  string   `json:"outbound_date"`
-	Quantity      int      `json:"quantity"`
-	SiteName      *string  `json:"site_name"`
-	Memo          *string  `json:"memo"`
-	Products      *outboundProductJoin    `json:"products"`
-	Warehouses    *outboundWarehouseJoin  `json:"warehouses"`
+	OutboundID   string                 `json:"outbound_id"`
+	OutboundDate string                 `json:"outbound_date"`
+	Quantity     int                    `json:"quantity"`
+	SiteName     *string                `json:"site_name"`
+	Memo         *string                `json:"memo"`
+	Products     *outboundProductJoin   `json:"products"`
+	Warehouses   *outboundWarehouseJoin `json:"warehouses"`
 }
 
 type outboundProductJoin struct {
@@ -299,14 +299,14 @@ func (h *ExportHandler) AmaranthInbound(w http.ResponseWriter, r *http.Request) 
 
 	// 라인아이템 조회
 	type lineItem struct {
-		BLLineID         string   `json:"bl_line_id"`
-		BLID             string   `json:"bl_id"`
-		ProductID        string   `json:"product_id"`
-		Quantity         int      `json:"quantity"`
-		InvoiceAmountUSD *float64 `json:"invoice_amount_usd"`
-		UnitPriceUSDWp   *float64 `json:"unit_price_usd_wp"`
-		UnitPriceKRWWp   *float64 `json:"unit_price_krw_wp"`
-		Memo             *string  `json:"memo"`
+		BLLineID         string              `json:"bl_line_id"`
+		BLID             string              `json:"bl_id"`
+		ProductID        string              `json:"product_id"`
+		Quantity         int                 `json:"quantity"`
+		InvoiceAmountUSD *float64            `json:"invoice_amount_usd"`
+		UnitPriceUSDWp   *float64            `json:"unit_price_usd_wp"`
+		UnitPriceKRWWp   *float64            `json:"unit_price_krw_wp"`
+		Memo             *string             `json:"memo"`
 		Products         *inboundProductJoin `json:"products"`
 	}
 
@@ -478,37 +478,37 @@ func (h *ExportHandler) AmaranthInbound(w http.ResponseWriter, r *http.Request) 
 
 			// 34컬럼 기록
 			cells := []interface{}{
-				tradeType,                   // A 거래구분
-				formatDate(datePtr),         // B 입고일자
-				trCode,                      // C 거래처코드
-				currency,                    // D 환종
-				exchangeRate,                // E 환율
-				vatType,                     // F 과세구분
-				"0",                         // G 단가구분
-				whCode,                      // H 창고코드
-				"",                          // I 담당자코드
-				remark,                      // J 비고(건)
-				productCode,                 // K 품번
-				line.Quantity,               // L 입고수량
-				line.Quantity,               // M 재고단위수량
-				"",                          // N 단가유형
-				unitPriceKRW,                // O 부가세미포함단가
-				vatUM,                       // P 부가세포함단가
-				supplyAmt,                   // Q 공급가
-				vatAmt,                      // R 부가세
-				totalAmt,                    // S 합계액
-				exchUM,                      // T 외화단가
+				tradeType,                       // A 거래구분
+				formatDate(datePtr),             // B 입고일자
+				trCode,                          // C 거래처코드
+				currency,                        // D 환종
+				exchangeRate,                    // E 환율
+				vatType,                         // F 과세구분
+				"0",                             // G 단가구분
+				whCode,                          // H 창고코드
+				"",                              // I 담당자코드
+				remark,                          // J 비고(건)
+				productCode,                     // K 품번
+				line.Quantity,                   // L 입고수량
+				line.Quantity,                   // M 재고단위수량
+				"",                              // N 단가유형
+				unitPriceKRW,                    // O 부가세미포함단가
+				vatUM,                           // P 부가세포함단가
+				supplyAmt,                       // Q 공급가
+				vatAmt,                          // R 부가세
+				totalAmt,                        // S 합계액
+				exchUM,                          // T 외화단가
 				ptrFloat(line.InvoiceAmountUSD), // U 외화금액
-				lcCode,                      // V 장소코드
-				"",                          // W LOT번호
-				"",                          // X 관리구분 (D-067)
-				"",                          // Y 프로젝트코드
-				lineRemark,                  // Z 비고(내역)
-				poNumber,                    // AA 발주번호
-				seqStr,                      // AB 발주순번
-				blNumber,                    // AC 수입선적번호
-				seqStr,                      // AD 수입선적순번
-				"", "", "", "",              // AE~AH 빈값
+				lcCode,                          // V 장소코드
+				"",                              // W LOT번호
+				"",                              // X 관리구분 (D-067)
+				"",                              // Y 프로젝트코드
+				lineRemark,                      // Z 비고(내역)
+				poNumber,                        // AA 발주번호
+				seqStr,                          // AB 발주순번
+				blNumber,                        // AC 수입선적번호
+				seqStr,                          // AD 수입선적순번
+				"", "", "", "",                  // AE~AH 입고의뢰/입고검사 번호·순번
 			}
 
 			for ci, val := range cells {
@@ -651,34 +651,41 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 
 		// 35컬럼 기록
 		cells := []interface{}{
-			"0",           // A 거래구분
-			dateStr,       // B 출고일자
-			trCode,        // C 고객코드
-			"KRW",         // D 환종
-			1,             // E 환율
-			"0",           // F 과세구분
-			"0",           // G 단가구분
-			whCode,        // H 창고코드
-			"",            // I 담당자코드
-			remark,        // J 비고(건)
-			productCode,   // K 품번
-			ob.Quantity,   // L 출고수량
-			ob.Quantity,   // M 재고단위수량
-			"",            // N 단가유형
-			unitPriceEa,   // O 부가세미포함단가
-			vatUM,         // P 부가세포함단가
-			supplyAmt,     // Q 공급가
-			vatAmt,        // R 부가세
-			totalAmt,      // S 합계액
-			lcCode,        // T 장소코드
-			"",            // U 관리구분 (D-067)
-			"",            // V 프로젝트코드
+			"0",             // A 거래구분
+			dateStr,         // B 출고일자
+			trCode,          // C 고객코드
+			"KRW",           // D 환종
+			1,               // E 환율
+			"0",             // F 과세구분
+			"0",             // G 단가구분
+			whCode,          // H 창고코드
+			"",              // I 담당자코드
+			remark,          // J 비고(건)
+			productCode,     // K 품번
+			ob.Quantity,     // L 출고수량
+			ob.Quantity,     // M 재고단위수량
+			"",              // N 단가유형
+			unitPriceEa,     // O 부가세미포함단가
+			vatUM,           // P 부가세포함단가
+			supplyAmt,       // Q 공급가
+			vatAmt,          // R 부가세
+			totalAmt,        // S 합계액
+			lcCode,          // T 장소코드
+			"",              // U 관리구분 (D-067)
+			"",              // V 프로젝트코드
 			ptrStr(ob.Memo), // W 비고(내역)
-			"",            // X 납품처코드
-			"",            // Y 지역
-			0,             // Z 외화단가
-			0,             // AA 외화금액
-			"", "", "", "", "", "", "", "", // AB~AI 빈값 8개
+			"",              // X 납품처코드
+			"",              // Y 지역
+			0,               // Z 외화단가
+			0,               // AA 외화금액
+			"",              // AB 배송방법
+			"",              // AC LOT번호
+			"",              // AD 주문번호
+			"",              // AE 주문순번
+			"",              // AF 출고의뢰번호
+			"",              // AG 출고의뢰순번
+			"",              // AH 출고검사번호
+			"",              // AI 출고검사순번
 		}
 
 		for ci, val := range cells {
