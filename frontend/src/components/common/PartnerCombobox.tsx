@@ -13,6 +13,8 @@ interface Props {
   creatable?: boolean;
   createType?: 'supplier' | 'customer' | 'both';
   onCreated?: (partner: Partner) => void;
+  includeAllOption?: boolean;
+  allLabel?: string;
 }
 
 export function PartnerCombobox({
@@ -24,6 +26,8 @@ export function PartnerCombobox({
   creatable = false,
   createType = 'customer',
   onCreated,
+  includeAllOption = false,
+  allLabel = '전체',
 }: Props) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -40,7 +44,8 @@ export function PartnerCombobox({
     ? partners.filter((p) => p.partner_name.toLowerCase().includes(search.toLowerCase()))
     : partners;
   const hasCreateAction = creatable && !creating;
-  const optionCount = filtered.length + (hasCreateAction ? 1 : 0);
+  const allOptionOffset = includeAllOption ? 1 : 0;
+  const optionCount = filtered.length + allOptionOffset + (hasCreateAction ? 1 : 0);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -107,8 +112,13 @@ export function PartnerCombobox({
     if (e.key === 'Enter') {
       e.preventDefault();
       e.stopPropagation();
-      if (activeIndex < filtered.length) {
-        handleSelect(filtered[activeIndex].partner_id);
+      if (includeAllOption && activeIndex === 0) {
+        handleSelect('');
+        return;
+      }
+      const partnerIndex = activeIndex - allOptionOffset;
+      if (partnerIndex >= 0 && partnerIndex < filtered.length) {
+        handleSelect(filtered[partnerIndex].partner_id);
         return;
       }
       if (hasCreateAction) {
@@ -198,6 +208,23 @@ export function PartnerCombobox({
             />
           </div>
           <div className="max-h-52 overflow-y-auto">
+            {includeAllOption && (
+              <button
+                type="button"
+                onMouseEnter={() => setActiveIndex(0)}
+                onClick={() => handleSelect('')}
+                className={cn(
+                  'flex w-full items-center gap-2 px-2.5 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground transition-colors',
+                  activeIndex === 0 && 'bg-accent text-accent-foreground',
+                  value === '' && 'bg-accent/40',
+                )}
+              >
+                <span className="size-3.5 shrink-0 flex items-center justify-center">
+                  {value === '' && <CheckIcon className="size-3.5" />}
+                </span>
+                <span className="flex-1 truncate">{allLabel}</span>
+              </button>
+            )}
             {filtered.length === 0 ? (
               <div className="px-3 py-2 text-sm text-muted-foreground">결과 없음</div>
             ) : (
@@ -205,11 +232,11 @@ export function PartnerCombobox({
                 <button
                   key={p.partner_id}
                   type="button"
-                  onMouseEnter={() => setActiveIndex(index)}
+                  onMouseEnter={() => setActiveIndex(index + allOptionOffset)}
                   onClick={() => handleSelect(p.partner_id)}
                   className={cn(
                     'flex w-full items-center gap-2 px-2.5 py-1.5 text-sm text-left hover:bg-accent hover:text-accent-foreground transition-colors',
-                    activeIndex === index && 'bg-accent text-accent-foreground',
+                    activeIndex === index + allOptionOffset && 'bg-accent text-accent-foreground',
                     value === p.partner_id && 'bg-accent/40',
                   )}
                 >
@@ -224,7 +251,7 @@ export function PartnerCombobox({
           {creatable && !creating && (
             <button
               type="button"
-              onMouseEnter={() => setActiveIndex(filtered.length)}
+              onMouseEnter={() => setActiveIndex(filtered.length + allOptionOffset)}
               onClick={() => {
                 setCreating(true);
                 setNewName(search.trim());
@@ -232,7 +259,7 @@ export function PartnerCombobox({
               }}
               className={cn(
                 'flex w-full items-center gap-2 border-t px-2.5 py-2 text-sm text-primary transition-colors hover:bg-accent',
-                activeIndex === filtered.length && 'bg-accent',
+                activeIndex === filtered.length + allOptionOffset && 'bg-accent',
               )}
             >
               <PlusIcon className="size-3.5" />

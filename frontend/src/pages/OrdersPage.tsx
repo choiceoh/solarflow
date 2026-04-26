@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { useAppStore } from '@/stores/appStore';
 import { useOrderList } from '@/hooks/useOrders';
 import { useReceiptList } from '@/hooks/useReceipts';
@@ -28,7 +29,7 @@ import {
   ORDER_STATUS_LABEL, MANAGEMENT_CATEGORY_LABEL,
   type FulfillmentSource, type Order, type OrderStatus, type ManagementCategory, type Receipt,
 } from '@/types/orders';
-import { OUTBOUND_STATUS_LABEL, USAGE_CATEGORY_LABEL, type Outbound, type OutboundStatus, type UsageCategory } from '@/types/outbound';
+import { OUTBOUND_STATUS_LABEL, USAGE_CATEGORY_LABEL, type Outbound, type OutboundStatus, type UsageCategory, type Sale, type SaleListItem } from '@/types/outbound';
 import type { Partner, Manufacturer } from '@/types/masters';
 import type { InventoryResponse } from '@/types/inventory';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
@@ -174,6 +175,7 @@ export default function OrdersPage() {
   const [obFormOpen, setObFormOpen] = useState(false);
   const [outboundOrder, setOutboundOrder] = useState<Order | null>(null);
   const [invoiceOutbound, setInvoiceOutbound] = useState<Outbound | null>(null);
+  const [invoiceOrder, setInvoiceOrder] = useState<(Order & { sale?: Sale }) | null>(null);
   const obFilters: { status?: string; usage_category?: string; manufacturer_id?: string } = {};
   if (obStatusFilter) obFilters.status = obStatusFilter;
   if (obUsageFilter) obFilters.usage_category = obUsageFilter;
@@ -547,17 +549,72 @@ export default function OrdersPage() {
   }));
 
   const handleSubmitOutboundSale = async (formData: Record<string, unknown>) => {
-    if (!invoiceOutbound) return;
-    const existing = invoiceOutbound.sale ?? salesByOutboundId.get(invoiceOutbound.outbound_id);
+    if (!invoiceOutbound && !invoiceOrder) return;
+    const existing = invoiceOutbound
+      ? invoiceOutbound.sale ?? salesByOutboundId.get(invoiceOutbound.outbound_id)
+      : invoiceOrder?.sale;
     if (existing) {
       await fetchWithAuth(`/api/v1/sales/${existing.sale_id}`, { method: 'PUT', body: JSON.stringify(formData) });
     } else {
       await fetchWithAuth('/api/v1/sales', { method: 'POST', body: JSON.stringify(formData) });
     }
     setInvoiceOutbound(null);
+    setInvoiceOrder(null);
     reloadOutbounds();
     reloadSales();
     reloadOutboundSales();
+  };
+
+  const handleOpenSaleInvoice = (item: SaleListItem) => {
+    const sale = item.sale;
+    if (item.outbound_id) {
+      setInvoiceOrder(null);
+      setInvoiceOutbound({
+        outbound_id: item.outbound_id,
+        outbound_date: item.outbound_date ?? item.order_date ?? new Date().toISOString().slice(0, 10),
+        company_id: item.company_id ?? selectedCompanyId,
+        product_id: item.product_id ?? '',
+        product_name: item.product_name,
+        product_code: item.product_code,
+        spec_wp: item.spec_wp,
+        wattage_kw: item.spec_wp ? item.spec_wp / 1000 : undefined,
+        quantity: item.quantity,
+        capacity_kw: item.capacity_kw ?? (item.spec_wp ? item.quantity * item.spec_wp / 1000 : 0),
+        warehouse_id: '',
+        usage_category: 'sale',
+        customer_id: sale.customer_id ?? item.customer_id,
+        customer_name: sale.customer_name ?? item.customer_name,
+        unit_price_wp: sale.unit_price_wp ?? item.unit_price_wp,
+        status: 'active',
+        sale,
+      });
+      return;
+    }
+
+    if (item.order_id) {
+      setInvoiceOutbound(null);
+      setInvoiceOrder({
+        order_id: item.order_id,
+        order_number: item.order_number,
+        company_id: item.company_id ?? selectedCompanyId,
+        customer_id: sale.customer_id ?? item.customer_id,
+        customer_name: sale.customer_name ?? item.customer_name,
+        order_date: item.order_date ?? item.outbound_date ?? new Date().toISOString().slice(0, 10),
+        receipt_method: 'other',
+        management_category: 'sale',
+        fulfillment_source: 'stock',
+        product_id: item.product_id ?? '',
+        product_name: item.product_name,
+        product_code: item.product_code,
+        spec_wp: item.spec_wp,
+        wattage_kw: item.spec_wp ? item.spec_wp / 1000 : undefined,
+        quantity: item.quantity,
+        capacity_kw: item.capacity_kw,
+        unit_price_wp: sale.unit_price_wp ?? item.unit_price_wp,
+        status: 'received',
+        sale,
+      });
+    }
   };
 
   const handleSubmitReceipt = async (formData: Record<string, unknown>) => {
@@ -724,13 +781,16 @@ export default function OrdersPage() {
         <TabsContent value="sales" className="space-y-4 mt-4">
           <div className="flex items-center justify-between">
             <div className="flex gap-2">
-              <Select value={saleCustomerFilter || 'all'} onValueChange={(v) => setSaleCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><FT text={saleCustomerFilter ? (partners.find(p => p.partner_id === saleCustomerFilter)?.partner_name ?? saleCustomerFilter) : '전체 거래처'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 거래처</SelectItem>
-                  {partners.map((p) => <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <div className="w-36">
+                <PartnerCombobox
+                  partners={partners}
+                  value={saleCustomerFilter}
+                  onChange={setSaleCustomerFilter}
+                  placeholder="전체 거래처"
+                  includeAllOption
+                  allLabel="전체 거래처"
+                />
+              </div>
               <Select value={saleMonthFilter || 'all'} onValueChange={(v) => setSaleMonthFilter(v === 'all' ? '' : (v ?? ''))}>
                 <SelectTrigger className="h-8 w-28 text-xs"><FT text={saleMonthFilter || '전체 기간'} /></SelectTrigger>
                 <SelectContent>
@@ -752,7 +812,7 @@ export default function OrdersPage() {
           {saleLoading ? <LoadingSpinner /> : (
             <>
               <SaleSummaryCards items={sales} />
-              <SaleListTable items={sales} />
+              <SaleListTable items={sales} onInvoice={handleOpenSaleInvoice} />
             </>
           )}
         </TabsContent>
@@ -832,11 +892,12 @@ export default function OrdersPage() {
         order={outboundOrder}
       />
       <SaleForm
-        open={!!invoiceOutbound}
-        onOpenChange={(open) => { if (!open) setInvoiceOutbound(null); }}
+        open={!!invoiceOutbound || !!invoiceOrder}
+        onOpenChange={(open) => { if (!open) { setInvoiceOutbound(null); setInvoiceOrder(null); } }}
         onSubmit={handleSubmitOutboundSale}
         outbound={invoiceOutbound ?? undefined}
-        editData={invoiceOutbound?.sale ?? null}
+        order={invoiceOrder ?? undefined}
+        editData={invoiceOutbound?.sale ?? invoiceOrder?.sale ?? null}
       />
       <ReceiptForm
         open={receiptFormOpen}

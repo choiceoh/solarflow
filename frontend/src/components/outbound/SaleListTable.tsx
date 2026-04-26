@@ -6,9 +6,10 @@ import type { SaleListItem } from '@/types/outbound';
 
 interface Props {
   items: SaleListItem[];
+  onInvoice?: (item: SaleListItem) => void;
 }
 
-export default function SaleListTable({ items }: Props) {
+export default function SaleListTable({ items, onInvoice }: Props) {
   if (items.length === 0) return <EmptyState message="매출 데이터가 없습니다" />;
 
   return (
@@ -51,11 +52,34 @@ export default function SaleListTable({ items }: Props) {
               <TableCell className="text-right font-medium">{item.sale.total_amount ? formatNumber(item.sale.total_amount) : '—'}</TableCell>
               <TableCell>
                 {item.sale.tax_invoice_date ? (
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', 'bg-green-100 text-green-700')}>
+                  <button
+                    type="button"
+                    onClick={() => onInvoice?.(item)}
+                    disabled={!onInvoice}
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                      'bg-green-100 text-green-700',
+                      onInvoice && 'cursor-pointer hover:bg-green-200',
+                      !onInvoice && 'cursor-default',
+                    )}
+                    title="계산서 수정"
+                  >
                     {formatDate(item.sale.tax_invoice_date)}
-                  </span>
+                  </button>
                 ) : (
-                  <span className="rounded-full bg-yellow-100 text-yellow-700 px-1.5 py-0.5 text-[10px] font-medium">미발행</span>
+                  <button
+                    type="button"
+                    onClick={() => onInvoice?.(item)}
+                    disabled={!onInvoice}
+                    className={cn(
+                      'rounded-full bg-yellow-100 text-yellow-700 px-1.5 py-0.5 text-[10px] font-medium',
+                      onInvoice && 'cursor-pointer hover:bg-yellow-200',
+                      !onInvoice && 'cursor-default',
+                    )}
+                    title="계산서 발행"
+                  >
+                    미발행
+                  </button>
                 )}
               </TableCell>
               <TableCell>
