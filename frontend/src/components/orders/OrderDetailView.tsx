@@ -71,20 +71,35 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
     loadSales().catch(() => setSales([]));
   }, [orderId]);
 
-  if (loading || !order) return <LoadingSpinner />;
+  if (loading) return <LoadingSpinner />;
+  if (!order) {
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="font-medium">수주 상세를 조회하지 못했습니다.</div>
+        <p className="mt-1 text-xs">목록 화면은 유지됩니다. 조회가 반복해서 실패하면 새로고침 후 다시 열어주세요.</p>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={onBack}>
+          목록으로 돌아가기
+        </Button>
+      </div>
+    );
+  }
 
+  const orderKey = order.order_id || orderId;
+  const shortOrderId = orderKey.slice(0, 8);
+  const outboundRows = Array.isArray(outbounds) ? outbounds : [];
+  const salesRows = Array.isArray(sales) ? sales : [];
   const orderQty = safeNumber(order.quantity) ?? 0;
   const shippedQty = safeNumber(order.shipped_qty) ?? 0;
   const remaining = safeNumber(order.remaining_qty) ?? (orderQty - shippedQty);
-  const totalShipped = outbounds.reduce((sum, ob) => sum + (safeNumber(ob.quantity) ?? 0), 0);
+  const totalShipped = outboundRows.reduce((sum, ob) => sum + (safeNumber(ob.quantity) ?? 0), 0);
   const moduleText = order.manufacturer_name || order.spec_wp
     ? moduleLabel(order.manufacturer_name, order.spec_wp)
     : undefined;
-  const statusLabel = ORDER_STATUS_LABEL[order.status] ?? order.status ?? '—';
-  const statusColor = ORDER_STATUS_COLOR[order.status] ?? 'bg-slate-100 text-slate-600';
-  const receiptMethodLabel = RECEIPT_METHOD_LABEL[order.receipt_method] ?? order.receipt_method;
-  const managementLabel = MANAGEMENT_CATEGORY_LABEL[order.management_category] ?? order.management_category;
-  const sale = sales[0];
+  const statusLabel = order.status ? (ORDER_STATUS_LABEL[order.status] ?? order.status) : '—';
+  const statusColor = order.status ? (ORDER_STATUS_COLOR[order.status] ?? 'bg-slate-100 text-slate-600') : 'bg-slate-100 text-slate-600';
+  const receiptMethodLabel = order.receipt_method ? (RECEIPT_METHOD_LABEL[order.receipt_method] ?? order.receipt_method) : undefined;
+  const managementLabel = order.management_category ? (MANAGEMENT_CATEGORY_LABEL[order.management_category] ?? order.management_category) : undefined;
+  const sale = salesRows[0];
 
   const handleUpdate = async (data: Record<string, unknown>) => {
     await fetchWithAuth(`/api/v1/orders/${orderId}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -126,7 +141,7 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h2 className="text-base font-semibold flex-1">수주 {order.order_number || order.order_id.slice(0, 8)}</h2>
+        <h2 className="text-base font-semibold flex-1">수주 {order.order_number || shortOrderId}</h2>
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>
           <Pencil className="mr-1 h-3.5 w-3.5" />수정
         </Button>
@@ -189,7 +204,7 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
         </Button>
       </div>
 
-      {sales.length > 0 ? (
+      {salesRows.length > 0 && sale ? (
         <Card>
           <CardContent className="pt-4 pb-4">
             <div className="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -222,7 +237,7 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
         </div>
       </div>
 
-      {obLoading ? <LoadingSpinner /> : outbounds.length === 0 ? (
+      {obLoading ? <LoadingSpinner /> : outboundRows.length === 0 ? (
         <div className="text-center py-8 text-sm text-muted-foreground">연결된 출고가 없습니다</div>
       ) : (
         <div className="rounded-md border">
@@ -238,7 +253,7 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {outbounds.map((ob) => (
+              {outboundRows.map((ob) => (
                 <TableRow key={ob.outbound_id}>
                   <TableCell>{formatDate(ob.outbound_date)}</TableCell>
                   <TableCell>{ob.product_name ?? '—'}</TableCell>
@@ -276,13 +291,13 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
         onOpenChange={setSaleFormOpen}
         onSubmit={handleSaleSubmit}
         order={order}
-        editData={sales[0] ?? null}
+        editData={salesRows[0] ?? null}
       />
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="수주 삭제"
-        description={`수주 "${order.order_number || order.order_id.slice(0, 8)}"을(를) 삭제합니다. 연결된 출고가 있으면 먼저 삭제해야 합니다.`}
+        description={`수주 "${order.order_number || shortOrderId}"을(를) 삭제합니다. 연결된 출고가 있으면 먼저 삭제해야 합니다.`}
         onConfirm={handleDelete}
         loading={deleting}
       />

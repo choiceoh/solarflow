@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { Component, useState, useEffect, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, ScrollText, Truck, Receipt as ReceiptIcon, Wallet, GitMerge } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,34 @@ import ExcelToolbar from '@/components/excel/ExcelToolbar';
 
 function FT({ text }: { text: string }) {
   return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
+}
+
+class OrderDetailErrorBoundary extends Component<
+  { children: ReactNode; onBack: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error('[Order detail render failed]', error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div className="rounded-md border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="font-medium">수주 상세 화면을 불러오지 못했습니다.</div>
+        <p className="mt-1 text-xs">목록은 유지되도록 막아두었습니다. 잠시 후 다시 열어주세요.</p>
+        <Button type="button" variant="outline" size="sm" className="mt-3" onClick={this.props.onBack}>
+          목록으로 돌아가기
+        </Button>
+      </div>
+    );
+  }
 }
 
 const isFreeSpareAlloc = (a: InventoryAllocation) => a.notes?.startsWith('[무상스페어]') ?? false;
@@ -143,6 +171,7 @@ export default function OrdersPage() {
   const [obMfgFilter, setObMfgFilter] = useState('');
   const [selectedOutbound, setSelectedOutbound] = useState<string | null>(null);
   const [obFormOpen, setObFormOpen] = useState(false);
+  const [outboundOrder, setOutboundOrder] = useState<Order | null>(null);
   const obFilters: { status?: string; usage_category?: string; manufacturer_id?: string } = {};
   if (obStatusFilter) obFilters.status = obStatusFilter;
   if (obUsageFilter) obFilters.usage_category = obUsageFilter;
@@ -265,9 +294,15 @@ export default function OrdersPage() {
 
   // 수주 상세
   if (selectedOrder) {
+    const backToOrders = () => {
+      setSelectedOrder(null);
+      reloadOrders();
+    };
     return (
       <div className="p-6">
-        <OrderDetailView orderId={selectedOrder} onBack={() => { setSelectedOrder(null); reloadOrders(); }} />
+        <OrderDetailErrorBoundary key={selectedOrder} onBack={backToOrders}>
+          <OrderDetailView orderId={selectedOrder} onBack={backToOrders} />
+        </OrderDetailErrorBoundary>
       </div>
     );
   }
@@ -495,6 +530,7 @@ export default function OrdersPage() {
   const handleCreateOutbound = async (formData: Record<string, unknown>) => {
     await fetchWithAuth('/api/v1/outbounds', { method: 'POST', body: JSON.stringify(formData) });
     reloadOutbounds();
+    reloadOrders();
   };
 
   const handleSubmitReceipt = async (formData: Record<string, unknown>) => {
@@ -591,6 +627,11 @@ export default function OrdersPage() {
                 setEditingOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
               }}
               onDelete={(o) => { setOrderActionError(''); setDeletingOrder(o); }}
+              onCreateOutbound={(o) => {
+                setOrderActionError('');
+                setOutboundOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
+                setObFormOpen(true);
+              }}
               onCancelToReservation={handleCancelOrderToReservation}
               sourceOverrides={orderSourceHints}
             />
@@ -637,7 +678,7 @@ export default function OrdersPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <ExcelToolbar type="outbound" />
-                  <Button size="sm" onClick={() => setObFormOpen(true)}><Plus className="mr-1.5 h-4 w-4" />새로 등록</Button>
+                  <Button size="sm" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}><Plus className="mr-1.5 h-4 w-4" />새로 등록</Button>
                 </div>
               </div>
               {obLoading ? <LoadingSpinner /> : (
@@ -749,7 +790,15 @@ export default function OrdersPage() {
         onSubmit={handleUpdateOrder}
         editData={editingOrder}
       />
-      <OutboundForm open={obFormOpen} onOpenChange={setObFormOpen} onSubmit={handleCreateOutbound} />
+      <OutboundForm
+        open={obFormOpen}
+        onOpenChange={(open) => {
+          setObFormOpen(open);
+          if (!open) setOutboundOrder(null);
+        }}
+        onSubmit={handleCreateOutbound}
+        order={outboundOrder}
+      />
       <ReceiptForm
         open={receiptFormOpen}
         onOpenChange={(o) => { setReceiptFormOpen(o); if (!o) setEditingReceipt(null); }}

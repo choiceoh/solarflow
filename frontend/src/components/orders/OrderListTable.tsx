@@ -1,6 +1,6 @@
 import EmptyState from '@/components/common/EmptyState';
 import FulfillmentSourceBadge from './FulfillmentSourceBadge';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Truck } from 'lucide-react';
 import { cn, moduleLabel } from '@/lib/utils';
 import { formatDate, formatNumber, formatKw } from '@/lib/utils';
 import {
@@ -14,6 +14,7 @@ interface Props {
   onNew: () => void;
   onEdit?: (item: Order) => void;
   onDelete?: (item: Order) => void;
+  onCreateOutbound?: (item: Order) => void;
   onCancelToReservation?: (item: Order) => void;
   sourceOverrides?: Record<string, FulfillmentSource>;
 }
@@ -26,7 +27,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
-export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelete, onCancelToReservation, sourceOverrides = {} }: Props) {
+export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelete, onCreateOutbound, onCancelToReservation, sourceOverrides = {} }: Props) {
   if (items.length === 0) return <EmptyState message="등록된 수주가 없습니다" actionLabel="새로 등록" onAction={onNew} />;
 
   return (
@@ -39,13 +40,14 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
             <th className="p-3 text-right font-medium">수량 / 단가</th>
             <th className="p-3 text-left font-medium text-muted-foreground">납기 / 현장</th>
             <th className="p-3 text-center font-medium text-muted-foreground w-[80px]">상태</th>
-            <th className="p-3 text-center font-medium text-muted-foreground w-[150px]">작업</th>
+            <th className="p-3 text-center font-medium text-muted-foreground w-[190px]">작업</th>
           </tr>
         </thead>
         <tbody>
           {items.map((o) => {
             const remaining = o.remaining_qty ?? (o.quantity - (o.shipped_qty ?? 0));
             const canReturnReservation = (o.shipped_qty ?? 0) <= 0 && o.status !== 'cancelled';
+            const canCreateOutbound = remaining > 0 && o.status !== 'cancelled';
             const displaySource = sourceOverrides[o.order_id] ?? o.fulfillment_source;
             const moduleText = o.manufacturer_name || o.spec_wp
               ? moduleLabel(o.manufacturer_name, o.spec_wp)
@@ -125,6 +127,18 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
                         onClick={() => onEdit(o)}
                       >
                         <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                    {onCreateOutbound && (
+                      <button
+                        type="button"
+                        title={canCreateOutbound ? '출고 등록' : '출고할 잔량이 없습니다'}
+                        disabled={!canCreateOutbound}
+                        className="inline-flex h-7 items-center justify-center gap-1 rounded border px-2 text-[10px] text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        onClick={() => onCreateOutbound(o)}
+                      >
+                        <Truck className="h-3.5 w-3.5" />
+                        <span>출고</span>
                       </button>
                     )}
                     {onCancelToReservation && (

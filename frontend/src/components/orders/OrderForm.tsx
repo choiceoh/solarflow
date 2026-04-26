@@ -58,17 +58,14 @@ type AvailabilityInfo = {
   incomingEa: number;
 };
 
-const PAYMENT_TERM_PRESETS = [
-  { label: '현금 100%', terms: '현금 100%', depositRate: 100 },
-  { label: '현금 50% + 신용 60일', terms: '현금 50% + 신용 60일', depositRate: 50 },
-  { label: '현금 30% + 신용 60일', terms: '현금 30% + 신용 60일', depositRate: 30 },
-  { label: '현금 50% + 신용 30일', terms: '현금 50% + 신용 30일', depositRate: 50 },
-  { label: '신용 30일', terms: '신용 30일', depositRate: 0 },
-  { label: '신용 60일', terms: '신용 60일', depositRate: 0 },
-  { label: '신용 90일', terms: '신용 90일', depositRate: 0 },
-  { label: '익월말', terms: '익월말', depositRate: 0 },
-  { label: '익익월말', terms: '익익월말', depositRate: 0 },
-];
+type PaymentDueMode = 'days' | 'next_month_end' | 'next_next_month_end' | 'manual';
+
+const PAYMENT_DUE_MODE_LABEL: Record<PaymentDueMode, string> = {
+  days: '출고일 기준',
+  next_month_end: '익월말',
+  next_next_month_end: '익익월말',
+  manual: '직접입력',
+};
 
 export interface OrderPrefillData {
   alloc_id?: string;
@@ -122,6 +119,48 @@ function formatCapacityAuto(kw: number): string {
   return `${kw.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} kW`;
 }
 
+function normalizeRate(value: unknown): number | undefined {
+  if (value === '' || value == null) return undefined;
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : undefined;
+}
+
+function formatRate(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function buildPaymentTerms(rateValue: unknown, mode: PaymentDueMode, daysText: string): string {
+  const rate = normalizeRate(rateValue);
+  if (rate != null && rate >= 100) return '현금 100%';
+
+  let credit = '';
+  if (mode === 'next_month_end') credit = '익월말';
+  if (mode === 'next_next_month_end') credit = '익익월말';
+  if (mode === 'days') {
+    const days = Number(daysText.replace(/[^0-9]/g, ''));
+    if (Number.isFinite(days) && days > 0) credit = `출고일+${days}일`;
+  }
+
+  if (rate != null && rate > 0) {
+    return credit ? `현금 ${formatRate(rate)}% + 잔금 ${credit}` : `현금 ${formatRate(rate)}%`;
+  }
+  return credit;
+}
+
+function paymentModeFromTerms(terms?: string | null): PaymentDueMode {
+  if (!terms) return 'days';
+  if (terms.includes('익익월말')) return 'next_next_month_end';
+  if (terms.includes('익월말')) return 'next_month_end';
+  if (/(\+|신용)\s*\d+\s*일|출고일/.test(terms)) return 'days';
+  return 'manual';
+}
+
+function creditDaysFromTerms(terms?: string | null): string {
+  if (!terms) return '';
+  const match = terms.match(/(?:출고일\+|신용\s*)(\d+)\s*일/);
+  return match?.[1] ?? '';
+}
+
 function eaFromKw(kw: number, specWp?: number): number {
   return specWp && specWp > 0 ? Math.round((kw * 1000) / specWp) : 0;
 }
@@ -165,6 +204,8 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
   // 천단위 표시용 display state
   const [qtyDisplay, setQtyDisplay] = useState('');
   const [spareQtyDisplay, setSpareQtyDisplay] = useState('');
+  const [paymentDueMode, setPaymentDueMode] = useState<PaymentDueMode>('days');
+  const [creditDaysDisplay, setCreditDaysDisplay] = useState('');
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { register, handleSubmit, reset, setValue, watch, getValues, formState: { errors, isSubmitting } } = useForm<FormData>({
@@ -183,6 +224,14 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
   };
   const productModuleText = (p?: Product | null) => p ? moduleLabel(productMfg(p), p.spec_wp) : '—';
   const productOptionText = (p?: Product | null) => p ? `${productModuleText(p)} | ${p.product_code} | ${p.product_name}` : '';
+  const syncPaymentTerms = (
+    nextMode = paymentDueMode,
+    nextDays = creditDaysDisplay,
+    nextRate: unknown = getValues('deposit_rate'),
+  ) => {
+    if (nextMode === 'manual') return;
+    setValue('payment_terms', buildPaymentTerms(nextRate, nextMode, nextDays), { shouldDirty: true });
+  };
   // 가용재고 배정 → 수주 자동 입력 모드 (일부 필드 잠금 + amber 표시)
   const isPrefill = !!(prefillData && !editData);
   const prefillCompanyId = prefillData?.company_id && prefillData.company_id !== 'all'
@@ -343,6 +392,8 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
         setQtyDisplay(fmtInt(editData.quantity));
         setSpareQtyDisplay(fmtInt(editData.spare_qty));
         setBlId(editData.bl_id ?? '');
+        setPaymentDueMode(paymentModeFromTerms(editData.payment_terms));
+        setCreditDaysDisplay(creditDaysFromTerms(editData.payment_terms));
       } else if (prefillData) {
         // 가용재고 배정에서 넘어온 경우 — 품목/수량/관리구분/충당소스/발주번호 자동 입력
         const today = new Date().toISOString().slice(0, 10);
@@ -363,6 +414,8 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
         setQtyDisplay(prefillData.quantity ? prefillData.quantity.toLocaleString('ko-KR') : '');
         setSpareQtyDisplay(prefillData.spare_qty ? prefillData.spare_qty.toLocaleString('ko-KR') : '');
         setBlId(prefillData.bl_id ?? '');
+        setPaymentDueMode('days');
+        setCreditDaysDisplay('');
       } else {
         const today = new Date().toISOString().slice(0, 10);
         reset({
@@ -375,6 +428,8 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
         setQtyDisplay('');
         setSpareQtyDisplay('');
         setBlId('');
+        setPaymentDueMode('days');
+        setCreditDaysDisplay('');
       }
     }
   }, [open, editData, prefillResetKey, reset]);
@@ -712,8 +767,11 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
               {errors.quantity && <p className="text-xs text-destructive">{errors.quantity.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label>용량 (kW)</Label>
-              <Input value={formatKwField(capacityKw)} readOnly className="bg-muted text-right tabular-nums" />
+              <Label>용량</Label>
+              <div className="flex h-9 items-center justify-end rounded-md border bg-slate-50 px-3 text-sm font-medium tabular-nums text-slate-800">
+                {selectedProduct ? formatCapacityAuto(capacityKw) : '품목 선택 후 자동 계산'}
+              </div>
+              <p className="text-[10px] text-muted-foreground">유상 수량 기준 자동 계산</p>
             </div>
             <div className="space-y-1.5">
               <Label className="flex items-center gap-1.5">
@@ -763,38 +821,78 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
           </div>
 
           <div className="space-y-3 rounded-md border bg-muted/20 p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="font-medium">결제/납기 조건</Label>
-              <div className="flex flex-wrap gap-1.5">
-                {PAYMENT_TERM_PRESETS.map((preset) => (
-                  <Button
-                    key={preset.label}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-[11px]"
-                    onClick={() => {
-                      setValue('payment_terms', preset.terms, { shouldDirty: true });
-                      setValue('deposit_rate', preset.depositRate as unknown as FormData['deposit_rate'], { shouldDirty: true });
-                    }}
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <Label className="font-medium">결제/납기 조건</Label>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div className="space-y-1.5 sm:col-span-1">
-                <Label>결제조건</Label>
-                <Input {...register('payment_terms')} placeholder="예: 현금 50% + 신용 60일 / 익월말" />
-                <p className="text-[10px] text-muted-foreground">목록에 없으면 직접 입력</p>
-              </div>
               <div className="space-y-1.5">
-                <Label>현금/선수금율 (%)</Label>
-                <Input type="number" step="0.1" {...register('deposit_rate')} />
+                <Label>현금 비율 (%)</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={watch('deposit_rate') ?? ''}
+                  onChange={(e) => {
+                    const next = e.target.value === '' ? '' : Number(e.target.value);
+                    setValue('deposit_rate', next as FormData['deposit_rate'], { shouldDirty: true });
+                    syncPaymentTerms(paymentDueMode, creditDaysDisplay, next);
+                  }}
+                  placeholder="예: 50"
+                />
                 <p className="text-[10px] text-muted-foreground">조건 기록용 · 실제 입금은 수금 탭에서 매칭</p>
               </div>
-              <div className="space-y-1.5"><Label>납기일</Label><DateInput value={watch('delivery_due') ?? ''} onChange={(v) => setValue('delivery_due', v, { shouldDirty: true })} /></div>
+              <div className="space-y-1.5">
+                <Label>신용 조건</Label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {(Object.keys(PAYMENT_DUE_MODE_LABEL) as PaymentDueMode[]).map((mode) => (
+                    <Button
+                      key={mode}
+                      type="button"
+                      variant={paymentDueMode === mode ? 'default' : 'outline'}
+                      size="sm"
+                      className="h-8 px-2 text-[11px]"
+                      onClick={() => {
+                        setPaymentDueMode(mode);
+                        syncPaymentTerms(mode, creditDaysDisplay);
+                      }}
+                    >
+                      {PAYMENT_DUE_MODE_LABEL[mode]}
+                    </Button>
+                  ))}
+                </div>
+                {paymentDueMode === 'days' ? (
+                  <Input
+                    className="mt-1.5"
+                    inputMode="numeric"
+                    value={creditDaysDisplay}
+                    onChange={(e) => {
+                      const next = e.target.value.replace(/[^0-9]/g, '');
+                      setCreditDaysDisplay(next);
+                      syncPaymentTerms('days', next);
+                    }}
+                    placeholder="출고일 + 일수"
+                  />
+                ) : (
+                  <p className="mt-1.5 rounded-md border bg-background px-3 py-2 text-xs text-muted-foreground">
+                    {paymentDueMode === 'manual' ? '결제조건 칸에 직접 입력' : `${PAYMENT_DUE_MODE_LABEL[paymentDueMode]} 기준으로 문구 자동 작성`}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label>납기일</Label>
+                <DateInput value={watch('delivery_due') ?? ''} onChange={(v) => setValue('delivery_due', v, { shouldDirty: true })} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>결제조건</Label>
+              <Input
+                {...register('payment_terms')}
+                placeholder="예: 현금 50% + 잔금 출고일+60일"
+                onChange={(e) => {
+                  setValue('payment_terms', e.target.value, { shouldDirty: true });
+                  if (paymentDueMode !== 'manual') setPaymentDueMode('manual');
+                }}
+              />
+              <p className="text-[10px] text-muted-foreground">현금 비율과 신용 조건으로 자동 작성되며, 필요하면 직접 수정할 수 있습니다.</p>
             </div>
           </div>
 
