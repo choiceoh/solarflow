@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   AlertTriangle,
   Clock,
@@ -10,6 +11,7 @@ import {
   PackageCheck,
   PackageX,
   Plus,
+  Search,
   Shield,
   Truck,
   TrendingUp,
@@ -25,6 +27,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useInventory } from '@/hooks/useInventory';
 import { useForecast } from '@/hooks/useForecast';
 import { fetchWithAuth } from '@/lib/api';
+import { shortMfgName } from '@/lib/utils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import InventoryTable from '@/components/inventory/InventoryTable';
@@ -32,7 +35,7 @@ import AvailInventoryTable from '@/components/inventory/AvailInventoryTable';
 import IncomingTable from '@/components/inventory/IncomingTable';
 import ForecastTable from '@/components/inventory/ForecastTable';
 import type { Manufacturer } from '@/types/masters';
-import type { InventorySummary } from '@/types/inventory';
+import type { InventorySummary, ProductForecast } from '@/types/inventory';
 
 function formatAutoKw(kw: number): string {
   if (kw <= 0) return '0 kW';
@@ -94,10 +97,47 @@ function getErrorMessage(err: unknown, fallback: string): string {
 
 type InventoryTab = 'avail' | 'physical' | 'incoming' | 'forecast';
 const INVENTORY_TABS = new Set<string>(['avail', 'physical', 'incoming', 'forecast']);
+type ForecastScope = 'current' | 'all';
 
 function getInventoryTab(search: string): InventoryTab {
   const tab = new URLSearchParams(search).get('tab');
   return INVENTORY_TABS.has(tab ?? '') ? (tab as InventoryTab) : 'avail';
+}
+
+function hasForecastActivity(product: ProductForecast): boolean {
+  const hasScheduled = product.months.some((month) => (
+    month.opening_kw > 0 ||
+    month.incoming_kw > 0 ||
+    month.outgoing_sale_kw > 0 ||
+    month.outgoing_construction_kw > 0 ||
+    month.closing_kw > 0 ||
+    month.reserved_kw > 0 ||
+    month.allocated_kw > 0 ||
+    month.available_kw > 0 ||
+    month.insufficient
+  ));
+  const unscheduled = product.unscheduled;
+  return hasScheduled ||
+    unscheduled.incoming_kw > 0 ||
+    unscheduled.sale_kw > 0 ||
+    unscheduled.construction_kw > 0;
+}
+
+function matchesForecastSearch(product: ProductForecast, keyword: string): boolean {
+  const q = keyword.trim().toLowerCase();
+  if (!q) return true;
+  const tokens = q.split(/\s+/).filter(Boolean);
+  const haystack = [
+    product.product_code,
+    product.product_name,
+    product.manufacturer_name,
+    shortMfgName(product.manufacturer_name),
+    String(product.spec_wp),
+    `${product.spec_wp}w`,
+    `${product.spec_wp}wp`,
+    `${product.module_width_mm}x${product.module_height_mm}`,
+  ].join(' ').toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
 }
 
 export default function InventoryPage() {
@@ -123,6 +163,8 @@ export default function InventoryPage() {
   const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [mfgFilter, setMfgFilter] = useState<string>('');
   const [wpFilter, setWpFilter] = useState<string>('');
+  const [forecastScope, setForecastScope] = useState<ForecastScope>('current');
+  const [forecastSearch, setForecastSearch] = useState('');
 
   // 가용재고 배정
   const [allocations, setAllocations] = useState<InventoryAllocation[]>([]);
@@ -445,6 +487,22 @@ export default function InventoryPage() {
     );
   }, [productMap, workbenchAllocs]);
 
+  const forecastProducts = useMemo(() => {
+    if (!fcData) return [];
+    const wp = wpFilter ? Number(wpFilter) : null;
+    return fcData.products.filter((product) => {
+      if (wp != null && product.spec_wp !== wp) return false;
+      if (forecastScope === 'current' && !hasForecastActivity(product)) return false;
+      if (!matchesForecastSearch(product, forecastSearch)) return false;
+      return true;
+    });
+  }, [fcData, forecastScope, forecastSearch, wpFilter]);
+
+  const activeForecastProductCount = useMemo(
+    () => fcData?.products.filter(hasForecastActivity).length ?? 0,
+    [fcData],
+  );
+
   const openAllocationForm = (productId?: string) => {
     setPrefilledProductId(productId);
     setEditingAlloc(undefined);
@@ -635,8 +693,42 @@ export default function InventoryPage() {
             </Alert>
           )}
           {fcLoading ? <LoadingSpinner /> : fcData && (
-            <div className="space-y-2">
-              <ForecastTable products={fcData.products} />
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-2">
+                <div className="inline-flex rounded-full border bg-muted/40 p-1 shadow-sm">
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={forecastScope === 'current' ? 'default' : 'ghost'}
+                    className="rounded-full"
+                    onClick={() => setForecastScope('current')}
+                  >
+                    현재 관련 품목
+                  </Button>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant={forecastScope === 'all' ? 'default' : 'ghost'}
+                    className="rounded-full"
+                    onClick={() => setForecastScope('all')}
+                  >
+                    전체 품목
+                  </Button>
+                </div>
+                <div className="relative w-full sm:w-72">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={forecastSearch}
+                    onChange={(e) => setForecastSearch(e.target.value)}
+                    className="h-8 pl-8 text-xs"
+                    placeholder="제조사, 규격, 품번 검색"
+                  />
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  표시 {forecastProducts.length.toLocaleString('ko-KR')}건 · 현재 관련 {activeForecastProductCount.toLocaleString('ko-KR')}건
+                </div>
+              </div>
+              <ForecastTable products={forecastProducts} />
               <p className="text-[10px] text-muted-foreground text-right">계산 시점: {fcData.calculated_at}</p>
             </div>
           )}
