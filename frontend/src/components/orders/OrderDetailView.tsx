@@ -37,6 +37,7 @@ function Field({ label, value }: { label: string; value: string | undefined }) {
 }
 
 function safeNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined || value === '') return undefined;
   const n = Number(value);
   return Number.isFinite(n) ? n : undefined;
 }
@@ -90,8 +91,8 @@ export default function OrderDetailView({ orderId, onBack }: Props) {
   const salesRows = Array.isArray(sales) ? sales : [];
   const orderQty = safeNumber(order.quantity) ?? 0;
   const shippedQty = safeNumber(order.shipped_qty) ?? 0;
-  const remaining = safeNumber(order.remaining_qty) ?? (orderQty - shippedQty);
   const totalShipped = outboundRows.reduce((sum, ob) => sum + (safeNumber(ob.quantity) ?? 0), 0);
+  const remaining = Math.max(orderQty - Math.max(shippedQty, totalShipped), 0);
   const moduleText = order.manufacturer_name || order.spec_wp
     ? moduleLabel(order.manufacturer_name, order.spec_wp)
     : undefined;

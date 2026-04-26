@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import { companyParams } from '@/lib/companyUtils';
-import { moduleLabel } from '@/lib/utils';
+import { moduleLabel, shortMfgName } from '@/lib/utils';
 import { USAGE_CATEGORY_LABEL, type Outbound, type UsageCategory } from '@/types/outbound';
 import type { Order } from '@/types/orders';
 import type { Product, Warehouse } from '@/types/masters';
@@ -59,15 +59,37 @@ function fmtInt(v: number | string | undefined): string {
 }
 
 function numOrZero(value: unknown): number {
+  if (value === null || value === undefined || value === '') return 0;
   const n = Number(value);
   return Number.isFinite(n) ? n : 0;
 }
 
 function orderRemainingQty(order?: Order | null): number {
   if (!order) return 0;
-  const explicitRemaining = Number(order.remaining_qty);
-  if (Number.isFinite(explicitRemaining)) return explicitRemaining;
-  return Math.max(numOrZero(order.quantity) - numOrZero(order.shipped_qty), 0);
+  const quantity = numOrZero(order.quantity);
+  const shipped = numOrZero(order.shipped_qty);
+  return Math.max(quantity - shipped, 0);
+}
+
+function orderCapacityKw(order?: Order | null, quantity = 0): number {
+  if (!order || quantity <= 0) return 0;
+  const orderQty = numOrZero(order.quantity);
+  const orderCapacity = numOrZero(order.capacity_kw);
+  if (orderQty > 0 && orderCapacity > 0) return (orderCapacity / orderQty) * quantity;
+  return numOrZero(order.wattage_kw) * quantity;
+}
+
+function productManufacturerLabel(product?: Product | null, order?: Order | null): string {
+  const label = moduleLabel(product?.manufacturers ?? product?.manufacturer_name ?? order?.manufacturer_name, undefined);
+  return label === '—' ? '—' : shortMfgName(label);
+}
+
+function productModuleLabel(product?: Product | null, order?: Order | null): string {
+  return moduleLabel(product?.manufacturers ?? product?.manufacturer_name ?? order?.manufacturer_name, product?.spec_wp ?? order?.spec_wp);
+}
+
+function blModuleLabel(bl?: BLShipment | null, product?: Product | null, order?: Order | null): string {
+  return moduleLabel(bl?.manufacturer_name ?? product?.manufacturers ?? product?.manufacturer_name ?? order?.manufacturer_name, product?.spec_wp ?? order?.spec_wp);
 }
 
 function orderCategoryToOutboundUsage(category?: string): UsageCategory {
@@ -108,9 +130,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
   const selectedProductId = watch('product_id');
   const selectedProduct = products.find((p) => p.product_id === selectedProductId);
   const quantity = watch('quantity') || 0;
-  const orderQty = numOrZero(order?.quantity);
-  const orderUnitKw = orderQty > 0 ? numOrZero(order?.capacity_kw) / orderQty : 0;
-  const capacityKw = selectedProduct ? quantity * selectedProduct.wattage_kw : quantity * orderUnitKw;
+  const capacityKw = selectedProduct ? quantity * selectedProduct.wattage_kw : orderCapacityKw(order, Number(quantity));
   const groupTrade = watch('group_trade') ?? false;
   const selectedOrderId = watch('order_id');
   const selectedOrder = order ?? orders.find((o) => o.order_id === selectedOrderId);
@@ -283,7 +303,11 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
   };
 
   const otherCompanies = companies.filter((c) => c.company_id !== effectiveCompanyId);
-  const productLabel = selectedProduct ? `${moduleLabel(selectedProduct.manufacturers ?? selectedProduct.manufacturer_name, selectedProduct.spec_wp)} | ${selectedProduct.product_code} | ${selectedProduct.product_name}` : '';
+  const productLabel = selectedProduct
+    ? `${productModuleLabel(selectedProduct, order)} | ${selectedProduct.product_code} | ${selectedProduct.product_name}`
+    : order
+      ? `${productModuleLabel(null, order)} | ${order.product_code ?? order.product_id} | ${order.product_name ?? ''}`
+      : '';
   const warehouseLabel = warehouses.find(w => w.warehouse_id === warehouseId)?.warehouse_name ?? '';
   const usageCatLabel = (USAGE_CATEGORY_LABEL as Record<string, string>)[usageCat] ?? '';
   const orderLabel = selectedOrder
@@ -358,9 +382,16 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
             {errors.product_id && <p className="text-xs text-destructive">{errors.product_id.message}</p>}
             {selectedProduct && (
               <div className="rounded-md border p-2 bg-muted/30 text-xs grid grid-cols-3 gap-2">
-                <div><div className="text-muted-foreground">제조사</div><div className="font-medium">{selectedProduct.manufacturer_name ?? '—'}</div></div>
+                <div><div className="text-muted-foreground">제조사</div><div className="font-medium">{productManufacturerLabel(selectedProduct, order)}</div></div>
                 <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{selectedProduct.product_name}</div></div>
                 <div><div className="text-muted-foreground">규격</div><div className="font-medium">{selectedProduct.spec_wp}Wp / {selectedProduct.wattage_kw}kW</div></div>
+              </div>
+            )}
+            {!selectedProduct && order && (
+              <div className="rounded-md border p-2 bg-muted/30 text-xs grid grid-cols-3 gap-2">
+                <div><div className="text-muted-foreground">제조사</div><div className="font-medium">{productManufacturerLabel(null, order)}</div></div>
+                <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{order.product_name ?? '—'}</div></div>
+                <div><div className="text-muted-foreground">규격</div><div className="font-medium">{order.spec_wp ? `${order.spec_wp}Wp` : '—'} / {order.wattage_kw ? `${order.wattage_kw}kW` : '—'}</div></div>
               </div>
             )}
           </div>
@@ -428,8 +459,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
                               ? (() => {
                                   const date = selectedBl.actual_arrival?.slice(0, 10) ?? selectedBl.eta?.slice(0, 10) ?? '—';
                                   const stKo = statusLabel(selectedBl.inbound_type, selectedBl.status);
-                                  const spec = selectedProduct?.spec_wp ? ` ${selectedProduct.spec_wp}W` : '';
-                                  return `${selectedBl.manufacturer_name ?? '—'}${spec} | ${selectedBl.bl_number} | ${date} | ${stKo}`;
+                                  return `${blModuleLabel(selectedBl, selectedProduct, order)} | ${selectedBl.bl_number} | ${date} | ${stKo}`;
                                 })()
                               : '— B/L 선택 —'}
                           </span>
@@ -440,11 +470,10 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
                             const date = b.actual_arrival?.slice(0, 10) ?? b.eta?.slice(0, 10) ?? '—';
                             const stKo = statusLabel(b.inbound_type, b.status);
                             const isCompleted = ['completed', 'erp_done'].includes(b.status);
-                            const spec = selectedProduct?.spec_wp ? ` ${selectedProduct.spec_wp}W` : '';
                             return (
                               <SelectItem key={b.bl_id} value={b.bl_id}>
                                 <span className={`text-xs font-medium mr-1.5 ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>[{stKo}]</span>
-                                {b.manufacturer_name ?? '—'}{spec} | {b.bl_number} | {date}
+                                {blModuleLabel(b, selectedProduct, order)} | {b.bl_number} | {date}
                               </SelectItem>
                             );
                           })}
