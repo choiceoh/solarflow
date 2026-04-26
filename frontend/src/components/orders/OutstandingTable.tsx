@@ -41,7 +41,7 @@ export default function OutstandingTable({ items, selectedIds, onToggle }: Props
                   onCheckedChange={() => onToggle(item.outbound_id)}
                 />
               </TableCell>
-              <TableCell>{formatDate(item.outbound_date)}</TableCell>
+              <TableCell>{item.outbound_date ? formatDate(item.outbound_date) : '—'}</TableCell>
               <TableCell>{item.site_name ?? '—'}</TableCell>
               <TableCell>
                 {item.product_name ?? '—'}

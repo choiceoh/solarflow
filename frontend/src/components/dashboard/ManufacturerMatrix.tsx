@@ -38,7 +38,12 @@ function ratioColor(ratio: number): string {
 }
 
 export default function ManufacturerMatrix({ inventory, matrix, manufacturers = [] }: Props) {
-  const [mode, setMode] = useState<ViewMode>('manufacturer');
+  const [mode, setMode] = useState<ViewMode>('moduleSize');
+  const [selectedSizeCell, setSelectedSizeCell] = useState<{
+    sizeLabel: string;
+    specWp: number;
+    items: { key: string; manufacturerName: string; productLabel: string; kw: number }[];
+  } | null>(null);
   const modeOptions: { value: ViewMode; label: string; icon: typeof Factory }[] = [
     { value: 'manufacturer', label: '제조사 × 출력', icon: Factory },
     { value: 'moduleSize', label: '모듈크기 × 출력', icon: Box },
@@ -75,16 +80,29 @@ export default function ManufacturerMatrix({ inventory, matrix, manufacturers = 
     // 출력(Wp) 헤더
     const wps = Array.from(new Set(inventory.map((i) => i.spec_wp))).sort((a, b) => a - b);
     // size key = "1762×1134"
-    const sizeMap = new Map<string, { label: string; total: number; byWp: Map<number, number> }>();
+    const sizeMap = new Map<string, {
+      label: string;
+      total: number;
+      byWp: Map<number, { kw: number; items: { key: string; manufacturerName: string; productLabel: string; kw: number }[] }>;
+    }>();
     for (const item of inventory) {
       const key = `${item.module_width_mm}×${item.module_height_mm}`;
       const prev = sizeMap.get(key);
+      const detailItem = {
+        key: item.product_id,
+        manufacturerName: shortMfgName(item.manufacturer_name),
+        productLabel: item.product_code || item.product_name,
+        kw: item.physical_kw,
+      };
       if (prev) {
         prev.total += item.physical_kw;
-        prev.byWp.set(item.spec_wp, (prev.byWp.get(item.spec_wp) || 0) + item.physical_kw);
+        const wpCell = prev.byWp.get(item.spec_wp) || { kw: 0, items: [] };
+        wpCell.kw += item.physical_kw;
+        wpCell.items.push(detailItem);
+        prev.byWp.set(item.spec_wp, wpCell);
       } else {
-        const byWp = new Map<number, number>();
-        byWp.set(item.spec_wp, item.physical_kw);
+        const byWp = new Map<number, { kw: number; items: { key: string; manufacturerName: string; productLabel: string; kw: number }[] }>();
+        byWp.set(item.spec_wp, { kw: item.physical_kw, items: [detailItem] });
         sizeMap.set(key, { label: key, total: item.physical_kw, byWp });
       }
     }
@@ -175,13 +193,24 @@ export default function ManufacturerMatrix({ inventory, matrix, manufacturers = 
                   <tr key={key} className="border-b last:border-b-0 hover:bg-muted/30">
                     <td className="py-2 pr-3 font-medium">{row.label}</td>
                     {sizeView.wps.map((wp) => {
-                      const kw = row.byWp.get(wp) || 0;
+                      const cell = row.byWp.get(wp);
+                      const kw = cell?.kw || 0;
                       if (kw === 0) {
                         return <td key={wp} className="py-2 px-2 text-center text-muted-foreground">—</td>;
                       }
                       return (
-                        <td key={wp} className="py-2 px-2 text-center font-medium">
-                          {(kw / 1000).toFixed(1)}MW
+                        <td key={wp} className="py-2 px-2 text-center">
+                          <button
+                            type="button"
+                            className="rounded px-2 py-1 font-medium text-foreground hover:bg-muted"
+                            onClick={() => setSelectedSizeCell({
+                              sizeLabel: row.label,
+                              specWp: wp,
+                              items: [...(cell?.items || [])].sort((a, b) => b.kw - a.kw),
+                            })}
+                          >
+                            {(kw / 1000).toFixed(1)}MW
+                          </button>
                         </td>
                       );
                     })}
@@ -195,9 +224,36 @@ export default function ManufacturerMatrix({ inventory, matrix, manufacturers = 
           )}
         </div>
         {mode === 'moduleSize' && (
-          <p className="text-[11px] text-muted-foreground mt-3">
-            ※ 모듈크기가 같으면 공사에서 호환 가능한 제품군입니다.
-          </p>
+          <div className="mt-3 space-y-3">
+            <p className="text-[11px] text-muted-foreground">
+              ※ 모듈크기가 같으면 공사에서 호환 가능한 제품군입니다. MW 셀을 누르면 제조사 구성을 확인할 수 있습니다.
+            </p>
+            {selectedSizeCell && (
+              <div className="rounded-md border bg-muted/20 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold">
+                    {selectedSizeCell.sizeLabel} · {selectedSizeCell.specWp}W 제조사 구성
+                  </p>
+                  <button
+                    type="button"
+                    className="text-[11px] text-muted-foreground hover:text-foreground"
+                    onClick={() => setSelectedSizeCell(null)}
+                  >
+                    접기
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                  {selectedSizeCell.items.map((item) => (
+                    <div key={item.key} className="rounded border bg-background px-3 py-2 text-xs">
+                      <div className="font-semibold">{item.manufacturerName}</div>
+                      <div className="mt-0.5 truncate text-muted-foreground">{item.productLabel}</div>
+                      <div className="mt-1 font-medium">{(item.kw / 1000).toFixed(1)}MW</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -85,3 +85,37 @@ export interface SummaryMonth {
   total_closing_kw: number;
   total_available_kw: number;
 }
+
+// 운영 forecast: 수주/출고 전 단계의 자체 공사 예정 모듈 수요
+export interface ModuleDemandForecast {
+  forecast_id: string;
+  company_id: string;
+  site_id?: string;
+  site_name: string;
+  demand_month: string;
+  demand_type: 'construction' | 'distribution_adjustment' | 'other';
+  manufacturer_id?: string;
+  spec_wp: number;
+  module_width_mm: number;
+  module_height_mm: number;
+  required_kw: number;
+  status: 'planned' | 'confirmed' | 'done' | 'cancelled';
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModuleDemandForecastPayload {
+  company_id: string;
+  site_id?: string;
+  site_name: string;
+  demand_month: string;
+  demand_type: 'construction' | 'distribution_adjustment' | 'other';
+  manufacturer_id?: string;
+  spec_wp: number;
+  module_width_mm: number;
+  module_height_mm: number;
+  required_kw: number;
+  status: 'planned' | 'confirmed' | 'done' | 'cancelled';
+  notes?: string;
+}

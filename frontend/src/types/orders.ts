@@ -63,15 +63,19 @@ export interface ReceiptMatch {
 
 export interface OutstandingItem {
   outbound_id: string;
-  outbound_date: string;
+  outbound_date?: string;
   customer_name?: string;
   site_name?: string;
   product_name?: string;
   spec_wp?: number;
   quantity?: number;
   total_amount: number;
+  collected_amount?: number;
   matched_amount: number;
   outstanding_amount: number;
+  days_elapsed?: number;
+  tax_invoice_date?: string;
+  status?: string;
 }
 
 export interface MatchSuggestion {

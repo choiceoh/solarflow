@@ -3,6 +3,21 @@ import { fetchWithAuth } from '@/lib/api';
 import { useAppStore } from '@/stores/appStore';
 import type { OutstandingItem, MatchSuggestion, ReceiptMatch } from '@/types/orders';
 
+interface OutstandingListResponse {
+  outstanding_items: (Omit<OutstandingItem, 'matched_amount'> & { collected_amount: number })[];
+}
+
+interface ReceiptMatchSuggestResponse {
+  receipt_amount: number;
+  suggestions: {
+    match_type: 'exact' | 'closest' | 'single';
+    items: { outbound_id: string; match_amount: number }[];
+    total_matched: number;
+    remainder: number;
+  }[];
+  unmatched_amount: number;
+}
+
 export function useOutstandingList() {
   const [data, setData] = useState<OutstandingItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -12,11 +27,14 @@ export function useOutstandingList() {
     if (!selectedCompanyId || !customerId) { setData([]); return; }
     setLoading(true);
     try {
-      const result = await fetchWithAuth<OutstandingItem[]>('/api/v1/calc/outstanding-list', {
+      const result = await fetchWithAuth<OutstandingListResponse>('/api/v1/calc/outstanding-list', {
         method: 'POST',
         body: JSON.stringify({ company_id: selectedCompanyId, customer_id: customerId }),
       });
-      setData(result);
+      setData((result.outstanding_items ?? []).map((item) => ({
+        ...item,
+        matched_amount: item.collected_amount ?? 0,
+      })));
     } catch { setData([]); }
     setLoading(false);
   }, [selectedCompanyId]);
@@ -33,11 +51,17 @@ export function useMatchSuggest() {
     if (!selectedCompanyId) return;
     setLoading(true);
     try {
-      const result = await fetchWithAuth<MatchSuggestion>('/api/v1/calc/receipt-match-suggest', {
+      const result = await fetchWithAuth<ReceiptMatchSuggestResponse>('/api/v1/calc/receipt-match-suggest', {
         method: 'POST',
         body: JSON.stringify({ company_id: selectedCompanyId, customer_id: customerId, receipt_amount: receiptAmount }),
       });
-      setSuggestion(result);
+      const best = result.suggestions?.[0];
+      setSuggestion(best ? {
+        match_type: best.match_type,
+        suggestions: best.items.map((item) => ({ outbound_id: item.outbound_id, amount: item.match_amount })),
+        total_suggested: best.total_matched,
+        difference: best.remainder,
+      } : null);
     } catch { setSuggestion(null); }
     setLoading(false);
   }, [selectedCompanyId]);

@@ -35,6 +35,7 @@ import InventoryTable from '@/components/inventory/InventoryTable';
 import AvailInventoryTable from '@/components/inventory/AvailInventoryTable';
 import IncomingTable from '@/components/inventory/IncomingTable';
 import ForecastTable from '@/components/inventory/ForecastTable';
+import ModuleDemandForecastPanel from '@/components/inventory/ModuleDemandForecastPanel';
 import type { Manufacturer } from '@/types/masters';
 import type { InventorySummary, ProductForecast } from '@/types/inventory';
 
@@ -700,6 +701,11 @@ export default function InventoryPage() {
           )}
           {fcLoading ? <LoadingSpinner /> : fcData && (
             <div className="space-y-3">
+              <ModuleDemandForecastPanel
+                companyId={selectedCompanyId}
+                inventoryItems={rawInv?.items ?? []}
+                manufacturers={manufacturers}
+              />
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-background p-2">
                 <div className="inline-flex rounded-full border bg-muted/40 p-1 shadow-sm">
                   <Button

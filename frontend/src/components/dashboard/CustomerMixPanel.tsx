@@ -43,6 +43,15 @@ interface CustomerShareRow {
   topProducts: ProductShare[];
 }
 
+interface ManufacturerShareRow {
+  key: string;
+  name: string;
+  revenue: number;
+  margin: number;
+  marginRate: number;
+  revenuePct: number;
+}
+
 function productLabel(
   productId: string | undefined,
   products: Product[],
@@ -97,6 +106,42 @@ function buildTopProducts(
     .slice(0, 2);
 }
 
+function buildManufacturerRows(
+  sales: SaleListItem[],
+  products: Product[],
+  manufacturers: Manufacturer[],
+  totalRevenue: number,
+  totalMargin: number,
+): ManufacturerShareRow[] {
+  const overallMarginRate = totalRevenue > 0 ? totalMargin / totalRevenue : 0;
+  const map = new Map<string, { name: string; revenue: number }>();
+  for (const sale of sales) {
+    const revenue = sale.sale?.supply_amount ?? sale.supply_amount ?? 0;
+    if (revenue <= 0) continue;
+    const product = sale.product_id ? products.find((p) => p.product_id === sale.product_id) : undefined;
+    const manufacturer = product
+      ? manufacturers.find((m) => m.manufacturer_id === product.manufacturer_id)
+      : undefined;
+    const name = manufacturer?.short_name || manufacturer?.name_kr || product?.manufacturer_name || '제조사 미지정';
+    const prev = map.get(name) || { name, revenue: 0 };
+    prev.revenue += revenue;
+    map.set(name, prev);
+  }
+  return Array.from(map.entries())
+    .map(([key, row]) => {
+      const margin = row.revenue * overallMarginRate;
+      return {
+        key,
+        name: row.name,
+        revenue: row.revenue,
+        margin,
+        marginRate: overallMarginRate * 100,
+        revenuePct: totalRevenue > 0 ? row.revenue / totalRevenue * 100 : 0,
+      };
+    })
+    .sort((a, b) => b.revenue - a.revenue);
+}
+
 function mw(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '0MW';
   return `${(value / 1000).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}MW`;
@@ -148,6 +193,8 @@ export default function CustomerMixPanel({
     .sort((a, b) => b.revenue - a.revenue);
 
   const visibleRows = showDetail ? rows.slice(0, 6) : rows.slice(0, 3);
+  const manufacturerRows = buildManufacturerRows(sales, products, manufacturers, totalRevenue, totalMargin);
+  const overallMarginRate = totalRevenue > 0 ? totalMargin / totalRevenue * 100 : 0;
 
   return (
     <Card>
@@ -215,6 +262,57 @@ export default function CustomerMixPanel({
                 )}
               </div>
             ))}
+            {manufacturerRows.slice(0, 2).map((row) => (
+              <div key={`mfg-${row.key}`} className="rounded-md border p-3">
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold">제조사 · {row.name}</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">매출 {row.revenuePct.toFixed(1)}%</p>
+                  </div>
+                  <div className="shrink-0 text-right text-xs">
+                    <p className="font-semibold">{formatKRW(row.revenue)}</p>
+                    {showMargin && <p className="text-muted-foreground">이익률 {row.marginRate.toFixed(1)}%</p>}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <CircleDollarSign className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="w-12 text-muted-foreground">매출</span>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div className="h-full rounded-full bg-foreground/70" style={{ width: `${Math.min(row.revenuePct, 100)}%` }} />
+                    </div>
+                    <span className="w-12 text-right tabular-nums">{row.revenuePct.toFixed(1)}%</span>
+                  </div>
+                  {showMargin && (
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="w-[14px]" />
+                      <span className="w-12 text-muted-foreground">이익</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        <div className="h-full rounded-full bg-emerald-600/75" style={{ width: `${Math.min(row.marginRate, 100)}%` }} />
+                      </div>
+                      <span className="w-12 text-right tabular-nums">{row.marginRate.toFixed(1)}%</span>
+                    </div>
+                  )}
+                </div>
+                {showMargin && (
+                  <div className="mt-2 flex justify-between border-t pt-2 text-[11px] text-muted-foreground">
+                    <span>추정 이익 {formatKRW(Math.round(row.margin))}</span>
+                    <span>전체 이익률 적용</span>
+                  </div>
+                )}
+              </div>
+            ))}
+            {showMargin && (
+              <div className="rounded-md border p-3">
+                <p className="text-sm font-semibold">전체 이익률</p>
+                <p className="mt-1 text-xs text-muted-foreground">매출 대비 이익 기준입니다.</p>
+                <div className="mt-4 text-2xl font-semibold tabular-nums">{overallMarginRate.toFixed(1)}%</div>
+                <div className="mt-2 flex justify-between border-t pt-2 text-[11px] text-muted-foreground">
+                  <span>총 이익</span>
+                  <span>{formatKRW(Math.round(totalMargin))}</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {!showDetail && rows.length > visibleRows.length && (

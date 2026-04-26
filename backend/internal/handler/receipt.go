@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	supa "github.com/supabase-community/supabase-go"
@@ -33,6 +34,9 @@ func (h *ReceiptHandler) List(w http.ResponseWriter, r *http.Request) {
 	if custID := r.URL.Query().Get("customer_id"); custID != "" {
 		query = query.Eq("customer_id", custID)
 	}
+	if month := r.URL.Query().Get("month"); month != "" {
+		query = query.Gte("receipt_date", month+"-01").Lt("receipt_date", nextMonthString(month))
+	}
 
 	data, _, err := query.Execute()
 	if err != nil {
@@ -48,6 +52,7 @@ func (h *ReceiptHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.enrichReceipts(receipts)
 	response.RespondJSON(w, http.StatusOK, receipts)
 }
 
@@ -78,7 +83,61 @@ func (h *ReceiptHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.enrichReceipts(receipts)
 	response.RespondJSON(w, http.StatusOK, receipts[0])
+}
+
+type receiptPartnerRow struct {
+	PartnerID   string `json:"partner_id"`
+	PartnerName string `json:"partner_name"`
+}
+
+type receiptMatchSumRow struct {
+	ReceiptID     string  `json:"receipt_id"`
+	MatchedAmount float64 `json:"matched_amount"`
+}
+
+func (h *ReceiptHandler) enrichReceipts(receipts []model.Receipt) {
+	if len(receipts) == 0 {
+		return
+	}
+
+	var partners []receiptPartnerRow
+	if data, _, err := h.DB.From("partners").Select("partner_id, partner_name", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &partners)
+	}
+	partnerMap := make(map[string]string, len(partners))
+	for _, p := range partners {
+		partnerMap[p.PartnerID] = p.PartnerName
+	}
+
+	var matches []receiptMatchSumRow
+	if data, _, err := h.DB.From("receipt_matches").Select("receipt_id, matched_amount", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &matches)
+	}
+	matchMap := make(map[string]float64, len(matches))
+	for _, m := range matches {
+		matchMap[m.ReceiptID] += m.MatchedAmount
+	}
+
+	for i := range receipts {
+		if name, ok := partnerMap[receipts[i].CustomerID]; ok {
+			receipts[i].CustomerName = &name
+		}
+		receipts[i].MatchedTotal = matchMap[receipts[i].ReceiptID]
+		receipts[i].Remaining = receipts[i].Amount - receipts[i].MatchedTotal
+		if receipts[i].Remaining < 0 {
+			receipts[i].Remaining = 0
+		}
+	}
+}
+
+func nextMonthString(month string) string {
+	parsed, err := time.Parse("2006-01", month)
+	if err != nil {
+		return month
+	}
+	return parsed.AddDate(0, 1, 0).Format("2006-01-02")
 }
 
 // Create — POST /api/v1/receipts — 수금 등록

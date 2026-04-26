@@ -3,22 +3,25 @@ package model
 // Receipt — 수금 정보를 담는 구조체
 // 비유: "수금 전표" — 고객이 언제, 얼마를 입금했는지 기록
 type Receipt struct {
-	ReceiptID   string   `json:"receipt_id"`
-	CustomerID  string   `json:"customer_id"`
-	ReceiptDate string   `json:"receipt_date"`
-	Amount      float64  `json:"amount"`
-	BankAccount *string  `json:"bank_account"`
-	Memo        *string  `json:"memo"`
+	ReceiptID    string  `json:"receipt_id"`
+	CustomerID   string  `json:"customer_id"`
+	CustomerName *string `json:"customer_name,omitempty"`
+	ReceiptDate  string  `json:"receipt_date"`
+	Amount       float64 `json:"amount"`
+	BankAccount  *string `json:"bank_account"`
+	Memo         *string `json:"memo"`
+	MatchedTotal float64 `json:"matched_total,omitempty"`
+	Remaining    float64 `json:"remaining,omitempty"`
 }
 
 // CreateReceiptRequest — 수금 등록 시 클라이언트가 보내는 데이터
 // 비유: "수금 등록 신청서" — 고객, 입금일, 금액을 필수 기재
 type CreateReceiptRequest struct {
-	CustomerID  string   `json:"customer_id"`
-	ReceiptDate string   `json:"receipt_date"`
-	Amount      float64  `json:"amount"`
-	BankAccount *string  `json:"bank_account"`
-	Memo        *string  `json:"memo"`
+	CustomerID  string  `json:"customer_id"`
+	ReceiptDate string  `json:"receipt_date"`
+	Amount      float64 `json:"amount"`
+	BankAccount *string `json:"bank_account"`
+	Memo        *string `json:"memo"`
 }
 
 // Validate — 수금 등록 요청의 입력값을 검증

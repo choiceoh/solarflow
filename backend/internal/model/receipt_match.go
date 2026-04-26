@@ -8,6 +8,9 @@ type ReceiptMatch struct {
 	OutboundID    *string `json:"outbound_id,omitempty"`
 	SaleID        *string `json:"sale_id,omitempty"`
 	MatchedAmount float64 `json:"matched_amount"`
+	OutboundDate  *string `json:"outbound_date,omitempty"`
+	SiteName      *string `json:"site_name,omitempty"`
+	ProductName   *string `json:"product_name,omitempty"`
 }
 
 // CreateReceiptMatchRequest — 수금 매칭 등록 시 클라이언트가 보내는 데이터

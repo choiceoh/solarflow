@@ -206,6 +206,15 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Delete("/{id}", siteH.Delete)
 		})
 
+		// 운영 forecast — 자체 공사/보정 수요 계획
+		demandH := handler.NewModuleDemandForecastHandler(db)
+		r.Route("/module-demand-forecasts", func(r chi.Router) {
+			r.Get("/", demandH.List)
+			r.Post("/", demandH.Create)
+			r.Put("/{id}", demandH.Update)
+			r.Delete("/{id}", demandH.Delete)
+		})
+
 		// 가용재고 배정 (판매예정/공사예정)
 		allocH := handler.NewInventoryAllocationHandler(db)
 		r.Route("/inventory/allocations", func(r chi.Router) {

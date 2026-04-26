@@ -50,7 +50,59 @@ func (h *ReceiptMatchHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.enrichReceiptMatches(matches)
 	response.RespondJSON(w, http.StatusOK, matches)
+}
+
+type receiptMatchOutboundRow struct {
+	OutboundID   string  `json:"outbound_id"`
+	OutboundDate string  `json:"outbound_date"`
+	SiteName     *string `json:"site_name"`
+	ProductID    string  `json:"product_id"`
+}
+
+type receiptMatchProductRow struct {
+	ProductID   string `json:"product_id"`
+	ProductName string `json:"product_name"`
+}
+
+func (h *ReceiptMatchHandler) enrichReceiptMatches(matches []model.ReceiptMatch) {
+	if len(matches) == 0 {
+		return
+	}
+
+	var outbounds []receiptMatchOutboundRow
+	if data, _, err := h.DB.From("outbounds").Select("outbound_id, outbound_date, site_name, product_id", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &outbounds)
+	}
+	var products []receiptMatchProductRow
+	if data, _, err := h.DB.From("products").Select("product_id, product_name", "exact", false).Execute(); err == nil {
+		_ = json.Unmarshal(data, &products)
+	}
+
+	productMap := make(map[string]string, len(products))
+	for _, p := range products {
+		productMap[p.ProductID] = p.ProductName
+	}
+	outboundMap := make(map[string]receiptMatchOutboundRow, len(outbounds))
+	for _, outbound := range outbounds {
+		outboundMap[outbound.OutboundID] = outbound
+	}
+
+	for i := range matches {
+		if matches[i].OutboundID == nil {
+			continue
+		}
+		outbound, ok := outboundMap[*matches[i].OutboundID]
+		if !ok {
+			continue
+		}
+		matches[i].OutboundDate = &outbound.OutboundDate
+		matches[i].SiteName = outbound.SiteName
+		if name, ok := productMap[outbound.ProductID]; ok {
+			matches[i].ProductName = &name
+		}
+	}
 }
 
 // Create — POST /api/v1/receipt-matches — 수금 매칭 등록
