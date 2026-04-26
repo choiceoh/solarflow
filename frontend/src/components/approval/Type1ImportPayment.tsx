@@ -1,13 +1,16 @@
 // 유형 1: 수입 모듈대금 — LC 선택 → 자동 조회 → 텍스트 생성
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { useType1 } from '@/hooks/useApproval';
 import { useLCList, usePOList } from '@/hooks/useProcurement';
 import { generateType1 } from '@/lib/approvalTemplates';
+import { manufacturerRankByName } from '@/lib/manufacturerPriority';
 import { formatUSD, moduleLabel } from '@/lib/utils';
 
 interface Props { onGenerate: (text: string) => void }
+
+const lcOptionCollator = new Intl.Collator('ko-KR', { numeric: true, sensitivity: 'base' });
 
 export default function Type1ImportPayment({ onGenerate }: Props) {
   const [lcId, setLcId] = useState('');
@@ -18,6 +21,24 @@ export default function Type1ImportPayment({ onGenerate }: Props) {
   useEffect(() => {
     if (data) onGenerate(generateType1(data));
   }, [data, onGenerate]);
+
+  const sortedLcs = useMemo(() => {
+    const poById = new Map(pos.map((po) => [po.po_id, po]));
+
+    return [...lcs].sort((a, b) => {
+      const poA = poById.get(a.po_id);
+      const poB = poById.get(b.po_id);
+      const rankDiff =
+        manufacturerRankByName(poA?.manufacturer_name ?? '', []) -
+        manufacturerRankByName(poB?.manufacturer_name ?? '', []);
+      if (rankDiff !== 0) return rankDiff;
+
+      const specDiff = (poA?.first_spec_wp ?? 0) - (poB?.first_spec_wp ?? 0);
+      if (specDiff !== 0) return specDiff;
+
+      return lcOptionCollator.compare(a.lc_number ?? a.lc_id, b.lc_number ?? b.lc_id);
+    });
+  }, [lcs, pos]);
 
   return (
     <div className="space-y-4">
@@ -30,7 +51,7 @@ export default function Type1ImportPayment({ onGenerate }: Props) {
           disabled={lcsLoading}
         >
           <option value="">LC 선택...</option>
-          {lcs.map((lc) => {
+          {sortedLcs.map((lc) => {
             const po = pos.find((item) => item.po_id === lc.po_id);
             const modulePart = moduleLabel(po?.manufacturer_name, po?.first_spec_wp);
             return (
