@@ -25,10 +25,11 @@ import SaleSummaryCards from '@/components/outbound/SaleSummaryCards';
 import type { InventoryAllocation } from '@/components/inventory/AllocationForm';
 import {
   ORDER_STATUS_LABEL, MANAGEMENT_CATEGORY_LABEL,
-  type Order, type OrderStatus, type ManagementCategory, type Receipt,
+  type FulfillmentSource, type Order, type OrderStatus, type ManagementCategory, type Receipt,
 } from '@/types/orders';
 import { OUTBOUND_STATUS_LABEL, USAGE_CATEGORY_LABEL, type OutboundStatus, type UsageCategory } from '@/types/outbound';
 import type { Partner, Manufacturer } from '@/types/masters';
+import type { InventoryResponse } from '@/types/inventory';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 
 function FT({ text }: { text: string }) {
@@ -170,6 +171,7 @@ export default function OrdersPage() {
   const [deletingOrder, setDeletingOrder] = useState<Order | null>(null);
   const [orderActionLoading, setOrderActionLoading] = useState(false);
   const [orderActionError, setOrderActionError] = useState('');
+  const [orderSourceHints, setOrderSourceHints] = useState<Record<string, FulfillmentSource>>({});
 
   // 마스터 데이터
   const [partners, setPartners] = useState<Partner[]>([]);
@@ -186,6 +188,63 @@ export default function OrdersPage() {
 
   const { data: orders, loading: ordersLoading, reload: reloadOrders } = useOrderList(orderFilters);
   const { data: receipts, loading: receiptsLoading, reload: reloadReceipts } = useReceiptList(receiptFilters);
+
+  useEffect(() => {
+    const incomingOrders = orders.filter((order) =>
+      order.fulfillment_source === 'incoming' &&
+      order.status !== 'cancelled' &&
+      order.company_id &&
+      order.product_id
+    );
+    if (incomingOrders.length === 0) {
+      setOrderSourceHints({});
+      return;
+    }
+
+    let cancelled = false;
+    const loadHints = async () => {
+      const companyIds = [...new Set(incomingOrders.map((order) => order.company_id))];
+      const inventoryEntries = await Promise.all(
+        companyIds.map((companyId) =>
+          fetchWithAuth<InventoryResponse>('/api/v1/calc/inventory', {
+            method: 'POST',
+            body: JSON.stringify({ company_id: companyId }),
+          })
+            .then((result): [string, InventoryResponse] | null => [companyId, result])
+            .catch(() => null),
+        ),
+      );
+      if (cancelled) return;
+
+      const inventoryByCompany = new Map(
+        inventoryEntries.filter(Boolean) as [string, InventoryResponse][]
+      );
+      const groupedOrders = new Map<string, Order[]>();
+      for (const order of incomingOrders) {
+        const key = `${order.company_id}:${order.product_id}`;
+        groupedOrders.set(key, [...(groupedOrders.get(key) ?? []), order]);
+      }
+
+      const next: Record<string, FulfillmentSource> = {};
+      for (const group of groupedOrders.values()) {
+        const first = group[0];
+        const inventory = inventoryByCompany.get(first.company_id);
+        const item = inventory?.items.find((it) => it.product_id === first.product_id);
+        let remainingStockKw = item?.available_kw ?? 0;
+        for (const order of [...group].sort((a, b) => a.order_date.localeCompare(b.order_date))) {
+          const needKw = order.capacity_kw ?? (order.quantity * (order.wattage_kw ?? 0));
+          if (needKw > 0 && remainingStockKw + 0.001 >= needKw) {
+            next[order.order_id] = 'stock';
+            remainingStockKw -= needKw;
+          }
+        }
+      }
+      setOrderSourceHints(next);
+    };
+
+    void loadHints();
+    return () => { cancelled = true; };
+  }, [orders]);
 
   useEffect(() => {
     fetchWithAuth<Partner[]>('/api/v1/partners')
@@ -379,6 +438,7 @@ export default function OrdersPage() {
     setOrderActionLoading(true);
     setOrderActionError('');
     try {
+      const restoredSource = orderSourceHints[order.order_id] ?? order.fulfillment_source;
       const linkedAllocs = await fetchWithAuth<InventoryAllocation[]>(
         `/api/v1/inventory/allocations?company_id=${order.company_id}&product_id=${order.product_id}`
       ).then((list) => list.filter((alloc) => alloc.order_id === order.order_id));
@@ -394,7 +454,7 @@ export default function OrdersPage() {
             method: 'PUT',
             body: JSON.stringify({
               status: 'pending',
-              source_type: order.fulfillment_source === 'incoming' ? 'incoming' : 'stock',
+              source_type: restoredSource === 'incoming' ? 'incoming' : 'stock',
             }),
           })
         ));
@@ -407,7 +467,7 @@ export default function OrdersPage() {
             quantity: order.remaining_qty ?? order.quantity,
             capacity_kw: order.capacity_kw,
             purpose: purposeFromOrder(order),
-            source_type: order.fulfillment_source === 'incoming' ? 'incoming' : 'stock',
+            source_type: restoredSource === 'incoming' ? 'incoming' : 'stock',
             customer_name: order.customer_name,
             site_name: order.site_name,
             site_id: order.site_id,
@@ -526,9 +586,13 @@ export default function OrdersPage() {
               items={orders}
               onSelect={(o) => setSelectedOrder(o.order_id)}
               onNew={() => setOrderFormOpen(true)}
-              onEdit={(o) => { setOrderActionError(''); setEditingOrder(o); }}
+              onEdit={(o) => {
+                setOrderActionError('');
+                setEditingOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
+              }}
               onDelete={(o) => { setOrderActionError(''); setDeletingOrder(o); }}
               onCancelToReservation={handleCancelOrderToReservation}
+              sourceOverrides={orderSourceHints}
             />
           )}
           {orderActionError && (

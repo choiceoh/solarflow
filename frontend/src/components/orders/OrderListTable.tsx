@@ -5,7 +5,7 @@ import { cn, moduleLabel } from '@/lib/utils';
 import { formatDate, formatNumber, formatKw } from '@/lib/utils';
 import {
   ORDER_STATUS_LABEL, ORDER_STATUS_COLOR, MANAGEMENT_CATEGORY_LABEL,
-  type Order, type OrderStatus,
+  type FulfillmentSource, type Order, type OrderStatus,
 } from '@/types/orders';
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
   onEdit?: (item: Order) => void;
   onDelete?: (item: Order) => void;
   onCancelToReservation?: (item: Order) => void;
+  sourceOverrides?: Record<string, FulfillmentSource>;
 }
 
 function StatusBadge({ status }: { status: OrderStatus }) {
@@ -25,7 +26,7 @@ function StatusBadge({ status }: { status: OrderStatus }) {
   );
 }
 
-export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelete, onCancelToReservation }: Props) {
+export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelete, onCancelToReservation, sourceOverrides = {} }: Props) {
   if (items.length === 0) return <EmptyState message="등록된 수주가 없습니다" actionLabel="새로 등록" onAction={onNew} />;
 
   return (
@@ -45,6 +46,7 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
           {items.map((o) => {
             const remaining = o.remaining_qty ?? (o.quantity - (o.shipped_qty ?? 0));
             const canReturnReservation = (o.shipped_qty ?? 0) <= 0 && o.status !== 'cancelled';
+            const displaySource = sourceOverrides[o.order_id] ?? o.fulfillment_source;
             const moduleText = o.manufacturer_name || o.spec_wp
               ? moduleLabel(o.manufacturer_name, o.spec_wp)
               : undefined;
@@ -52,11 +54,11 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
               <tr key={o.order_id} className="border-t hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => onSelect(o)}>
                 {/* 수주 정보 */}
                 <td className="p-3 align-top">
+                  {o.company_name && (
+                    <div className="text-[10px] font-medium text-slate-700">{o.company_name}</div>
+                  )}
                   <div className="font-mono font-semibold">{o.order_number || '—'}</div>
                   <div className="font-medium mt-0.5">{o.customer_name ?? '—'}</div>
-                  {o.company_name && (
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{o.company_name}</div>
-                  )}
                   <div className="text-[10px] text-muted-foreground mt-0.5">{formatDate(o.order_date)}</div>
                 </td>
 
@@ -68,7 +70,7 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
                     {o.capacity_kw ? ` · ${formatKw(o.capacity_kw)}` : ''}
                   </div>
                   <div className="mt-1">
-                    <FulfillmentSourceBadge source={o.fulfillment_source} />
+                    <FulfillmentSourceBadge source={displaySource} />
                   </div>
                 </td>
 
@@ -130,11 +132,11 @@ export default function OrderListTable({ items, onSelect, onNew, onEdit, onDelet
                         type="button"
                         title={canReturnReservation ? '예약으로 복귀' : '출고된 수주는 예약으로 복귀할 수 없습니다'}
                         disabled={!canReturnReservation}
-                        className="inline-flex h-7 items-center gap-1 rounded border px-2 text-[11px] text-sky-700 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex h-7 items-center gap-1 rounded border px-2 text-[11px] text-sky-700 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-40 whitespace-nowrap"
                         onClick={() => onCancelToReservation(o)}
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
-                        예약복귀
+                        복귀
                       </button>
                     )}
                     {onDelete && (

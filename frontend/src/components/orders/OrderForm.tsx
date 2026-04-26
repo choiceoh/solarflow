@@ -254,13 +254,29 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
       body: JSON.stringify({ company_id: effectiveCompanyId }),
     }).then((result) => {
       const item = selectedProductId ? result.items.find((it) => it.product_id === selectedProductId) : undefined;
-      if (fulfillmentSource === 'stock') {
-        setInventoryInfo(`실재고 가용: ${(item?.available_kw ?? result.summary.total_available_kw ?? 0).toFixed(1)} kW`);
-      } else {
-        setInventoryInfo(`가용 미착품: ${(item?.available_incoming_kw ?? 0).toFixed(1)} kW`);
-      }
+      const stockKw = item?.available_kw ?? result.summary.total_available_kw ?? 0;
+      const incomingKw = item?.available_incoming_kw ?? 0;
+      setInventoryInfo(`가용 실재고 ${formatKwField(stockKw)} kW · 가용 미착품 ${formatKwField(incomingKw)} kW`);
     }).catch(() => setInventoryInfo(null));
   }, [fulfillmentSource, effectiveCompanyId, selectedProductId]);
+
+  // 예약/기존 수주가 미착품으로 들어왔어도 현재 실재고가 충분하면 실재고를 우선합니다.
+  useEffect(() => {
+    if (!open || !effectiveCompanyId || !selectedProductId || fulfillmentSource !== 'incoming' || capacityKw <= 0) return;
+    let cancelled = false;
+    fetchWithAuth<InventoryResponse>('/api/v1/calc/inventory', {
+      method: 'POST',
+      body: JSON.stringify({ company_id: effectiveCompanyId }),
+    }).then((result) => {
+      if (cancelled) return;
+      const item = result.items.find((it) => it.product_id === selectedProductId);
+      const stockKw = item?.available_kw ?? 0;
+      if (stockKw + 0.001 >= capacityKw) {
+        setValue('fulfillment_source', 'stock', { shouldDirty: true });
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, effectiveCompanyId, selectedProductId, fulfillmentSource, capacityKw, setValue]);
 
   useEffect(() => {
     if (open) {
