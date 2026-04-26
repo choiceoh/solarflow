@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import SearchableSelect, { type SearchableSelectOption } from '@/components/common/SearchableSelect';
 import { useType1 } from '@/hooks/useApproval';
 import { useLCList, usePOList } from '@/hooks/useProcurement';
 import { generateType1 } from '@/lib/approvalTemplates';
@@ -22,7 +23,7 @@ export default function Type1ImportPayment({ onGenerate }: Props) {
     if (data) onGenerate(generateType1(data));
   }, [data, onGenerate]);
 
-  const sortedLcs = useMemo(() => {
+  const lcOptions = useMemo<SearchableSelectOption[]>(() => {
     const poById = new Map(pos.map((po) => [po.po_id, po]));
 
     return [...lcs].sort((a, b) => {
@@ -37,6 +38,15 @@ export default function Type1ImportPayment({ onGenerate }: Props) {
       if (specDiff !== 0) return specDiff;
 
       return lcOptionCollator.compare(a.lc_number ?? a.lc_id, b.lc_number ?? b.lc_id);
+    }).map((lc) => {
+      const po = poById.get(lc.po_id);
+      const modulePart = moduleLabel(po?.manufacturer_name, po?.first_spec_wp);
+      const number = lc.lc_number ?? lc.lc_id.slice(0, 8);
+      return {
+        value: lc.lc_id,
+        label: `${modulePart} · ${number} — ${lc.bank_name ?? '은행 미지정'} — ${formatUSD(lc.amount_usd)}`,
+        keywords: [po?.manufacturer_name, po?.first_spec_wp, number, lc.bank_name, lc.amount_usd].filter(Boolean).join(' '),
+      };
     });
   }, [lcs, pos]);
 
@@ -44,23 +54,15 @@ export default function Type1ImportPayment({ onGenerate }: Props) {
     <div className="space-y-4">
       <div>
         <Label>LC 선택</Label>
-        <select
-          className="w-full mt-1 border rounded px-3 py-2 text-sm"
+        <SearchableSelect
+          className="mt-1"
+          options={lcOptions}
           value={lcId}
-          onChange={(e) => setLcId(e.target.value)}
+          onChange={setLcId}
+          placeholder="LC 선택..."
+          searchPlaceholder="제조사, 규격, LC번호, 은행 검색"
           disabled={lcsLoading}
-        >
-          <option value="">LC 선택...</option>
-          {sortedLcs.map((lc) => {
-            const po = pos.find((item) => item.po_id === lc.po_id);
-            const modulePart = moduleLabel(po?.manufacturer_name, po?.first_spec_wp);
-            return (
-              <option key={lc.lc_id} value={lc.lc_id}>
-                {modulePart} · {lc.lc_number ?? lc.lc_id.slice(0, 8)} — {lc.bank_name} — {formatUSD(lc.amount_usd)}
-              </option>
-            );
-          })}
-        </select>
+        />
       </div>
       <Button onClick={() => generate(lcId)} disabled={!lcId || loading} size="sm">
         {loading ? '생성 중...' : '결재안 생성'}

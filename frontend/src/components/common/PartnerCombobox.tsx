@@ -165,6 +165,11 @@ export function PartnerCombobox({
         type="button"
         onClick={() => setOpen((o) => !o)}
         onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(true);
+          }
           if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             e.stopPropagation();

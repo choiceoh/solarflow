@@ -7,10 +7,12 @@ import { useAppStore } from '@/stores/appStore';
 import type { LCRecord, PurchaseOrder, POLineItem, TTRemittance } from '@/types/procurement';
 import type { Expense } from '@/types/customs';
 import type { Outbound, Sale } from '@/types/outbound';
+import type { Manufacturer } from '@/types/masters';
 import type {
   Type1Data, Type2Data, Type3Data, Type4Data, Type5Data, Type6Data,
 } from '@/types/approval';
 import { EXPENSE_APPROVAL_LABEL } from '@/types/approval';
+import { moduleLabel, shortMfgName } from '@/lib/utils';
 
 // 유형 1: 수입 모듈대금
 export function useType1() {
@@ -57,9 +59,9 @@ export function useType1() {
         bankName: lc.bank_name ?? '',
         lcNumber: lc.lc_number ?? '',
         poNumber: po.po_number ?? '',
-        manufacturerName: po.manufacturer_name ?? '',
+        manufacturerName: shortMfgName(po.manufacturer_name),
         lines: lines.map((l) => ({
-          productName: l.product_name ?? l.product_code ?? '',
+          productName: `${moduleLabel(po.manufacturer_name, l.spec_wp)} · ${l.product_name ?? l.product_code ?? ''}`,
           quantity: l.quantity,
           unitPriceUsd: l.unit_price_usd ?? 0,
           totalUsd: l.total_amount_usd ?? 0,
@@ -99,6 +101,13 @@ export function useType2() {
     try {
       const bl = await fetchWithAuth<any>(`/api/v1/bls/${blId}`);
       const expenses = await fetchWithAuth<Expense[]>(`/api/v1/expenses?bl_id=${blId}`);
+      let manufacturerName = bl.manufacturer_name ?? bl.manufacturers?.name_kr ?? '';
+      if (!manufacturerName && bl.manufacturer_id) {
+        try {
+          const mfg = await fetchWithAuth<Manufacturer>(`/api/v1/manufacturers/${bl.manufacturer_id}`);
+          manufacturerName = mfg.short_name?.trim() || mfg.name_kr;
+        } catch { /* 제조사명은 비워둠 */ }
+      }
 
       // CIF 비용 유형만 필터 (lc_fee, lc_acceptance, telegraph 제외)
       const cifTypes = ['dock_charge', 'shuttle', 'customs_fee', 'transport', 'storage', 'handling', 'surcharge'];
@@ -119,13 +128,17 @@ export function useType2() {
       // 라인아이템 요약
       const lineItems = bl.line_items ?? [];
       const productSummary = lineItems
-        .map((l: any) => `${l.products?.product_name ?? ''} ${l.quantity}장`)
+        .map((l: any) => {
+          const spec = l.products?.spec_wp ?? l.spec_wp;
+          const name = l.products?.product_name ?? l.product_name ?? l.product_code ?? '';
+          return `${moduleLabel(manufacturerName, spec)} · ${name} ${l.quantity}장`;
+        })
         .join(', ');
 
       setData({
         blId,
         blNumber: bl.bl_number ?? '',
-        manufacturerName: bl.manufacturers?.name_kr ?? '',
+        manufacturerName: shortMfgName(manufacturerName),
         contractInfo: bl.bl_number ?? '',
         productSummary,
         etd: bl.etd,
@@ -286,11 +299,11 @@ export function useType5() {
       setData({
         poId,
         poNumber: po.po_number ?? '',
-        manufacturerName: po.manufacturer_name ?? '',
+        manufacturerName: shortMfgName(po.manufacturer_name),
         contractType: po.contract_type,
         contractDate: po.contract_date,
         lines: lines.map((l) => ({
-          productName: l.product_name ?? l.product_code ?? '',
+          productName: `${moduleLabel(po.manufacturer_name, l.spec_wp)} · ${l.product_name ?? l.product_code ?? ''}`,
           quantity: l.quantity,
           unitPriceUsd: l.unit_price_usd ?? 0,
           totalUsd: l.total_amount_usd ?? 0,

@@ -1,12 +1,15 @@
 // 유형 5: 계약금 지출 — PO 선택 + 수동입력(계약금율/분납) → 텍스트 생성
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import SearchableSelect, { type SearchableSelectOption } from '@/components/common/SearchableSelect';
 import { useType5 } from '@/hooks/useApproval';
 import { usePOList } from '@/hooks/useProcurement';
 import { generateType5 } from '@/lib/approvalTemplates';
-import { shortMfgName } from '@/lib/utils';
+import { manufacturerRankByName } from '@/lib/manufacturerPriority';
+import { moduleLabel } from '@/lib/utils';
+import { PO_STATUS_LABEL } from '@/types/procurement';
 
 interface Props { onGenerate: (text: string) => void }
 
@@ -21,23 +24,39 @@ export default function Type5DepositPayment({ onGenerate }: Props) {
     if (data) onGenerate(generateType5(data));
   }, [data, onGenerate]);
 
+  const poOptions = useMemo<SearchableSelectOption[]>(() => (
+    [...pos].sort((a, b) => {
+      const rankDiff = manufacturerRankByName(a.manufacturer_name ?? '', []) - manufacturerRankByName(b.manufacturer_name ?? '', []);
+      if (rankDiff !== 0) return rankDiff;
+      const specDiff = (a.first_spec_wp ?? 0) - (b.first_spec_wp ?? 0);
+      if (specDiff !== 0) return specDiff;
+      return (a.po_number ?? a.po_id).localeCompare(b.po_number ?? b.po_id, 'ko', { numeric: true });
+    }).map((po) => {
+      const modulePart = moduleLabel(po.manufacturer_name, po.first_spec_wp);
+      const number = po.po_number ?? po.po_id.slice(0, 8);
+      const status = PO_STATUS_LABEL[po.status] ?? po.status;
+      const mw = po.total_mw != null ? `${po.total_mw.toFixed(2)}MW` : '';
+      return {
+        value: po.po_id,
+        label: `${modulePart} · ${number} — ${status}${mw ? ` — ${mw}` : ''}`,
+        keywords: [po.manufacturer_name, po.first_spec_wp, number, status, mw].filter(Boolean).join(' '),
+      };
+    })
+  ), [pos]);
+
   return (
     <div className="space-y-4">
       <div>
         <Label>PO 선택</Label>
-        <select
-          className="w-full mt-1 border rounded px-3 py-2 text-sm"
+        <SearchableSelect
+          className="mt-1"
+          options={poOptions}
           value={poId}
-          onChange={(e) => setPoId(e.target.value)}
+          onChange={setPoId}
+          placeholder="PO 선택..."
+          searchPlaceholder="제조사, 규격, PO번호 검색"
           disabled={posLoading}
-        >
-          <option value="">PO 선택...</option>
-          {pos.map((po) => (
-            <option key={po.po_id} value={po.po_id}>
-              {po.po_number ?? po.po_id.slice(0, 8)} — {shortMfgName(po.manufacturer_name)} — {po.status}
-            </option>
-          ))}
-        </select>
+        />
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>

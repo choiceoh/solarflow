@@ -1,22 +1,37 @@
 // 유형 4: 운송비 월정산 — 거래처+기간 → 운송비 조회 → 텍스트 생성
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { useType4 } from '@/hooks/useApproval';
 import { generateType4 } from '@/lib/approvalTemplates';
+import { fetchWithAuth } from '@/lib/api';
+import type { Partner } from '@/types/masters';
 
 interface Props { onGenerate: (text: string) => void }
 
 export default function Type4TransportMonthly({ onGenerate }: Props) {
-  const [vendor, setVendor] = useState('');
+  const [partners, setPartners] = useState<Partner[]>([]);
+  const [vendorId, setVendorId] = useState('');
   const [month, setMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
   const [manualDetails, setManualDetails] = useState('');
   const { data, loading, generate } = useType4();
+
+  useEffect(() => {
+    fetchWithAuth<Partner[]>('/api/v1/partners')
+      .then((list) => setPartners(list.filter((p) => p.is_active)))
+      .catch(() => setPartners([]));
+  }, []);
+
+  const vendor = useMemo(
+    () => partners.find((p) => p.partner_id === vendorId)?.partner_name ?? '',
+    [partners, vendorId],
+  );
 
   useEffect(() => {
     if (data) {
@@ -29,7 +44,14 @@ export default function Type4TransportMonthly({ onGenerate }: Props) {
     <div className="space-y-4">
       <div>
         <Label>거래처(운송사)</Label>
-        <Input value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="운송사명 입력" />
+        <div className="mt-1">
+          <PartnerCombobox
+            partners={partners}
+            value={vendorId}
+            onChange={setVendorId}
+            placeholder="운송사 검색..."
+          />
+        </div>
       </div>
       <div>
         <Label>정산 월</Label>
