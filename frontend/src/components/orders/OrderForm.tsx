@@ -12,15 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { PartnerCombobox } from '@/components/common/PartnerCombobox';
 import { ConstructionSiteCombobox } from '@/components/common/ConstructionSiteCombobox';
 import { Lock } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, moduleLabel } from '@/lib/utils';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import {
   RECEIPT_METHOD_LABEL, MANAGEMENT_CATEGORY_LABEL, FULFILLMENT_SOURCE_LABEL,
   type Order, type ReceiptMethod, type ManagementCategory, type FulfillmentSource,
 } from '@/types/orders';
-import type { Product, Partner, ConstructionSite } from '@/types/masters';
-import type { BLShipment } from '@/types/inbound';
+import type { Product, Partner, ConstructionSite, Manufacturer } from '@/types/masters';
+import type { BLShipment, BLLineItem } from '@/types/inbound';
 import type { InventoryResponse } from '@/types/inventory';
 import { statusLabel } from '@/types/inbound';
 
@@ -78,15 +78,25 @@ function fmtInt(v: number | string | undefined): string {
   return isNaN(n) ? '' : n.toLocaleString('ko-KR');
 }
 
+function formatUsdWp(v?: number): string {
+  return v != null ? `$${v.toFixed(4)}/Wp` : '—';
+}
+
+function formatKrwWp(v?: number): string {
+  return v != null ? `₩${v.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}/Wp` : '—';
+}
+
 export default function OrderForm({ open, onOpenChange, onSubmit, editData, prefillData }: Props) {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
   const [products, setProducts] = useState<Product[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [sites, setSites] = useState<ConstructionSite[]>([]);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
   const [inventoryInfo, setInventoryInfo] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState('');
   const [blId, setBlId] = useState('');
   const [bls, setBls] = useState<BLShipment[]>([]);
+  const [blCostMap, setBlCostMap] = useState<Map<string, { usdWp?: number; krwWp?: number }>>(new Map());
   // 천단위 표시용 display state
   const [qtyDisplay, setQtyDisplay] = useState('');
   const [spareQtyDisplay, setSpareQtyDisplay] = useState('');
@@ -101,12 +111,18 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
   const quantity = watch('quantity') || 0;
   const capacityKw = selectedProduct ? quantity * selectedProduct.wattage_kw : 0;
   const fulfillmentSource = watch('fulfillment_source');
+  const productMfg = (p?: Product | null) =>
+    p?.manufacturers ?? manufacturers.find((m) => m.manufacturer_id === p?.manufacturer_id) ?? p?.manufacturer_name;
+  const productModuleText = (p?: Product | null) => p ? moduleLabel(productMfg(p), p.spec_wp) : '—';
+  const productOptionText = (p?: Product | null) => p ? `${productModuleText(p)} | ${p.product_code} | ${p.product_name}` : '';
   // 가용재고 배정 → 수주 자동 입력 모드 (일부 필드 잠금 + amber 표시)
   const isPrefill = !!(prefillData && !editData);
 
   useEffect(() => {
     fetchWithAuth<Product[]>('/api/v1/products')
       .then((list) => setProducts(list.filter((p) => p.is_active))).catch(() => {});
+    fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers')
+      .then((list) => setManufacturers(list.filter((m) => m.is_active))).catch(() => {});
     fetchWithAuth<Partner[]>('/api/v1/partners')
       .then((list) => setPartners(list.filter((p) => p.is_active && (p.partner_type === 'customer' || p.partner_type === 'both'))))
       .catch(() => {});
@@ -123,6 +139,35 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
       .then((list) => setBls((list ?? []).filter((b) => ['completed', 'erp_done', 'arrived', 'customs'].includes(b.status))))
       .catch(() => setBls([]));
   }, [selectedProduct?.manufacturer_id]);
+
+  // B/L별 해당 품목의 원가 단가 조회 (수주에서 원가 추적 확인용)
+  useEffect(() => {
+    if (!selectedProductId || bls.length === 0) {
+      setBlCostMap(new Map());
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(
+      bls.map((bl) =>
+        fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${bl.bl_id}/lines`)
+          .then((lines): [string, { usdWp?: number; krwWp?: number }] => {
+            const line = lines.find((l) => l.product_id === selectedProductId);
+            const usdWp = line?.unit_price_usd_wp;
+            const krwWp = line?.unit_price_krw_wp ?? (
+              usdWp != null && bl.exchange_rate ? usdWp * bl.exchange_rate : undefined
+            );
+            return [bl.bl_id, { usdWp, krwWp }];
+          })
+          .catch((): [string, { usdWp?: number; krwWp?: number }] => [bl.bl_id, {}]),
+      ),
+    ).then((entries) => {
+      if (cancelled) return;
+      setBlCostMap(new Map(entries.filter(([, cost]) => cost.usdWp != null || cost.krwWp != null)));
+    });
+
+    return () => { cancelled = true; };
+  }, [bls, selectedProductId]);
 
   // 충당소스 변경 시 재고 정보 표시
   useEffect(() => {
@@ -366,17 +411,17 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
               <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/40 px-3 text-sm select-none">
                 <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
                 <span className="flex-1 truncate">
-                  {selectedProduct ? `${selectedProduct.product_code} — ${selectedProduct.product_name}` : '—'}
+                  {selectedProduct ? productOptionText(selectedProduct) : '—'}
                 </span>
                 <span className="text-[10px] text-muted-foreground/70 bg-slate-200/60 px-1.5 py-0.5 rounded shrink-0">배정고정</span>
               </div>
             ) : (
               <Select value={watch('product_id') ?? ''} onValueChange={(v) => setValue('product_id', v ?? '')}>
-                <SelectTrigger><Txt text={(() => { const p = products.find(p => p.product_id === watch('product_id')); return p ? `${p.product_code} — ${p.product_name}` : ''; })()} /></SelectTrigger>
+                <SelectTrigger><Txt text={(() => { const p = products.find(p => p.product_id === watch('product_id')); return productOptionText(p); })()} /></SelectTrigger>
                 <SelectContent>
                   {products.map((p) => (
                     <SelectItem key={p.product_id} value={p.product_id}>
-                      {p.product_code} — {p.product_name}
+                      {productOptionText(p)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -385,9 +430,9 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
             {errors.product_id && !isPrefill && <p className="text-xs text-destructive">{errors.product_id.message}</p>}
             {selectedProduct && (
               <div className="rounded-md border p-2 bg-muted/30 text-xs grid grid-cols-3 gap-2">
-                <div><div className="text-muted-foreground">제조사</div><div className="font-medium">{selectedProduct.manufacturer_name ?? '—'}</div></div>
-                <div><div className="text-muted-foreground">품명</div><div className="font-medium truncate">{selectedProduct.product_name}</div></div>
-                <div><div className="text-muted-foreground">규격</div><div className="font-medium">{selectedProduct.spec_wp}Wp</div></div>
+                <div><div className="text-muted-foreground">제조사/규격</div><div className="font-medium">{productModuleText(selectedProduct)}</div></div>
+                <div><div className="text-muted-foreground">품번</div><div className="font-medium truncate">{selectedProduct.product_code}</div></div>
+                <div><div className="text-muted-foreground">모델명</div><div className="font-medium truncate">{selectedProduct.product_name}</div></div>
               </div>
             )}
           </div>
@@ -407,8 +452,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
                       if (!bl) return blId.slice(0, 8);
                       const date = bl.actual_arrival?.slice(0, 10) ?? bl.eta?.slice(0, 10) ?? '—';
                       const stKo = statusLabel(bl.inbound_type, bl.status);
-                      const spec = selectedProduct?.spec_wp ? ` ${selectedProduct.spec_wp}W` : '';
-                      return `${bl.manufacturer_name ?? '—'}${spec} | ${bl.bl_number} | ${date} | ${stKo}`;
+                      return `${productModuleText(selectedProduct)} | ${bl.bl_number} | ${date} | ${stKo}`;
                     })() : 'B/L 선택 안함'}
                   </span>
                 </SelectTrigger>
@@ -418,11 +462,10 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
                     const date = b.actual_arrival?.slice(0, 10) ?? b.eta?.slice(0, 10) ?? '—';
                     const stKo = statusLabel(b.inbound_type, b.status);
                     const isCompleted = ['completed', 'erp_done'].includes(b.status);
-                    const spec = selectedProduct?.spec_wp ? ` ${selectedProduct.spec_wp}W` : '';
                     return (
                       <SelectItem key={b.bl_id} value={b.bl_id}>
                         <span className={`text-xs font-medium mr-1.5 ${isCompleted ? 'text-green-600' : 'text-blue-600'}`}>[{stKo}]</span>
-                        {b.manufacturer_name ?? '—'}{spec} | {b.bl_number} | {date}
+                        {productModuleText(selectedProduct)} | {b.bl_number} | {date}
                       </SelectItem>
                     );
                   })}
@@ -431,8 +474,11 @@ export default function OrderForm({ open, onOpenChange, onSubmit, editData, pref
               {blId && (() => {
                 const bl = bls.find(b => b.bl_id === blId);
                 if (!bl) return null;
+                const cost = blCostMap.get(bl.bl_id);
                 return (
-                  <div className="rounded border bg-blue-50 px-3 py-1.5 text-[10px] text-blue-700 flex gap-4">
+                  <div className="rounded border bg-blue-50 px-3 py-1.5 text-[10px] text-blue-700 flex flex-wrap gap-x-4 gap-y-1">
+                    <span className="font-semibold">원화원가: {formatKrwWp(cost?.krwWp)}</span>
+                    <span>수입단가: {formatUsdWp(cost?.usdWp)}</span>
                     <span>항구: {bl.port ?? '—'}</span>
                     <span>포워더: {bl.forwarder ?? '—'}</span>
                     <span>ETA: {bl.eta?.slice(0, 10) ?? '—'}</span>
