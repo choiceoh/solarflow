@@ -20,6 +20,10 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 	// 비유: /health는 건물 밖에서도 볼 수 있는 안내판 — 인증 불필요
 	r.Get("/health", handler.HealthCheck)
 
+	// 짧은 만료 토큰이 붙은 PDF 열람 링크 — 브라우저 PDF 미리보기/다운로드용
+	attachmentH := handler.NewAttachmentHandler(db)
+	r.Get("/api/v1/attachments/{id}/file", attachmentH.ServeSigned)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		// 비유: /api/v1 이하 모든 경로는 사원증(JWT) 필수
 		r.Use(middleware.AuthMiddleware(db))
@@ -258,10 +262,10 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 		})
 
 		// 비유: 업무 서류함 — LC 전문 PDF 등 첨부파일 보관
-		attachmentH := handler.NewAttachmentHandler(db)
 		r.Route("/attachments", func(r chi.Router) {
 			r.Get("/", attachmentH.List)
 			r.Post("/", attachmentH.Create)
+			r.Get("/{id}/access", attachmentH.Access)
 			r.Get("/{id}/download", attachmentH.Download)
 			r.Delete("/{id}", attachmentH.Delete)
 		})

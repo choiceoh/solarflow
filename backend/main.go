@@ -38,6 +38,7 @@ func main() {
 
 	r := router.New(db, engineClient)
 
-	log.Printf("🚀 SolarFlow 3.0 서버 시작: :%s", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, r))
+	addr := "0.0.0.0:" + cfg.Port
+	log.Printf("🚀 SolarFlow 3.0 서버 시작: %s", addr)
+	log.Fatal(http.ListenAndServe(addr, r))
 }

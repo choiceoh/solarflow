@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -9,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +48,11 @@ func NewAttachmentHandler(db *supa.Client) *AttachmentHandler {
 	return &AttachmentHandler{DB: db}
 }
 
+type attachmentAccessResponse struct {
+	URL       string `json:"url"`
+	ExpiresAt int64  `json:"expires_at"`
+}
+
 // List — GET /api/v1/attachments?entity_type=lc_records&entity_id=...
 func (h *AttachmentHandler) List(w http.ResponseWriter, r *http.Request) {
 	entityType := strings.TrimSpace(r.URL.Query().Get("entity_type"))
@@ -77,6 +86,27 @@ func (h *AttachmentHandler) List(w http.ResponseWriter, r *http.Request) {
 		files[i].StoredName = ""
 	}
 	response.RespondJSON(w, http.StatusOK, files)
+}
+
+// Access — GET /api/v1/attachments/{id}/access?disposition=inline|attachment
+func (h *AttachmentHandler) Access(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(id); err != nil {
+		response.RespondError(w, http.StatusBadRequest, "첨부파일 ID가 올바르지 않습니다")
+		return
+	}
+
+	disposition := normalizeDisposition(r.URL.Query().Get("disposition"))
+	expiresAt := time.Now().Add(10 * time.Minute).Unix()
+	token, err := signAttachmentToken(id, disposition, expiresAt)
+	if err != nil {
+		log.Printf("[첨부파일 접근 토큰 생성 실패] %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "첨부파일 접근 링크를 만들 수 없습니다")
+		return
+	}
+
+	url := fmt.Sprintf("/api/v1/attachments/%s/file?disposition=%s&expires=%d&token=%s", id, disposition, expiresAt, token)
+	response.RespondJSON(w, http.StatusOK, attachmentAccessResponse{URL: url, ExpiresAt: expiresAt})
 }
 
 // Create — POST /api/v1/attachments — multipart/form-data PDF 업로드
@@ -202,6 +232,42 @@ func (h *AttachmentHandler) Download(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.serveFile(w, r, file, "attachment")
+}
+
+// ServeSigned — GET /api/v1/attachments/{id}/file?disposition=inline|attachment&expires=...&token=...
+func (h *AttachmentHandler) ServeSigned(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	disposition := normalizeDisposition(r.URL.Query().Get("disposition"))
+	expiresAt, err := strconv.ParseInt(r.URL.Query().Get("expires"), 10, 64)
+	if err != nil {
+		response.RespondError(w, http.StatusBadRequest, "첨부파일 접근 링크가 올바르지 않습니다")
+		return
+	}
+	if time.Now().Unix() > expiresAt {
+		response.RespondError(w, http.StatusUnauthorized, "첨부파일 접근 링크가 만료되었습니다")
+		return
+	}
+	expected, err := signAttachmentToken(id, disposition, expiresAt)
+	if err != nil {
+		log.Printf("[첨부파일 토큰 검증 실패] %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "첨부파일 접근 링크를 확인할 수 없습니다")
+		return
+	}
+	if !hmac.Equal([]byte(expected), []byte(r.URL.Query().Get("token"))) {
+		response.RespondError(w, http.StatusUnauthorized, "첨부파일 접근 링크가 올바르지 않습니다")
+		return
+	}
+
+	file, ok := h.getFile(w, id)
+	if !ok {
+		return
+	}
+
+	h.serveFile(w, r, file, disposition)
+}
+
+func (h *AttachmentHandler) serveFile(w http.ResponseWriter, r *http.Request, file model.DocumentFile, disposition string) {
 	path, err := safeStoredPath(file.StoredPath)
 	if err != nil {
 		log.Printf("[첨부파일 경로 검증 실패] %v", err)
@@ -222,8 +288,9 @@ func (h *AttachmentHandler) Download(w http.ResponseWriter, r *http.Request) {
 		contentType = *file.ContentType
 	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": file.OriginalName}))
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.OriginalName}))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", file.SizeBytes))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, file.OriginalName, fileModTime(path), f)
 }
 
@@ -317,6 +384,27 @@ func safeStoredPath(storedPath string) (string, error) {
 		return "", fmt.Errorf("path escapes attachment root")
 	}
 	return path, nil
+}
+
+func normalizeDisposition(value string) string {
+	if strings.EqualFold(value, "inline") {
+		return "inline"
+	}
+	return "attachment"
+}
+
+func signAttachmentToken(fileID, disposition string, expiresAt int64) (string, error) {
+	secret := os.Getenv("ATTACHMENT_SIGNING_SECRET")
+	if secret == "" {
+		secret = os.Getenv("SUPABASE_JWT_SECRET")
+	}
+	if secret == "" {
+		return "", fmt.Errorf("missing attachment signing secret")
+	}
+	payload := fmt.Sprintf("%s:%s:%d", fileID, disposition, expiresAt)
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(payload))
+	return base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), nil
 }
 
 func fileModTime(path string) time.Time {

@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { fetchBlobWithAuth, fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import type { DocumentFile } from '@/types/documentFile';
+
+interface AttachmentAccess {
+  url: string;
+  expires_at: number;
+}
 
 interface Props {
   entityType: string;
@@ -35,6 +40,12 @@ export default function AttachmentWidget({
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<{ url: string; name: string } | null>(null);
 
+  const accessUrl = async (file: DocumentFile, disposition: 'inline' | 'attachment') => {
+    const params = new URLSearchParams({ disposition });
+    const result = await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`);
+    return result.url;
+  };
+
   const load = async () => {
     setLoading(true);
     setError('');
@@ -50,12 +61,6 @@ export default function AttachmentWidget({
   };
 
   useEffect(() => { load(); }, [entityType, entityId]);
-
-  useEffect(() => {
-    return () => {
-      if (preview?.url) URL.revokeObjectURL(preview.url);
-    };
-  }, [preview?.url]);
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
@@ -85,13 +90,7 @@ export default function AttachmentWidget({
 
   const previewFile = async (file: DocumentFile) => {
     try {
-      const res = await fetchBlobWithAuth(`/api/v1/attachments/${file.file_id}/download`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      setPreview((current) => {
-        if (current?.url) URL.revokeObjectURL(current.url);
-        return { url, name: file.original_name };
-      });
+      setPreview({ url: await accessUrl(file, 'inline'), name: file.original_name });
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일을 열 수 없습니다');
     }
@@ -99,9 +98,7 @@ export default function AttachmentWidget({
 
   const downloadFile = async (file: DocumentFile) => {
     try {
-      const res = await fetchBlobWithAuth(`/api/v1/attachments/${file.file_id}/download`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const url = await accessUrl(file, 'attachment');
       const a = document.createElement('a');
       a.href = url;
       a.download = file.original_name;
@@ -109,7 +106,6 @@ export default function AttachmentWidget({
       document.body.appendChild(a);
       a.click();
       a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일을 열 수 없습니다');
     }
@@ -188,16 +184,20 @@ export default function AttachmentWidget({
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setPreview((current) => {
-                  if (current?.url) URL.revokeObjectURL(current.url);
-                  return null;
-                })}
+                onClick={() => setPreview(null)}
                 title="닫기"
               >
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <iframe className="min-h-0 flex-1 bg-muted" src={preview.url} title={preview.name} />
+            <object className="min-h-0 flex-1 bg-white" data={`${preview.url}#toolbar=1&navpanes=0`} type="application/pdf">
+              <div className="flex h-full flex-col items-center justify-center gap-3 bg-background p-6 text-center">
+                <p className="text-sm font-medium">브라우저에서 PDF 미리보기를 표시하지 못했습니다.</p>
+                <Button onClick={() => window.open(preview.url, '_blank', 'noopener,noreferrer')}>
+                  새 창에서 열기
+                </Button>
+              </div>
+            </object>
           </div>
         </div>
       )}
