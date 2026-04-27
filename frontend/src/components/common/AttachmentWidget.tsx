@@ -140,6 +140,26 @@ export default function AttachmentWidget({
     }
   };
 
+  const downloadCopy = async (file: DocumentFile) => {
+    setError('');
+    try {
+      const prepared = accessLinks[file.file_id] || await prepareAccessLinks(file);
+      const url = prepared.attachment;
+      if (!url) throw new Error('파일 다운로드 링크를 만들 수 없습니다');
+
+      const response = await fetch(url, { cache: 'no-store' });
+      if (!response.ok) throw new Error('첨부파일을 다운로드할 수 없습니다');
+
+      const blob = await response.blob();
+      if (blob.size === 0) throw new Error('다운로드된 파일이 비어 있습니다');
+
+      const { saveAs } = await import('file-saver');
+      saveAs(blob, file.original_name || 'attachment.pdf');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '파일을 다운로드할 수 없습니다');
+    }
+  };
+
   const remove = async (file: DocumentFile) => {
     if (!window.confirm(`"${file.original_name}" 첨부파일을 삭제할까요?`)) return;
     setError('');
@@ -202,7 +222,12 @@ export default function AttachmentWidget({
                 )}
                 href={downloadHref}
                 download={file.original_name || 'attachment.pdf'}
-                rel="noopener"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void downloadCopy(file);
+                }}
                 title="사본 다운로드"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -241,7 +266,12 @@ export default function AttachmentWidget({
                   )}
                   href={accessLinks[preview.file.file_id]?.attachment}
                   download={preview.file.original_name || 'attachment.pdf'}
-                  rel="noopener"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void downloadCopy(preview.file);
+                  }}
                   title="사본 다운로드"
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />

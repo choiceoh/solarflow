@@ -26,7 +26,10 @@ import (
 	"solarflow-backend/internal/response"
 )
 
-const maxAttachmentBytes int64 = 25 << 20 // 25MB
+const (
+	maxAttachmentBytes  int64 = 25 << 20 // 25MB
+	attachmentAccessTTL       = 24 * time.Hour
+)
 
 var allowedAttachmentEntities = map[string]bool{
 	"purchase_orders": true,
@@ -97,7 +100,7 @@ func (h *AttachmentHandler) Access(w http.ResponseWriter, r *http.Request) {
 	}
 
 	disposition := normalizeDisposition(r.URL.Query().Get("disposition"))
-	expiresAt := time.Now().Add(10 * time.Minute).Unix()
+	expiresAt := time.Now().Add(attachmentAccessTTL).Unix()
 	token, err := signAttachmentToken(id, disposition, expiresAt)
 	if err != nil {
 		log.Printf("[첨부파일 접근 토큰 생성 실패] %v", err)
@@ -284,12 +287,15 @@ func (h *AttachmentHandler) serveFile(w http.ResponseWriter, r *http.Request, fi
 	defer f.Close()
 
 	contentType := "application/pdf"
-	if file.ContentType != nil && *file.ContentType != "" {
+	if disposition == "attachment" {
+		contentType = "application/octet-stream"
+	} else if file.ContentType != nil && *file.ContentType != "" {
 		contentType = *file.ContentType
 	}
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.OriginalName}))
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", file.SizeBytes))
+	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, r, file.OriginalName, fileModTime(path), f)
 }
