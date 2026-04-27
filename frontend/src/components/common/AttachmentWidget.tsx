@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Plus, Trash2, Upload, X } from 'lucide-react';
+import { saveAs } from 'file-saver';
 import { Button } from '@/components/ui/button';
 import { fetchWithAuth } from '@/lib/api';
 import { formatDate } from '@/lib/utils';
@@ -98,7 +99,6 @@ export default function AttachmentWidget({
   };
 
   const downloadFile = async (file: DocumentFile) => {
-    let objectUrl = '';
     setDownloadingId(file.file_id);
     setError('');
     try {
@@ -108,21 +108,11 @@ export default function AttachmentWidget({
         throw new Error('파일 사본을 만들 수 없습니다');
       }
       const blob = await res.blob();
-      objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = objectUrl;
-      a.download = file.original_name;
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      saveAs(blob, file.original_name);
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일 사본을 다운로드할 수 없습니다');
     } finally {
       setDownloadingId(null);
-      if (objectUrl) {
-        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
-      }
     }
   };
 
@@ -208,6 +198,14 @@ export default function AttachmentWidget({
                 <Button
                   variant="outline"
                   size="sm"
+                  onClick={() => window.open(preview.url, '_blank', 'noopener,noreferrer')}
+                  title="새 탭에서 열기"
+                >
+                  새 탭 열기
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
                   disabled={downloadingId === preview.file.file_id}
                   onClick={() => downloadFile(preview.file)}
                   title="사본 다운로드"
@@ -225,14 +223,12 @@ export default function AttachmentWidget({
                 </Button>
               </div>
             </div>
-            <object className="min-h-0 flex-1 bg-white" data={`${preview.url}#toolbar=1&navpanes=0`} type="application/pdf">
-              <div className="flex h-full flex-col items-center justify-center gap-3 bg-background p-6 text-center">
-                <p className="text-sm font-medium">브라우저에서 PDF 미리보기를 표시하지 못했습니다.</p>
-                <Button onClick={() => window.open(preview.url, '_blank', 'noopener,noreferrer')}>
-                  새 창에서 열기
-                </Button>
-              </div>
-            </object>
+            <iframe
+              key={preview.url}
+              title={`${preview.file.original_name} 미리보기`}
+              className="min-h-0 flex-1 bg-white"
+              src={`${preview.url}#toolbar=1&navpanes=0`}
+            />
           </div>
         </div>
       )}
