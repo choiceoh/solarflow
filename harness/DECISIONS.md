@@ -470,3 +470,9 @@
 - **결정**: PO가 여러 품목을 가질 수 있으므로 LC도 `lc_line_items` 하위 테이블을 두고 `po_line_id` 기준으로 품목별 수량, 용량, 금액을 저장한다. LC 본문(`lc_records`)은 합계 금액/MW/수량만 유지한다.
 - **이유**: 기존 LC 합계만으로는 다품목 PO에서 어떤 제조사·규격·품번이 LC에 포함되었는지 추적할 수 없다. B/L 입고가 PO 라인을 끌고 오는 구조와 맞춰 PO → LC → B/L 흐름을 품목 단위로 연결한다.
 - **날짜**: 2026-04-27
+
+## D-091: Supabase Auth JWT와 로컬 PostgREST JWT 분리
+- **결정**: 로컬 PostgREST의 `jwt-secret`은 `SUPABASE_JWT_SECRET`이 아니라 `POSTGREST_JWT_SECRET`을 사용한다. Go 백엔드가 로컬 PostgREST에 접근할 때 쓰는 `SUPABASE_KEY`는 새 `POSTGREST_JWT_SECRET`으로 서명한 로컬 전용 JWT로 교체한다. Supabase Auth 검증용 `SUPABASE_JWT_SECRET`은 로그인 토큰 HMAC 폴백 용도로만 유지한다.
+- **이유**: 공개 GitHub 히스토리에 과거 환경값이 노출되었을 가능성이 있으므로, 로컬 DB API(PostgREST) 접근키를 Supabase 프로젝트 JWT secret과 분리해야 한다. 분리 후에는 로컬 PostgREST 키 회전이 Supabase 로그인/Auth 설정에 영향을 주지 않는다.
+- **운영 기준**: `postgrest.conf`에는 비밀값을 직접 쓰지 않고 `$(POSTGREST_JWT_SECRET)`만 둔다. 실제 값은 launchd plist와 로컬 `.env*`에만 둔다.
+- **날짜**: 2026-04-27

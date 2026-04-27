@@ -33,6 +33,20 @@
 
 ---
 
+## 2026-04-27 세션 보안 정리
+
+### 공개 repo / Supabase 키 정리
+
+- Git 추적 대상에서 로컬 `.env` 파일 제거, 예시 파일만 유지
+- Supabase 백엔드 관리자 키를 `service_role` JWT에서 새 Secret API Key로 교체
+- 실수로 삭제된 Publishable key는 새 `sb_publishable_...` 키로 복구하고 프론트 env에 반영
+- Supabase DB password reset 완료
+- `postgrest.conf`의 DB 접속 문자열을 `$(SUPABASE_DB_URL)` 환경변수 참조로 변경
+- 로컬 PostgREST JWT secret을 `SUPABASE_JWT_SECRET`에서 `POSTGREST_JWT_SECRET`으로 분리
+- Go 백엔드의 로컬 PostgREST 접근용 `SUPABASE_KEY`를 새 로컬 전용 JWT로 교체
+
+---
+
 ## 2026-04-16 세션 완료 작업 (2차 — 가용재고↔수주 연동)
 
 ### 가용재고 배정 → 수주 자동 연동 (배정예정 → 수주 pre-fill + alloc 연결)
