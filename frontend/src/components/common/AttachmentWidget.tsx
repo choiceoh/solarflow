@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchWithAuth } from '@/lib/api';
@@ -9,6 +9,16 @@ interface AttachmentAccess {
   url: string;
   expires_at: number;
 }
+
+type SaveFilePicker = (options?: {
+  suggestedName?: string;
+  types?: Array<{ description: string; accept: Record<string, string[]> }>;
+}) => Promise<{
+  createWritable: () => Promise<{
+    write: (data: Blob) => Promise<void>;
+    close: () => Promise<void>;
+  }>;
+}>;
 
 interface Props {
   entityType: string;
@@ -38,14 +48,71 @@ export default function AttachmentWidget({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [downloadAccess, setDownloadAccess] = useState<Record<string, AttachmentAccess>>({});
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<{ url: string; file: DocumentFile } | null>(null);
+  const objectUrlRef = useRef<Record<string, string>>({});
+  const preparingRef = useRef<Record<string, Promise<string>>>({});
 
   const accessUrl = async (file: DocumentFile, disposition: 'inline' | 'attachment') => {
     const params = new URLSearchParams({ disposition });
     const result = await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`);
     return result.url;
+  };
+
+  const toBrowserUrl = (url: string) => {
+    if (!url) return '';
+    return new URL(url, window.location.origin).toString();
+  };
+
+  const clearPreparedFiles = useCallback(() => {
+    Object.values(objectUrlRef.current).forEach((url) => URL.revokeObjectURL(url));
+    objectUrlRef.current = {};
+    preparingRef.current = {};
+  }, []);
+
+  const prepareFileUrl = async (file: DocumentFile) => {
+    const existing = objectUrlRef.current[file.file_id];
+    if (existing) return existing;
+
+    const preparing = preparingRef.current[file.file_id];
+    if (preparing) return preparing;
+
+    const promise = (async () => {
+      const signedUrl = toBrowserUrl(await accessUrl(file, 'inline'));
+      const response = await fetch(signedUrl, { cache: 'no-store', credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('첨부 PDF 사본을 불러올 수 없습니다');
+      }
+
+      const rawBlob = await response.blob();
+      const blob = rawBlob.type === 'application/pdf'
+        ? rawBlob
+        : rawBlob.slice(0, rawBlob.size, 'application/pdf');
+      const objectUrl = URL.createObjectURL(blob);
+
+      const previousUrl = objectUrlRef.current[file.file_id];
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+
+      objectUrlRef.current[file.file_id] = objectUrl;
+      return objectUrl;
+    })();
+
+    preparingRef.current[file.file_id] = promise;
+    try {
+      return await promise;
+    } finally {
+      delete preparingRef.current[file.file_id];
+    }
+  };
+
+  const primeFileUrls = async (targetFiles: DocumentFile[]) => {
+    await Promise.all(targetFiles.map(async (file) => {
+      try {
+        await prepareFileUrl(file);
+      } catch {
+        // 개별 파일 준비 실패는 사용자가 해당 파일을 열 때 에러로 다시 표시합니다.
+      }
+    }));
   };
 
   const load = async () => {
@@ -54,41 +121,22 @@ export default function AttachmentWidget({
     try {
       const params = new URLSearchParams({ entity_type: entityType, entity_id: entityId });
       const loadedFiles = await fetchWithAuth<DocumentFile[]>(`/api/v1/attachments?${params}`);
+      clearPreparedFiles();
       setFiles(loadedFiles);
-      setDownloadAccess({});
-      void primeDownloadUrls(loadedFiles);
+      void primeFileUrls(loadedFiles);
     } catch (err) {
       setError(err instanceof Error ? err.message : '첨부파일을 불러오지 못했습니다');
       setFiles([]);
-      setDownloadAccess({});
+      clearPreparedFiles();
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, [entityType, entityId]);
-
-  const toBrowserUrl = (url: string) => {
-    if (!url) return '';
-    return new URL(url, window.location.origin).toString();
-  };
-
-  const hasFreshDownloadUrl = (file: DocumentFile) => {
-    const access = downloadAccess[file.file_id];
-    return Boolean(access?.url) && access.expires_at - Math.floor(Date.now() / 1000) > 60;
-  };
-
-  const primeDownloadUrls = async (targetFiles: DocumentFile[]) => {
-    const entries = await Promise.all(targetFiles.map(async (file) => {
-      try {
-        const params = new URLSearchParams({ disposition: 'attachment' });
-        return [file.file_id, await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`)] as const;
-      } catch {
-        return null;
-      }
-    }));
-    setDownloadAccess(Object.fromEntries(entries.filter((entry): entry is readonly [string, AttachmentAccess] => entry !== null)));
-  };
+  useEffect(() => {
+    load();
+    return () => clearPreparedFiles();
+  }, [entityType, entityId, clearPreparedFiles]);
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
@@ -118,38 +166,39 @@ export default function AttachmentWidget({
 
   const previewFile = async (file: DocumentFile) => {
     try {
-      setPreview({ url: await accessUrl(file, 'inline'), file });
+      setPreview({ url: await prepareFileUrl(file), file });
     } catch (err) {
       setError(err instanceof Error ? err.message : '파일을 열 수 없습니다');
     }
-  };
-
-  const downloadHref = (file: DocumentFile) => {
-    const access = downloadAccess[file.file_id];
-    return hasFreshDownloadUrl(file) && access?.url ? toBrowserUrl(access.url) : '';
   };
 
   const downloadFile = async (file: DocumentFile, currentHref?: string) => {
     setDownloadingId(file.file_id);
     setError('');
     try {
-      let href = currentHref || downloadHref(file);
-      if (!href) {
-        const params = new URLSearchParams({ disposition: 'attachment' });
-        const access = await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`);
-        setDownloadAccess((currentAccess) => ({ ...currentAccess, [file.file_id]: access }));
-        href = toBrowserUrl(access.url);
+      const saveFilePicker = (window as Window & { showSaveFilePicker?: SaveFilePicker }).showSaveFilePicker;
+      if (saveFilePicker) {
+        const handle = await saveFilePicker({
+          suggestedName: file.original_name || 'attachment.pdf',
+          types: [{ description: 'PDF 문서', accept: { 'application/pdf': ['.pdf'] } }],
+        });
+        const href = currentHref || toBrowserUrl(await accessUrl(file, 'attachment'));
+        const response = await fetch(href, { cache: 'no-store', credentials: 'include' });
+        if (!response.ok) {
+          throw new Error('파일 사본을 다운로드할 수 없습니다');
+        }
+        const writable = await handle.createWritable();
+        await writable.write(await response.blob());
+        await writable.close();
+        return;
       }
 
-      const response = await fetch(href, { credentials: 'include' });
-      if (!response.ok) {
-        throw new Error('파일 사본을 다운로드할 수 없습니다');
-      }
-
-      const blob = await response.blob();
-      const { saveAs } = await import('file-saver');
-      saveAs(blob, file.original_name || 'attachment.pdf');
+      const href = currentHref || toBrowserUrl(await accessUrl(file, 'attachment'));
+      window.location.href = href;
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return;
+      }
       setError(err instanceof Error ? err.message : '파일 사본을 다운로드할 수 없습니다');
     } finally {
       setDownloadingId(null);
@@ -197,7 +246,6 @@ export default function AttachmentWidget({
         ) : files.length === 0 ? (
           <p className="text-[11px] text-muted-foreground">첨부된 PDF가 없습니다</p>
         ) : files.map((file) => {
-          const href = downloadHref(file);
           return (
             <div key={file.file_id} className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5">
               <FileText className="h-4 w-4 text-muted-foreground" />
@@ -215,7 +263,7 @@ export default function AttachmentWidget({
                 size="sm"
                 className="h-7 px-2 text-[11px]"
                 disabled={downloadingId === file.file_id}
-                onClick={() => downloadFile(file, href)}
+                onClick={() => downloadFile(file)}
                 title="사본 다운로드"
               >
                 <Download className="h-3.5 w-3.5" />
@@ -250,7 +298,7 @@ export default function AttachmentWidget({
                   variant="outline"
                   size="sm"
                   disabled={downloadingId === preview.file.file_id}
-                  onClick={() => downloadFile(preview.file, downloadHref(preview.file))}
+                  onClick={() => downloadFile(preview.file)}
                   title="사본 다운로드"
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />
@@ -266,12 +314,17 @@ export default function AttachmentWidget({
                 </Button>
               </div>
             </div>
-            <iframe
+            <object
               key={preview.url}
               title={`${preview.file.original_name} 미리보기`}
               className="min-h-0 flex-1 bg-white"
-              src={`${preview.url}#toolbar=1&navpanes=0`}
-            />
+              data={`${preview.url}#toolbar=1&navpanes=0`}
+              type="application/pdf"
+            >
+              <div className="flex flex-1 items-center justify-center bg-white p-6 text-sm text-muted-foreground">
+                PDF 미리보기를 표시할 수 없습니다. 새 탭 열기 또는 사본 다운로드를 사용해 주세요.
+              </div>
+            </object>
           </div>
         </div>
       )}
