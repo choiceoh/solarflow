@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Download, Eye, FileText, Plus, Trash2, Upload, X } from 'lucide-react';
-import { saveAs } from 'file-saver';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { fetchWithAuth } from '@/lib/api';
-import { formatDate } from '@/lib/utils';
+import { cn, formatDate } from '@/lib/utils';
 import type { DocumentFile } from '@/types/documentFile';
 
 interface AttachmentAccess {
@@ -39,6 +38,7 @@ export default function AttachmentWidget({
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadAccess, setDownloadAccess] = useState<Record<string, AttachmentAccess>>({});
   const [error, setError] = useState('');
   const [preview, setPreview] = useState<{ url: string; file: DocumentFile } | null>(null);
 
@@ -53,16 +53,43 @@ export default function AttachmentWidget({
     setError('');
     try {
       const params = new URLSearchParams({ entity_type: entityType, entity_id: entityId });
-      setFiles(await fetchWithAuth<DocumentFile[]>(`/api/v1/attachments?${params}`));
+      const loadedFiles = await fetchWithAuth<DocumentFile[]>(`/api/v1/attachments?${params}`);
+      setFiles(loadedFiles);
+      setDownloadAccess({});
+      void primeDownloadUrls(loadedFiles);
     } catch (err) {
       setError(err instanceof Error ? err.message : '첨부파일을 불러오지 못했습니다');
       setFiles([]);
+      setDownloadAccess({});
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => { load(); }, [entityType, entityId]);
+
+  const toBrowserUrl = (url: string) => {
+    if (!url) return '';
+    return new URL(url, window.location.origin).toString();
+  };
+
+  const getDownloadUrl = (file: DocumentFile) => toBrowserUrl(downloadAccess[file.file_id]?.url ?? '');
+  const hasFreshDownloadUrl = (file: DocumentFile) => {
+    const access = downloadAccess[file.file_id];
+    return Boolean(access?.url) && access.expires_at - Math.floor(Date.now() / 1000) > 60;
+  };
+
+  const primeDownloadUrls = async (targetFiles: DocumentFile[]) => {
+    const entries = await Promise.all(targetFiles.map(async (file) => {
+      try {
+        const params = new URLSearchParams({ disposition: 'attachment' });
+        return [file.file_id, await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`)] as const;
+      } catch {
+        return null;
+      }
+    }));
+    setDownloadAccess(Object.fromEntries(entries.filter((entry): entry is readonly [string, AttachmentAccess] => entry !== null)));
+  };
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
@@ -98,22 +125,25 @@ export default function AttachmentWidget({
     }
   };
 
-  const downloadFile = async (file: DocumentFile) => {
+  const ensureDownloadUrl = async (file: DocumentFile) => {
+    if (hasFreshDownloadUrl(file)) return;
     setDownloadingId(file.file_id);
-    setError('');
     try {
-      const url = await accessUrl(file, 'attachment');
-      const res = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) {
-        throw new Error('파일 사본을 만들 수 없습니다');
-      }
-      const blob = await res.blob();
-      saveAs(blob, file.original_name);
+      const params = new URLSearchParams({ disposition: 'attachment' });
+      const access = await fetchWithAuth<AttachmentAccess>(`/api/v1/attachments/${file.file_id}/access?${params}`);
+      setDownloadAccess((current) => ({ ...current, [file.file_id]: access }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '파일 사본을 다운로드할 수 없습니다');
+      setError(err instanceof Error ? err.message : '파일 사본 링크를 만들 수 없습니다');
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  const handleDownloadClick = (event: React.MouseEvent<HTMLAnchorElement>, file: DocumentFile) => {
+    if (hasFreshDownloadUrl(file)) return;
+    event.preventDefault();
+    setError('다운로드 링크를 준비 중입니다. 잠시 후 다시 눌러주세요');
+    void ensureDownloadUrl(file);
   };
 
   const remove = async (file: DocumentFile) => {
@@ -168,17 +198,25 @@ export default function AttachmentWidget({
             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => previewFile(file)} title="미리보기">
               <Eye className="h-3.5 w-3.5" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              disabled={downloadingId === file.file_id}
-              onClick={() => downloadFile(file)}
+            <a
+              className={cn(
+                buttonVariants({ variant: 'ghost', size: 'sm' }),
+                'h-7 px-2 text-[11px]',
+                !hasFreshDownloadUrl(file) && 'opacity-60'
+              )}
+              href={getDownloadUrl(file) || '#'}
+              download={file.original_name}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(event) => handleDownloadClick(event, file)}
+              onFocus={() => void ensureDownloadUrl(file)}
+              onMouseEnter={() => void ensureDownloadUrl(file)}
+              aria-disabled={!hasFreshDownloadUrl(file)}
               title="사본 다운로드"
             >
               <Download className="h-3.5 w-3.5" />
               <span className="ml-1 hidden sm:inline">{downloadingId === file.file_id ? '준비 중' : '사본'}</span>
-            </Button>
+            </a>
             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => remove(file)} title="삭제">
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
@@ -203,16 +241,24 @@ export default function AttachmentWidget({
                 >
                   새 탭 열기
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={downloadingId === preview.file.file_id}
-                  onClick={() => downloadFile(preview.file)}
+                <a
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    !hasFreshDownloadUrl(preview.file) && 'opacity-60'
+                  )}
+                  href={getDownloadUrl(preview.file) || '#'}
+                  download={preview.file.original_name}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(event) => handleDownloadClick(event, preview.file)}
+                  onFocus={() => void ensureDownloadUrl(preview.file)}
+                  onMouseEnter={() => void ensureDownloadUrl(preview.file)}
+                  aria-disabled={!hasFreshDownloadUrl(preview.file)}
                   title="사본 다운로드"
                 >
                   <Download className="mr-1.5 h-3.5 w-3.5" />
                   {downloadingId === preview.file.file_id ? '준비 중' : '사본 다운로드'}
-                </Button>
+                </a>
                 <Button
                   variant="ghost"
                   size="icon"
