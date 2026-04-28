@@ -5,7 +5,7 @@
 | 항목 | 상태 |
 |------|------|
 | 현재 Phase | **실데이터 이관 + 운영 기능 보강 진행 중** |
-| 다음 작업 | 라이젠에너지 T/T 데이터 검증 + 운영 이관 상태값/첨부/운송비/수요예측 실사용 검증 |
+| 다음 작업 | E2E smoke 로컬 DB 실행 확인 + 라이젠에너지 T/T 데이터 검증 + 운영 이관 상태값/첨부/운송비/수요예측 실사용 검증 |
 | 인프라 | Mac mini (Go+Rust+PostgREST+Caddy+PostgreSQL) + Supabase Auth(인증만) + Tailscale(외부접속) |
 | 프론트엔드 | Caddy 정적 서빙 (dist/) — localhost:5173, Tailscale 100.123.70.19:5173 |
 | DB | 로컬 PostgreSQL + PostgREST (D-075, D-076) |
@@ -99,6 +99,22 @@
 - D-031: `engine/src/calc/margin.rs`, `backend/internal/handler/outbound.go` — FIFO 원가/출고 검증 Phase 확장 앵커
 - D-064: `backend/internal/handler/attachment.go` — PDF 보관과 PDF 자동 입력 Phase 5 분리 명시
 - D-067: `/api/v1/export/amaranth/sales` 501 응답 추가 — 실물 양식 확보 전 미구현 상태 명확화
+
+---
+
+## 2026-04-28 세션 완료 — E2E smoke test 작성
+
+### PO → LC → BL → 면장 → 재고 → 수주 → 출고 → 매출 → 수금 자동 검증
+
+- `harness/e2e_solarflow_smoke.sql` 보강
+  - `SF-E2E-*` 접두어 테스트 데이터를 생성
+  - PO 라인 → LC 품목 명세(`lc_line_items`) → B/L 라인(`po_line_id`) 연결 검증
+  - 면장(`import_declarations`) + 원가(`cost_details`) + 부대비용(`incidental_expenses`) 생성
+  - 재고 기준 수량 검증: 완료 B/L 3,200kW - active 출고 640kW = 2,560kW
+  - 수주 완료, 출고, 매출, 수금 매칭 후 미수금 0원 검증
+- `harness/run_e2e_smoke.sh` 추가
+  - `psql -v ON_ERROR_STOP=1`로 실행하여 SQL 내부 `RAISE EXCEPTION` 발생 시 자동 실패 처리
+  - `DATABASE_URL` 또는 `SUPABASE_DB_URL` 환경변수 사용 가능
 
 ---
 
