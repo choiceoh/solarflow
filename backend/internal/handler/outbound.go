@@ -25,16 +25,36 @@ func NewOutboundHandler(db *supa.Client) *OutboundHandler {
 	return &OutboundHandler{DB: db}
 }
 
+// outboundBLItemInsertRow — outbound_bl_items INSERT payload
+type outboundBLItemInsertRow struct {
+	OutboundID string `json:"outbound_id"`
+	BLID       string `json:"bl_id"`
+	Quantity   int    `json:"quantity"`
+}
+
+// orderProgressUpdate — orders 진행률 갱신 UPDATE payload
+type orderProgressUpdate struct {
+	ShippedQty   int    `json:"shipped_qty"`
+	RemainingQty int    `json:"remaining_qty"`
+	Status       string `json:"status"`
+}
+
+// saleClearOutboundPayload — sales.outbound_id를 명시적으로 NULL로 비우기 위한 UPDATE payload
+// (omitempty 없음 → nil → JSON null)
+type saleClearOutboundPayload struct {
+	OutboundID *string `json:"outbound_id"`
+}
+
 // insertBLItems — outbound_bl_items 일괄 등록 헬퍼
 func (h *OutboundHandler) insertBLItems(outboundID string, items []model.OutboundBLItemInput) {
 	for _, item := range items {
 		if item.BLID == "" || item.Quantity <= 0 {
 			continue
 		}
-		row := map[string]interface{}{
-			"outbound_id": outboundID,
-			"bl_id":       item.BLID,
-			"quantity":    item.Quantity,
+		row := outboundBLItemInsertRow{
+			OutboundID: outboundID,
+			BLID:       item.BLID,
+			Quantity:   item.Quantity,
 		}
 		_, _, err := h.DB.From("outbound_bl_items").
 			Insert(row, false, "", "", "").
@@ -204,10 +224,10 @@ func (h *OutboundHandler) recalculateOrderProgress(orderID string) error {
 	}
 
 	_, _, err = h.DB.From("orders").
-		Update(map[string]interface{}{
-			"shipped_qty":   shippedQty,
-			"remaining_qty": remainingQty,
-			"status":        status,
+		Update(orderProgressUpdate{
+			ShippedQty:   shippedQty,
+			RemainingQty: remainingQty,
+			Status:       status,
 		}, "", "").
 		Eq("order_id", orderID).
 		Execute()
@@ -233,22 +253,46 @@ func (h *OutboundHandler) enrichOutbounds(outbounds []model.Outbound) []model.Ou
 	var sales []model.Sale
 
 	if data, _, err := h.DB.From("products").Select("product_id, product_name, product_code, spec_wp, wattage_kw", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &products)
+		if err := json.Unmarshal(data, &products); err != nil {
+			log.Printf("[출고 enrich] products 디코딩 실패 — 품목명/스펙 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] products 조회 실패 — 품목명/스펙 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("warehouses").Select("warehouse_id, warehouse_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &warehouses)
+		if err := json.Unmarshal(data, &warehouses); err != nil {
+			log.Printf("[출고 enrich] warehouses 디코딩 실패 — 창고명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] warehouses 조회 실패 — 창고명 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("companies").Select("company_id, company_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &companies)
+		if err := json.Unmarshal(data, &companies); err != nil {
+			log.Printf("[출고 enrich] companies 디코딩 실패 — 법인명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] companies 조회 실패 — 법인명 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("orders").Select("order_id, order_number, customer_id, unit_price_wp", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &orders)
+		if err := json.Unmarshal(data, &orders); err != nil {
+			log.Printf("[출고 enrich] orders 디코딩 실패 — 수주 연결 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] orders 조회 실패 — 수주 연결 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("partners").Select("partner_id, partner_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &partners)
+		if err := json.Unmarshal(data, &partners); err != nil {
+			log.Printf("[출고 enrich] partners 디코딩 실패 — 거래처명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] partners 조회 실패 — 거래처명 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("sales").Select("*", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &sales)
+		if err := json.Unmarshal(data, &sales); err != nil {
+			log.Printf("[출고 enrich] sales 디코딩 실패 — 매출 연결 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[출고 enrich] sales 조회 실패 — 매출 연결 비표시: %v", err)
 	}
 
 	productMap := make(map[string]outboundProductRow, len(products))
@@ -462,7 +506,9 @@ func (h *OutboundHandler) Update(w http.ResponseWriter, r *http.Request) {
 		Eq("outbound_id", id).
 		Execute(); err == nil {
 		var prev []model.Outbound
-		if json.Unmarshal(prevData, &prev) == nil && len(prev) > 0 {
+		if err := json.Unmarshal(prevData, &prev); err != nil {
+			log.Printf("[출고 수정 전 수주 연결 디코딩 실패] id=%s err=%v — 기존 order_id 미적용", id, err)
+		} else if len(prev) > 0 {
 			prevOrderID = outboundOrderIDString(prev[0].OrderID)
 		}
 	} else {
@@ -546,7 +592,9 @@ func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Eq("outbound_id", id).
 		Execute(); err == nil {
 		var outbounds []model.Outbound
-		if json.Unmarshal(obData, &outbounds) == nil && len(outbounds) > 0 {
+		if err := json.Unmarshal(obData, &outbounds); err != nil {
+			log.Printf("[출고 삭제 전 수주 연결 디코딩 실패] id=%s err=%v — 잔량 갱신 생략됨", id, err)
+		} else if len(outbounds) > 0 {
 			deletedOrderID = outboundOrderIDString(outbounds[0].OrderID)
 		}
 	} else {
@@ -560,11 +608,13 @@ func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			SaleID  string  `json:"sale_id"`
 			OrderID *string `json:"order_id"`
 		}
-		if json.Unmarshal(saleData, &linkedSales) == nil {
+		if err := json.Unmarshal(saleData, &linkedSales); err != nil {
+			log.Printf("[출고 삭제] 연결 매출 디코딩 실패 outbound_id=%s err=%v — 후속 outbound DELETE가 FK 위반으로 실패할 수 있음", id, err)
+		} else {
 			for _, sale := range linkedSales {
 				if sale.OrderID != nil && *sale.OrderID != "" {
 					if _, _, uerr := h.DB.From("sales").
-						Update(map[string]interface{}{"outbound_id": nil}, "", "").
+						Update(saleClearOutboundPayload{OutboundID: nil}, "", "").
 						Eq("sale_id", sale.SaleID).
 						Execute(); uerr != nil {
 						log.Printf("[출고 삭제] 매출 outbound_id 분리 실패 sale_id=%s err=%v — 후속 outbound DELETE가 FK 위반으로 실패할 수 있음", sale.SaleID, uerr)
@@ -579,6 +629,8 @@ func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	} else {
+		log.Printf("[출고 삭제] 연결 매출 조회 실패 outbound_id=%s err=%v", id, err)
 	}
 
 	_, _, err := h.DB.From("outbounds").

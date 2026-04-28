@@ -104,7 +104,11 @@ func (h *ReceiptHandler) enrichReceipts(receipts []model.Receipt) {
 
 	var partners []receiptPartnerRow
 	if data, _, err := h.DB.From("partners").Select("partner_id, partner_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &partners)
+		if err := json.Unmarshal(data, &partners); err != nil {
+			log.Printf("[수금 enrich] partners 디코딩 실패 — 거래처명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[수금 enrich] partners 조회 실패 — 거래처명 비표시: %v", err)
 	}
 	partnerMap := make(map[string]string, len(partners))
 	for _, p := range partners {
@@ -113,7 +117,11 @@ func (h *ReceiptHandler) enrichReceipts(receipts []model.Receipt) {
 
 	var matches []receiptMatchSumRow
 	if data, _, err := h.DB.From("receipt_matches").Select("receipt_id, matched_amount", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &matches)
+		if err := json.Unmarshal(data, &matches); err != nil {
+			log.Printf("[수금 enrich] receipt_matches 디코딩 실패 — 매칭 합계 0으로 표시: %v", err)
+		}
+	} else {
+		log.Printf("[수금 enrich] receipt_matches 조회 실패 — 매칭 합계 0으로 표시: %v", err)
 	}
 	matchMap := make(map[string]float64, len(matches))
 	for _, m := range matches {

@@ -227,9 +227,13 @@ func (h *POHandler) Update(w http.ResponseWriter, r *http.Request) {
 			var rows []struct {
 				Status string `json:"status"`
 			}
-			if json.Unmarshal(prev, &rows) == nil && len(rows) > 0 {
+			if err := json.Unmarshal(prev, &rows); err != nil {
+				log.Printf("[발주 수정] 기존 status 디코딩 실패 po_id=%s err=%v — status 전환 감지 생략", id, err)
+			} else if len(rows) > 0 {
 				prevStatus = rows[0].Status
 			}
+		} else {
+			log.Printf("[발주 수정] 기존 status 조회 실패 po_id=%s err=%v — status 전환 감지 생략", id, perr)
 		}
 	}
 
@@ -311,9 +315,13 @@ func (h *POHandler) autoInsertPriceHistory(poID string, po model.PurchaseOrder) 
 			var existRows []struct {
 				ID string `json:"price_history_id"`
 			}
-			if json.Unmarshal(exists, &existRows) == nil && len(existRows) > 0 {
+			if err := json.Unmarshal(exists, &existRows); err != nil {
+				log.Printf("[단가이력 자동등록] 중복 확인 디코딩 실패 product_id=%s po_id=%s err=%v — 중복 INSERT 가능", l.ProductID, poID, err)
+			} else if len(existRows) > 0 {
 				continue
 			}
+		} else {
+			log.Printf("[단가이력 자동등록] 중복 확인 조회 실패 product_id=%s po_id=%s err=%v — 중복 INSERT 가능", l.ProductID, poID, eerr)
 		}
 
 		row := model.CreatePriceHistoryRequest{

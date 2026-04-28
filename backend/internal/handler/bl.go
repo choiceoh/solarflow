@@ -133,7 +133,9 @@ func (h *BLHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			var pos []struct {
 				PONumber *string `json:"po_number"`
 			}
-			if json.Unmarshal(poData, &pos) == nil && len(pos) > 0 {
+			if err := json.Unmarshal(poData, &pos); err != nil {
+				log.Printf("[B/L 상세] PO번호 디코딩 실패 po_id=%s err=%v — po_number 비표시", *shipments[0].POID, err)
+			} else if len(pos) > 0 {
 				poNumber = pos[0].PONumber
 			}
 		}
@@ -147,7 +149,9 @@ func (h *BLHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 			var lcs []struct {
 				LCNumber *string `json:"lc_number"`
 			}
-			if json.Unmarshal(lcData, &lcs) == nil && len(lcs) > 0 {
+			if err := json.Unmarshal(lcData, &lcs); err != nil {
+				log.Printf("[B/L 상세] LC번호 디코딩 실패 lc_id=%s err=%v — lc_number 비표시", *shipments[0].LCID, err)
+			} else if len(lcs) > 0 {
 				lcNumber = lcs[0].LCNumber
 			}
 		}

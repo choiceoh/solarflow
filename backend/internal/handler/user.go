@@ -78,12 +78,12 @@ func (h *UserHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		if at := strings.Index(email, "@"); at > 0 {
 			name = email[:at]
 		}
-		newProfile := map[string]interface{}{
-			"user_id":   userID,
-			"email":     email,
-			"name":      name,
-			"role":      "viewer",
-			"is_active": true,
+		newProfile := userProfileInsert{
+			UserID:   userID,
+			Email:    email,
+			Name:     name,
+			Role:     "viewer",
+			IsActive: true,
 		}
 		insertData, _, insertErr := h.DB.From("user_profiles").
 			Insert(newProfile, false, "", "", "exact").
@@ -161,6 +161,33 @@ type userProfileInsert struct {
 	Role       string  `json:"role"`
 	Department *string `json:"department,omitempty"`
 	IsActive   bool    `json:"is_active"`
+}
+
+// userListItem — ListUsers 응답 행
+type userListItem struct {
+	UserID     string  `json:"user_id"`
+	Email      string  `json:"email"`
+	Name       string  `json:"name"`
+	Role       string  `json:"role"`
+	Department *string `json:"department"`
+	Phone      *string `json:"phone"`
+	IsActive   bool    `json:"is_active"`
+	CreatedAt  string  `json:"created_at"`
+}
+
+// userRoleUpdate — 역할 변경 UPDATE payload
+type userRoleUpdate struct {
+	Role string `json:"role"`
+}
+
+// userActiveUpdate — 활성화 변경 UPDATE payload
+type userActiveUpdate struct {
+	IsActive bool `json:"is_active"`
+}
+
+// statusOKResponse — 단순 상태 응답 ({"status":"ok"})
+type statusOKResponse struct {
+	Status string `json:"status"`
 }
 
 func requireAdmin(r *http.Request) bool {
@@ -288,8 +315,9 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var users []map[string]interface{}
+	var users []userListItem
 	if err := json.Unmarshal(data, &users); err != nil {
+		log.Printf("[users] 목록 디코딩 실패: %v", err)
 		response.RespondError(w, http.StatusInternalServerError, "응답 처리에 실패했습니다")
 		return
 	}
@@ -429,7 +457,7 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _, err := h.DB.From("user_profiles").
-		Update(map[string]interface{}{"role": body.Role}, "", "exact").
+		Update(userRoleUpdate{Role: body.Role}, "", "exact").
 		Eq("user_id", targetID).
 		Execute()
 	if err != nil {
@@ -437,7 +465,7 @@ func (h *UserHandler) UpdateRole(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusInternalServerError, "역할 변경에 실패했습니다")
 		return
 	}
-	response.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	response.RespondJSON(w, http.StatusOK, statusOKResponse{Status: "ok"})
 }
 
 // UpdateActive — 사용자 활성/비활성 변경 (admin 전용)
@@ -457,7 +485,7 @@ func (h *UserHandler) UpdateActive(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _, err := h.DB.From("user_profiles").
-		Update(map[string]interface{}{"is_active": body.IsActive}, "", "exact").
+		Update(userActiveUpdate{IsActive: body.IsActive}, "", "exact").
 		Eq("user_id", targetID).
 		Execute()
 	if err != nil {
@@ -465,5 +493,5 @@ func (h *UserHandler) UpdateActive(w http.ResponseWriter, r *http.Request) {
 		response.RespondError(w, http.StatusInternalServerError, "상태 변경에 실패했습니다")
 		return
 	}
-	response.RespondJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	response.RespondJSON(w, http.StatusOK, statusOKResponse{Status: "ok"})
 }

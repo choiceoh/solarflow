@@ -73,11 +73,19 @@ func (h *ReceiptMatchHandler) enrichReceiptMatches(matches []model.ReceiptMatch)
 
 	var outbounds []receiptMatchOutboundRow
 	if data, _, err := h.DB.From("outbounds").Select("outbound_id, outbound_date, site_name, product_id", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &outbounds)
+		if err := json.Unmarshal(data, &outbounds); err != nil {
+			log.Printf("[수금매칭 enrich] outbounds 디코딩 실패 — 출고/현장 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[수금매칭 enrich] outbounds 조회 실패 — 출고/현장 비표시: %v", err)
 	}
 	var products []receiptMatchProductRow
 	if data, _, err := h.DB.From("products").Select("product_id, product_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &products)
+		if err := json.Unmarshal(data, &products); err != nil {
+			log.Printf("[수금매칭 enrich] products 디코딩 실패 — 품목명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[수금매칭 enrich] products 조회 실패 — 품목명 비표시: %v", err)
 	}
 
 	productMap := make(map[string]string, len(products))

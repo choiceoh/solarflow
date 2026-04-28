@@ -70,6 +70,15 @@ type UserProfile struct {
 	IsActive bool   `json:"is_active"`
 }
 
+// autoProvisionInsert — 신규 사용자 자동 프로비저닝 INSERT payload
+type autoProvisionInsert struct {
+	UserID   string `json:"user_id"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Role     string `json:"role"`
+	IsActive bool   `json:"is_active"`
+}
+
 // AuthMiddleware — JWT 토큰을 검증하고 사용자 정보를 context에 저장하는 미들웨어
 // 비유: 건물 출입 게이트 — 사원증(JWT)을 스캔하고, 인사카드를 확인한 뒤 통과시킴
 func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
@@ -179,12 +188,12 @@ func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 				if at := strings.Index(email, "@"); at > 0 {
 					name = email[:at]
 				}
-				newProfile := map[string]interface{}{
-					"user_id":   userID,
-					"email":     email,
-					"name":      name,
-					"role":      "viewer",
-					"is_active": true,
+				newProfile := autoProvisionInsert{
+					UserID:   userID,
+					Email:    email,
+					Name:     name,
+					Role:     "viewer",
+					IsActive: true,
 				}
 				insertData, _, insertErr := db.From("user_profiles").
 					Insert(newProfile, false, "", "", "exact").

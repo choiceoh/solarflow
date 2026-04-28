@@ -139,16 +139,32 @@ func (h *SaleHandler) enrichSales(sales []model.Sale) []model.SaleListItem {
 	var partners []salePartnerRow
 
 	if data, _, err := h.DB.From("orders").Select("order_id, order_number, order_date, company_id, customer_id, product_id, quantity, capacity_kw, site_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &orders)
+		if err := json.Unmarshal(data, &orders); err != nil {
+			log.Printf("[매출 enrich] orders 디코딩 실패 — 수주 정보 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[매출 enrich] orders 조회 실패 — 수주 정보 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("outbounds").Select("outbound_id, outbound_date, company_id, product_id, quantity, capacity_kw, site_name, order_id", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &outbounds)
+		if err := json.Unmarshal(data, &outbounds); err != nil {
+			log.Printf("[매출 enrich] outbounds 디코딩 실패 — 출고 정보 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[매출 enrich] outbounds 조회 실패 — 출고 정보 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("products").Select("product_id, product_name, product_code, spec_wp", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &products)
+		if err := json.Unmarshal(data, &products); err != nil {
+			log.Printf("[매출 enrich] products 디코딩 실패 — 품목명/스펙 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[매출 enrich] products 조회 실패 — 품목명/스펙 비표시: %v", err)
 	}
 	if data, _, err := h.DB.From("partners").Select("partner_id, partner_name", "exact", false).Execute(); err == nil {
-		_ = json.Unmarshal(data, &partners)
+		if err := json.Unmarshal(data, &partners); err != nil {
+			log.Printf("[매출 enrich] partners 디코딩 실패 — 거래처명 비표시: %v", err)
+		}
+	} else {
+		log.Printf("[매출 enrich] partners 조회 실패 — 거래처명 비표시: %v", err)
 	}
 
 	orderMap := make(map[string]saleOrderRow, len(orders))
@@ -251,13 +267,17 @@ func (h *SaleHandler) saleSource(outboundID *string, orderID *string) (saleCalcS
 			Select("quantity, capacity_kw, product_id", "exact", false).
 			Eq("outbound_id", *outboundID).
 			Execute()
-		if err == nil {
+		if err != nil {
+			log.Printf("[매출 saleSource] outbound 조회 실패 outbound_id=%s err=%v — 수주 fallback 시도", *outboundID, err)
+		} else {
 			var rows []struct {
 				Quantity   int      `json:"quantity"`
 				CapacityKw *float64 `json:"capacity_kw"`
 				ProductID  string   `json:"product_id"`
 			}
-			if json.Unmarshal(data, &rows) == nil && len(rows) > 0 {
+			if err := json.Unmarshal(data, &rows); err != nil {
+				log.Printf("[매출 saleSource] outbound 디코딩 실패 outbound_id=%s err=%v — 수주 fallback 시도", *outboundID, err)
+			} else if len(rows) > 0 {
 				return saleCalcSource{Quantity: rows[0].Quantity, CapacityKw: rows[0].CapacityKw, ProductID: rows[0].ProductID}, true
 			}
 		}
@@ -267,13 +287,17 @@ func (h *SaleHandler) saleSource(outboundID *string, orderID *string) (saleCalcS
 			Select("quantity, capacity_kw, product_id", "exact", false).
 			Eq("order_id", *orderID).
 			Execute()
-		if err == nil {
+		if err != nil {
+			log.Printf("[매출 saleSource] order 조회 실패 order_id=%s err=%v", *orderID, err)
+		} else {
 			var rows []struct {
 				Quantity   int      `json:"quantity"`
 				CapacityKw *float64 `json:"capacity_kw"`
 				ProductID  string   `json:"product_id"`
 			}
-			if json.Unmarshal(data, &rows) == nil && len(rows) > 0 {
+			if err := json.Unmarshal(data, &rows); err != nil {
+				log.Printf("[매출 saleSource] order 디코딩 실패 order_id=%s err=%v", *orderID, err)
+			} else if len(rows) > 0 {
 				return saleCalcSource{Quantity: rows[0].Quantity, CapacityKw: rows[0].CapacityKw, ProductID: rows[0].ProductID}, true
 			}
 		}
@@ -295,7 +319,11 @@ func (h *SaleHandler) productSpecWp(productID string) (float64, bool) {
 	var rows []struct {
 		SpecWp *float64 `json:"spec_wp"`
 	}
-	if json.Unmarshal(data, &rows) != nil || len(rows) == 0 || rows[0].SpecWp == nil || *rows[0].SpecWp <= 0 {
+	if err := json.Unmarshal(data, &rows); err != nil {
+		log.Printf("[매출 productSpecWp] products 디코딩 실패 product_id=%s err=%v — 단가 계산 생략", productID, err)
+		return 0, false
+	}
+	if len(rows) == 0 || rows[0].SpecWp == nil || *rows[0].SpecWp <= 0 {
 		return 0, false
 	}
 	return *rows[0].SpecWp, true
@@ -418,7 +446,11 @@ func (h *SaleHandler) fetchSale(id string) (model.Sale, bool) {
 		return model.Sale{}, false
 	}
 	var sales []model.Sale
-	if json.Unmarshal(data, &sales) != nil || len(sales) == 0 {
+	if err := json.Unmarshal(data, &sales); err != nil {
+		log.Printf("[매출 fetchSale] 디코딩 실패 sale_id=%s err=%v — 재계산 생략", id, err)
+		return model.Sale{}, false
+	}
+	if len(sales) == 0 {
 		return model.Sale{}, false
 	}
 	return sales[0], true
