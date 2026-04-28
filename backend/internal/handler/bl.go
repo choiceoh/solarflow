@@ -95,7 +95,7 @@ func (h *BLHandler) List(w http.ResponseWriter, r *http.Request) {
 // FK 모호성(company_id ↔ counterpart_company_id) 때문에 단일 객체 대신 배열을
 // 반환할 수 있어 unmarshal 실패의 원인이 됨. 임베드 제거하고 평탄 반환.
 // 마스터 이름이 필요하면 화면에서 별도 API로 룩업.
-// TODO: Rust 계산엔진 연동 — 재고 집계 (물리적→가용→총확보량)
+// Rust 재고 집계는 /api/v1/calc/inventory 프록시가 담당한다.
 func (h *BLHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
@@ -237,8 +237,8 @@ func (h *BLHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // syncPOStatus — BL 등록/수정/상태변경 시 PO 상태를 자동 전환 (R1-4)
-//  - 해당 PO에 BL이 1건 이상 → shipping
-//  - 해당 PO의 모든 BL 수량 합 >= PO total_qty → completed
+//   - 해당 PO에 BL이 1건 이상 → shipping
+//   - 해당 PO의 모든 BL 수량 합 >= PO total_qty → completed
 //
 // 주의: 실패는 로그만 남기고 무시 (본 요청 성공에 영향 없음).
 func (h *BLHandler) syncPOStatus(poID string) {

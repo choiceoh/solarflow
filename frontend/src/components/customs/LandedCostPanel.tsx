@@ -7,12 +7,14 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import AllocatedExpensesView from './AllocatedExpensesView';
 
 interface LandedCostResponse {
-  costs: {
+  items: {
     cost_id: string;
     landed_total_krw: number;
     landed_wp_krw: number;
     allocated_expenses: Record<string, number>;
   }[];
+  saved: boolean;
+  calculated_at: string;
 }
 
 interface Props {
@@ -33,7 +35,6 @@ export default function LandedCostPanel({ declarationId, onRefresh }: Props) {
     setLoading(true);
     setError(null);
     try {
-      // TODO: Rust 계산엔진 연동
       const result = await fetchWithAuth<LandedCostResponse>('/api/v1/calc/landed-cost', {
         method: 'POST',
         body: JSON.stringify({ declaration_id: declarationId, save: false }),
@@ -51,7 +52,6 @@ export default function LandedCostPanel({ declarationId, onRefresh }: Props) {
     setLoading(true);
     setError(null);
     try {
-      // TODO: Rust 계산엔진 연동
       await fetchWithAuth('/api/v1/calc/landed-cost', {
         method: 'POST',
         body: JSON.stringify({ declaration_id: declarationId, save: true }),
@@ -89,9 +89,9 @@ export default function LandedCostPanel({ declarationId, onRefresh }: Props) {
 
       {error && <p className="text-xs text-red-500">{error}</p>}
 
-      {previewData && previewData.costs.length > 0 && (
+      {previewData && previewData.items.length > 0 && (
         <div className="space-y-2">
-          {previewData.costs.map((c) => (
+          {previewData.items.map((c) => (
             <div
               key={c.cost_id}
               className={`rounded-md p-3 ${

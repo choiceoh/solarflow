@@ -13,7 +13,7 @@ import (
 
 // LimitChangeHandler — 은행 LC 한도 변경이력 관련 API를 처리하는 핸들러
 // 비유: "한도 변경 대장 관리실" — 은행별 LC 한도 변경 기록을 관리
-// TODO: Rust 계산엔진 연동 — LC 한도 복원 타임라인 (은행별 가용한도 계산)
+// Rust 한도 복원 타임라인은 /api/v1/calc/lc-limit-timeline 프록시가 담당한다.
 // 이력 보존: Update, Delete 없음 — 잘못 입력 시 새 이력으로 정정
 type LimitChangeHandler struct {
 	DB *supa.Client

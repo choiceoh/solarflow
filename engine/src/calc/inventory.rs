@@ -112,7 +112,7 @@ pub async fn calculate_inventory(
         let available_incoming_kw = (incoming_kw - incoming_reserved_kw - alloc_incoming_kw).max(0.0);
         let total_secured_kw = available_kw + available_incoming_kw;
 
-        // 장기재고 판별
+        // D-022: 장기재고는 FIFO 건별 추적 전까지 최초 입고일 기준으로 판별한다.
         let long_term_status = match earliest_arrival.get(&pid) {
             Some(arrival_date) => {
                 let days = (today - *arrival_date).num_days();

@@ -53,6 +53,7 @@ export default function ExcelToolbar({ type, onImportComplete }: Props) {
             아마란스 {type === 'inbound' ? '입고' : '출고'}
           </Button>
         )}
+        {/* D-067: 매출마감 실물 양식 확보 전까지 매출 내보내기는 비활성 */}
         {type === 'sale' && (
           <TooltipProvider>
             <Tooltip>

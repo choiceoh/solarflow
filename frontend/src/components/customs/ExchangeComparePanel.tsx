@@ -1,75 +1,35 @@
-import { useState } from 'react';
 import { ArrowRightLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { formatNumber, formatKRW, formatPercent } from '@/lib/utils';
+import { formatNumber, formatKRW } from '@/lib/utils';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { useExchangeCompare } from '@/hooks/useExchange';
 
-// 비유: 환율 비교는 두 환전소에서 같은 달러를 바꿨을 때 원화 차이를 보여주는 것
+// 비유: 최근 면장 환율로 과거 면장 단가를 다시 비춰보는 환율 영향판
 export default function ExchangeComparePanel() {
-  const [amountUsd, setAmountUsd] = useState('');
-  const [rate1, setRate1] = useState('');
-  const [rate2, setRate2] = useState('');
   const { result, loading, error, compare } = useExchangeCompare();
-
-  const handleCompare = () => {
-    const amt = parseFloat(amountUsd);
-    const r1 = parseFloat(rate1);
-    const r2 = parseFloat(rate2);
-    if (amt > 0 && r1 > 0 && r2 > 0) {
-      compare(amt, r1, r2);
-    }
-  };
-
-  const canCompare = parseFloat(amountUsd) > 0 && parseFloat(rate1) > 0 && parseFloat(rate2) > 0;
+  const items = result?.items ?? [];
 
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="py-3 px-4">
-          <CardTitle className="text-sm">환율 비교 (Rust API 연동)</CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <div>
-              <Label>금액 (USD)</Label>
-              <Input
-                type="number"
-                value={amountUsd}
-                onChange={(e) => setAmountUsd(e.target.value)}
-                placeholder="100000"
-                min={0}
-                step="0.01"
-              />
-            </div>
-            <div>
-              <Label>환율 1</Label>
-              <Input
-                inputMode="decimal"
-                value={rate1}
-                onChange={(e) => setRate1(e.target.value.replace(/[^0-9.]/g, ''))}
-                placeholder="예: 1450.30"
-              />
-            </div>
-            <div>
-              <Label>환율 2</Label>
-              <Input
-                inputMode="decimal"
-                value={rate2}
-                onChange={(e) => setRate2(e.target.value.replace(/[^0-9.]/g, ''))}
-                placeholder="예: 1450.30"
-              />
-            </div>
-          </div>
-          <Button onClick={handleCompare} disabled={loading || !canCompare}>
-            <ArrowRightLeft className="mr-1.5 h-4 w-4" />비교
+        <CardHeader className="flex flex-row items-center justify-between py-3 px-4">
+          <CardTitle className="text-sm">환율 영향 비교</CardTitle>
+          <Button onClick={compare} disabled={loading} size="sm">
+            <ArrowRightLeft className="mr-1.5 h-4 w-4" />조회
           </Button>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 text-xs text-muted-foreground">
+          {result ? (
+            <span>
+              기준 환율: {result.latest_rate > 0 ? formatNumber(result.latest_rate) : '법인별 적용'} · {result.latest_rate_source}
+            </span>
+          ) : (
+            <span>최근 면장 환율로 기존 원가 영향을 계산합니다.</span>
+          )}
         </CardContent>
       </Card>
 
@@ -77,44 +37,58 @@ export default function ExchangeComparePanel() {
 
       {loading && <LoadingSpinner />}
 
-      {result && result.comparisons && result.comparisons.length > 0 && (
+      {result && items.length > 0 && (
         <Card>
           <CardContent className="px-4 py-3">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>항목</TableHead>
-                  <TableHead className="text-right">환율1 결과</TableHead>
-                  <TableHead className="text-right">환율2 결과</TableHead>
-                  <TableHead className="text-right">차이</TableHead>
-                  <TableHead className="text-right">차이율</TableHead>
+                  <TableHead>면장</TableHead>
+                  <TableHead>품목</TableHead>
+                  <TableHead className="text-right">계약환율</TableHead>
+                  <TableHead className="text-right">계약 CIF</TableHead>
+                  <TableHead className="text-right">최근환율 CIF</TableHead>
+                  <TableHead className="text-right">영향</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {result.comparisons.map((c, i) => {
+                {items.map((item, index) => {
                   // 양수=빨간(원화부담 증가), 음수=초록(감소)
-                  const diffColor = c.difference > 0
+                  const diffColor = item.rate_impact_krw > 0
                     ? 'text-red-600 font-medium'
-                    : c.difference < 0
+                    : item.rate_impact_krw < 0
                     ? 'text-green-600 font-medium'
                     : '';
 
                   return (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs">${formatNumber(c.amount)}</TableCell>
-                      <TableCell className="text-xs text-right">{formatKRW(c.rate1_result)}</TableCell>
-                      <TableCell className="text-xs text-right">{formatKRW(c.rate2_result)}</TableCell>
-                      <TableCell className={`text-xs text-right ${diffColor}`}>
-                        {c.difference > 0 ? '+' : ''}{formatKRW(c.difference)}
+                    <TableRow key={`${item.declaration_number}-${item.product_name}-${index}`}>
+                      <TableCell className="text-xs">
+                        <div className="font-medium">{item.declaration_number}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.declaration_date}</div>
                       </TableCell>
+                      <TableCell className="text-xs">
+                        <div>{item.product_name}</div>
+                        <div className="text-[10px] text-muted-foreground">{item.manufacturer_name}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-right">{formatNumber(item.contract_rate)}</TableCell>
+                      <TableCell className="text-xs text-right">{formatKRW(item.cif_wp_at_contract)}</TableCell>
+                      <TableCell className="text-xs text-right">{formatKRW(item.cif_wp_at_latest)}</TableCell>
                       <TableCell className={`text-xs text-right ${diffColor}`}>
-                        {c.difference_percent > 0 ? '+' : ''}{formatPercent(c.difference_percent)}
+                        {item.rate_impact_krw > 0 ? '+' : ''}{formatKRW(item.rate_impact_krw)}
                       </TableCell>
                     </TableRow>
                   );
                 })}
               </TableBody>
             </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {result && items.length === 0 && (
+        <Card>
+          <CardContent className="px-4 py-6 text-center text-sm text-muted-foreground">
+            환율 비교 대상 면장 원가가 없습니다.
           </CardContent>
         </Card>
       )}

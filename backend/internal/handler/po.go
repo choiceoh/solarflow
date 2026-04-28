@@ -25,7 +25,7 @@ func NewPOHandler(db *supa.Client) *POHandler {
 
 // List — GET /api/v1/pos — 발주 목록 조회 (법인/제조사 정보 포함)
 // 비유: 계약 관리실에서 전체 계약서 목록을 꺼내 보여주는 것
-// TODO: Rust 계산엔진 연동 — PO 입고현황 집계 (계약량 vs LC개설 vs 선적 vs 입고)
+// PO 입고현황은 D-061 패턴에 따라 프론트에서 소규모 합산한다.
 func (h *POHandler) List(w http.ResponseWriter, r *http.Request) {
 	// purchase_orders_ext: manufacturer_name(name_kr alias) 포함 뷰
 	query := h.DB.From("purchase_orders_ext").Select("*", "exact", false)
@@ -64,7 +64,7 @@ func (h *POHandler) List(w http.ResponseWriter, r *http.Request) {
 
 // GetByID — GET /api/v1/pos/{id} — 발주 상세 조회 (라인아이템, LC, TT 포함)
 // 비유: 계약서를 펼쳐서 품목 명세, LC 서류, TT 송금 내역까지 모두 보여주는 것
-// TODO: Rust 계산엔진 연동 — PO 입고현황 집계 (계약량 vs LC개설 vs 선적 vs 입고)
+// PO 입고현황은 D-061 패턴에 따라 프론트에서 소규모 합산한다.
 func (h *POHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 

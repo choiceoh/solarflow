@@ -7,10 +7,10 @@ type PurchaseOrder struct {
 	PONumber            *string  `json:"po_number"`
 	CompanyID           string   `json:"company_id"`
 	ManufacturerID      string   `json:"manufacturer_id"`
-	ManufacturerName    *string  `json:"manufacturer_name,omitempty"`  // purchase_orders_ext 뷰에서 제공
+	ManufacturerName    *string  `json:"manufacturer_name,omitempty"` // purchase_orders_ext 뷰에서 제공
 	ManufacturerNameEN  *string  `json:"manufacturer_name_en,omitempty"`
-	FirstSpecWp         *int     `json:"first_spec_wp,omitempty"`      // 첫 번째 유상 라인 spec_wp (드롭다운 표시용)
-	Currency            *string  `json:"currency,omitempty"` // D-087: PO 자동채움용 (DB에 없으면 빈 값)
+	FirstSpecWp         *int     `json:"first_spec_wp,omitempty"` // 첫 번째 유상 라인 spec_wp (드롭다운 표시용)
+	Currency            *string  `json:"currency,omitempty"`      // D-087: PO 자동채움용 (DB에 없으면 빈 값)
 	ContractType        string   `json:"contract_type"`
 	ContractDate        *string  `json:"contract_date"`
 	Incoterms           *string  `json:"incoterms"`
@@ -34,7 +34,7 @@ type POWithRelations struct {
 
 // PODetail — PO 상세 조회 시 라인아이템, LC, TT를 포함한 전체 결과
 // 비유: 계약서 + 품목 명세 + LC 서류 + TT 송금 내역을 한 번에 보여주는 것
-// TODO: Rust 계산엔진 연동 — PO 입고현황 집계 (계약량 vs LC개설 vs 선적 vs 입고)
+// PO 입고현황은 D-061 패턴에 따라 프론트에서 소규모 합산한다.
 type PODetail struct {
 	POWithRelations
 	LineItems     []POLineWithProduct `json:"line_items"`
@@ -45,15 +45,15 @@ type PODetail struct {
 // LCRecordSummary — PO 상세에서 LC 요약 정보를 담는 구조체
 // 비유: 계약서 안에 첨부된 LC 개설 내역 요약
 type LCRecordSummary struct {
-	LCID        string   `json:"lc_id"`
-	LCNumber    *string  `json:"lc_number"`
-	POID        string   `json:"po_id"`
-	BankID      *string  `json:"bank_id"`
-	AmountUSD   *float64 `json:"amount_usd"`
-	IssuedDate  *string  `json:"issued_date"`
-	ExpiryDate  *string  `json:"expiry_date"`
-	Status      *string  `json:"status"`
-	Banks       *BankSummaryForLC `json:"banks"`
+	LCID       string            `json:"lc_id"`
+	LCNumber   *string           `json:"lc_number"`
+	POID       string            `json:"po_id"`
+	BankID     *string           `json:"bank_id"`
+	AmountUSD  *float64          `json:"amount_usd"`
+	IssuedDate *string           `json:"issued_date"`
+	ExpiryDate *string           `json:"expiry_date"`
+	Status     *string           `json:"status"`
+	Banks      *BankSummaryForLC `json:"banks"`
 }
 
 // BankSummaryForLC — LC 조회 시 은행 이름만 포함
@@ -64,12 +64,12 @@ type BankSummaryForLC struct {
 // TTSummary — PO 상세에서 TT 송금 요약 정보를 담는 구조체
 // 비유: 계약서 안에 첨부된 TT 송금 내역 요약
 type TTSummary struct {
-	TTID          string   `json:"tt_id"`
-	POID          string   `json:"po_id"`
-	RemitDate     *string  `json:"remit_date"`
-	AmountUSD     *float64 `json:"amount_usd"`
-	Purpose       *string  `json:"purpose"`
-	Status        *string  `json:"status"`
+	TTID      string   `json:"tt_id"`
+	POID      string   `json:"po_id"`
+	RemitDate *string  `json:"remit_date"`
+	AmountUSD *float64 `json:"amount_usd"`
+	Purpose   *string  `json:"purpose"`
+	Status    *string  `json:"status"`
 }
 
 // 허용되는 contract_type 값 (D-086: spot/frame 2종으로 단순화)

@@ -14,8 +14,8 @@ import (
 
 // LCHandler — LC(신용장) 관련 API를 처리하는 핸들러
 // 비유: "LC 서류함" — 각 PO에 연결된 LC 개설/결제 서류를 관리
-// TODO: Rust 계산엔진 연동 — LC 만기일 계산 + 한도 복원 타임라인
-// TODO: Rust 계산엔진 연동 — LC 수수료 계산 (Invoice Value x 수수료율 x 일수/360 x 환율)
+// Rust LC 계산은 /api/v1/calc/lc-fee, /lc-limit-timeline, /lc-maturity-alert 프록시가 담당한다.
+// TODO: Phase 확장(D-030) — 은행 실제 청구액 수동 보정 필드/화면 추가.
 type LCHandler struct {
 	DB *supa.Client
 }

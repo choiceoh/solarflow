@@ -269,7 +269,8 @@ pub async fn compare_exchange_rates(
     .fetch_all(pool)
     .await?;
 
-    // 가장 최근 면장 환율
+    // D-024: 실시간 환율 API 미연동 상태에서는 가장 최근 면장 환율을 현재 환율로 사용한다.
+    // Phase 확장 시 외부 환율 소스가 들어와도 이 응답 필드는 출처를 함께 밝혀야 한다.
     let latest_rate = rows.first().map(|r| r.exchange_rate).unwrap_or(0.0);
 
     let items: Vec<ExchangeCompareItem> = rows

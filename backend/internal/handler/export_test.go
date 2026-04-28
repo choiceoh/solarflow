@@ -1,6 +1,9 @@
 package handler
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -153,5 +156,21 @@ func TestExport_InboundVatType(t *testing.T) {
 		if got != c.want {
 			t.Errorf("vatType for %s: 기대=%s, 실제=%s", c.inboundType, c.want, got)
 		}
+	}
+}
+
+// TestExport_AmaranthSalesClosing_NotImplemented — D-067 매출마감은 501로 명확히 안내
+func TestExport_AmaranthSalesClosing_NotImplemented(t *testing.T) {
+	h := NewExportHandler(nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/export/amaranth/sales", nil)
+	rec := httptest.NewRecorder()
+
+	h.AmaranthSalesClosing(rec, req)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("기대 상태코드: 501, 실제: %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "D-067") {
+		t.Fatalf("응답에 D-067 안내가 없습니다: %s", rec.Body.String())
 	}
 }

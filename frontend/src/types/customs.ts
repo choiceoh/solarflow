@@ -70,16 +70,24 @@ export interface Expense {
   memo?: string;
 }
 
+export interface ExchangeCompareItem {
+  declaration_number: string;
+  declaration_date: string;
+  product_name: string;
+  manufacturer_name: string;
+  contract_rate: number;
+  fob_unit_usd?: number;
+  cif_unit_usd?: number;
+  cif_wp_at_contract: number;
+  cif_wp_at_latest: number;
+  rate_impact_krw: number;
+}
+
 export interface ExchangeCompareResult {
-  base_currency: string;
-  target_currency: string;
-  comparisons: {
-    amount: number;
-    rate1_result: number;
-    rate2_result: number;
-    difference: number;
-    difference_percent: number;
-  }[];
+  items: ExchangeCompareItem[];
+  latest_rate: number;
+  latest_rate_source: string;
+  calculated_at: string;
 }
 
 export const EXPENSE_TYPE_LABEL: Record<ExpenseType, string> = {

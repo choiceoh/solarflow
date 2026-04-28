@@ -464,6 +464,7 @@ pub async fn calculate_price_trend(pool: &PgPool, req: &PriceTrendRequest) -> Re
 
 async fn fetch_cost_avg(pool: &PgPool, company_id: Uuid, product_id: Option<Uuid>, basis: &str) -> Result<HashMap<Uuid, f64>, sqlx::Error> {
     let col = if basis == "landed" { "cd.landed_wp_krw" } else { "cd.cif_wp_krw" };
+    // D-031: FIFO 건별 원가 매칭 전까지 품번별 입고 수량 가중평균 원가를 사용한다.
     // 1순위: 수입면장 기반 원가 (cost_details — 관세/부대비용 포함 확정원가)
     let sql = format!(
         r#"

@@ -275,6 +275,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 		r.Route("/export/amaranth", func(r chi.Router) {
 			r.Get("/inbound", exportH.AmaranthInbound)
 			r.Get("/outbound", exportH.AmaranthOutbound)
+			r.Get("/sales", exportH.AmaranthSalesClosing)
 		})
 
 		// 비유: 엑셀 일괄 등록 창구 — 7종 Import API (Step 29B)

@@ -16,7 +16,7 @@ import (
 
 // SaleHandler — 판매(sales) 관련 API를 처리하는 핸들러
 // 비유: "판매 전표함" — 출고에 연결된 판매 금액, 세금계산서 정보를 관리
-// TODO: Rust 계산엔진 연동 — 마진/이익률 분석 (원가 vs 판매가)
+// Rust 마진/이익률 분석은 /api/v1/calc/margin-analysis 프록시가 담당한다.
 type SaleHandler struct {
 	DB *supa.Client
 }

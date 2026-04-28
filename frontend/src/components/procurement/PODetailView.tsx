@@ -218,7 +218,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
     reloadTTs();
   };
 
-  // 4단계 MW 진행률용 BL 데이터 — D-061 동일 패턴 (TODO: Rust 계산엔진 연동)
+  // 4단계 MW 진행률용 BL 데이터 — D-061 동일 패턴의 프론트 소규모 합산
   const [blShipped, setBlShipped] = useState<{ shippedMw: number; completedMw: number }>({ shippedMw: 0, completedMw: 0 });
   useEffect(() => {
     let cancelled = false;

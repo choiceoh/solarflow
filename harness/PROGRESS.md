@@ -67,6 +67,26 @@
 
 ---
 
+## 2026-04-28 세션 정리 — Rust 연동 표식 + Phase 확장 앵커
+
+### 완료된 Rust 연동 TODO 정리
+- 오래된 `TODO: Rust 계산엔진 연동` 주석 제거/정정
+  - Landed Cost: `/api/v1/calc/landed-cost` 프록시 사용
+  - LC 수수료/한도/만기: `/api/v1/calc/lc-fee`, `/lc-limit-timeline`, `/lc-maturity-alert` 프록시 사용
+  - 재고/마진/수금/검색 계열: 기존 Rust CalcProxy 경로 기준으로 주석 정리
+- `LandedCostPanel` 응답 필드 오류 수정: Rust 응답 `items` 기준으로 렌더링
+- `ExchangeComparePanel`을 Rust `/api/v1/calc/exchange-compare` 응답 구조에 맞게 수정
+
+### Phase 확장 미해결 항목 코드 앵커 추가
+- D-022: `engine/src/calc/inventory.rs` — FIFO 전까지 최초 입고일 기준 장기재고 판별 명시
+- D-024: `engine/src/calc/landed_cost.rs`, `frontend/src/hooks/useExchange.ts` — 실시간 환율 API 전까지 최근 면장 환율 사용 명시
+- D-030: `backend/internal/handler/lc.go` — LC 수수료 수동 보정 Phase 확장 앵커
+- D-031: `engine/src/calc/margin.rs`, `backend/internal/handler/outbound.go` — FIFO 원가/출고 검증 Phase 확장 앵커
+- D-064: `backend/internal/handler/attachment.go` — PDF 보관과 PDF 자동 입력 Phase 5 분리 명시
+- D-067: `/api/v1/export/amaranth/sales` 501 응답 추가 — 실물 양식 확보 전 미구현 상태 명확화
+
+---
+
 ## 2026-04-27 세션 긴급 수정 — LC 다품목 PO 대응
 
 ### PO 라인아이템 → LC 품목 명세 연동
@@ -210,11 +230,11 @@
 8. 코드 주석 TODO 중 실제 Rust 연동이 끝난 항목(LandedCostPanel 등) 표현 정리
 
 ### Phase 확장 미해결 (장기)
-- LC 수수료 수동 보정 (D-030)
-- FIFO 원가 매칭 (D-022, D-031)
-- 실시간 환율 API (D-024)
-- PDF 자동 데이터 입력 (D-064)
-- 아마란스 매출마감 내보내기 (D-067)
+- LC 수수료 수동 보정 (D-030) — 코드 앵커: `backend/internal/handler/lc.go`
+- FIFO 원가 매칭/출고 검증 (D-022, D-031) — 코드 앵커: `engine/src/calc/inventory.rs`, `engine/src/calc/margin.rs`, `backend/internal/handler/outbound.go`
+- 실시간 환율 API (D-024) — 코드 앵커: `engine/src/calc/landed_cost.rs`, `frontend/src/hooks/useExchange.ts`
+- PDF 자동 데이터 입력 (D-064) — 코드 앵커: `backend/internal/handler/attachment.go`
+- 아마란스 매출마감 내보내기 (D-067) — 코드 앵커: `backend/internal/handler/export.go`, `frontend/src/components/excel/ExcelToolbar.tsx`
 
 ---
 

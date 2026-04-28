@@ -16,7 +16,7 @@ export interface BankLimitGroup {
 /**
  * useAllBankLimitGroups — 모든 법인의 은행별 한도 현황을 Go API에서 직접 집계
  * 실행금액 = 미결제(status != settled) + 미상환(repaid != true) LC 합산
- * TODO: Rust 계산엔진 연동
+ * Rust 한도 복원 예측은 useLCLimitTimeline에서 담당하고, 이 훅은 현재 한도 스냅샷만 표시한다.
  */
 export function useAllBankLimitGroups() {
   const [groups, setGroups] = useState<BankLimitGroup[]>([]);

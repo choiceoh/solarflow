@@ -16,6 +16,7 @@ import (
 
 // ExportHandler — 아마란스10 ERP 내보내기 핸들러
 // 비유: "ERP 양식 변환기" — DB 데이터를 아마란스 양식 .xlsx로 변환
+// TODO: Phase 확장(D-067) — 아마란스 매출마감 실물 양식 확보 후 sales 내보내기 구현.
 type ExportHandler struct {
 	DB *supa.Client
 }
@@ -23,6 +24,12 @@ type ExportHandler struct {
 // NewExportHandler — ExportHandler 생성자
 func NewExportHandler(db *supa.Client) *ExportHandler {
 	return &ExportHandler{DB: db}
+}
+
+// AmaranthSalesClosing — GET /api/v1/export/amaranth/sales
+// 비유: 매출마감 양식은 아직 실물 서식이 없어 닫힌 접수창으로 명확히 안내
+func (h *ExportHandler) AmaranthSalesClosing(w http.ResponseWriter, r *http.Request) {
+	response.RespondError(w, http.StatusNotImplemented, "아마란스 매출마감 내보내기는 D-067에 따라 실물 양식 확인 후 구현합니다")
 }
 
 // --- 입고 34컬럼 헤더 ---
@@ -501,7 +508,7 @@ func (h *ExportHandler) AmaranthInbound(w http.ResponseWriter, r *http.Request) 
 				ptrFloat(line.InvoiceAmountUSD), // U 외화금액
 				lcCode,                          // V 장소코드
 				"",                              // W LOT번호
-				"",                              // X 관리구분 (D-067)
+				"",                              // X 관리구분 (D-068)
 				"",                              // Y 프로젝트코드
 				lineRemark,                      // Z 비고(내역)
 				poNumber,                        // AA 발주번호
@@ -671,7 +678,7 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 			vatAmt,          // R 부가세
 			totalAmt,        // S 합계액
 			lcCode,          // T 장소코드
-			"",              // U 관리구분 (D-067)
+			"",              // U 관리구분 (D-068)
 			"",              // V 프로젝트코드
 			ptrStr(ob.Memo), // W 비고(내역)
 			"",              // X 납품처코드

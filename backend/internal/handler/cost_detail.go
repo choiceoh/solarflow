@@ -14,7 +14,8 @@ import (
 
 // CostDetailHandler — 원가 명세(cost_details) 관련 API를 처리하는 핸들러
 // 비유: "원가 계산서 관리실" — FOB→CIF→Landed 3단계 원가를 관리
-// TODO: Rust 계산엔진 연동 — Landed Cost 계산 (CIF + 관세 + 부대비용 -> Landed Wp단가)
+// Rust Landed Cost 계산은 /api/v1/calc/landed-cost 프록시가 담당한다.
+// 비유: 이 핸들러는 계산서 보관함, 계산 자체는 Rust 계산실에 맡김.
 type CostDetailHandler struct {
 	DB *supa.Client
 }

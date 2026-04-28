@@ -43,6 +43,8 @@ var allowedAttachmentEntities = map[string]bool{
 }
 
 // AttachmentHandler — 업무 데이터에 연결되는 PDF 첨부파일 처리
+// D-064: 현재는 PDF 보관/조회만 담당한다.
+// TODO: Phase 5(D-064) — PDF 자동 데이터 입력은 파싱→미리보기→확정등록 흐름으로 별도 구현.
 type AttachmentHandler struct {
 	DB *supa.Client
 }

@@ -14,8 +14,9 @@ import (
 
 // OutboundHandler — 출고(outbounds) 관련 API를 처리하는 핸들러
 // 비유: "출고 관리실" — 창고에서 현장/고객으로 나가는 모듈 출고를 관리
-// TODO: Rust 계산엔진 연동 — 재고 차감 검증 (가용재고 >= 출고수량)
-// TODO: 그룹 내 거래 — 출고 시 상대 법인 입고 자동 생성
+// Rust 재고 집계는 /api/v1/calc/inventory 프록시가 담당한다.
+// TODO: Phase 확장(D-031) — 출고 저장 전 Rust FIFO/가용재고 검증 결과로 차단.
+// TODO: 그룹 내 거래 — 출고 시 상대 법인 입고 자동 생성.
 type OutboundHandler struct {
 	DB *supa.Client
 }

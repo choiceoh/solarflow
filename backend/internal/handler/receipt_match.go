@@ -14,8 +14,7 @@ import (
 
 // ReceiptMatchHandler — 수금 매칭(receipt_matches) 관련 API를 처리하는 핸들러
 // 비유: "수금-출고 매칭 대장" — 어떤 입금이 어떤 출고에 얼마만큼 매칭되었는지 관리
-// TODO: Rust 계산엔진 연동 — 수금 매칭 자동 추천 (미수금 금액 조합 최적화)
-// TODO: Rust 계산엔진 연동 — 거래처별 미수금 총괄 (미수금, 경과일, 상태)
+// Rust 수금 추천/미수금 총괄은 /api/v1/calc/receipt-match-suggest, /outstanding-list 프록시가 담당한다.
 type ReceiptMatchHandler struct {
 	DB *supa.Client
 }
