@@ -233,10 +233,9 @@ export default function POListTable({ items, onDetail, onNew, onEditLC, onNewLC,
             const lcUsdPct   = a && a.totalUsd > 0 ? Math.min(100, (a.lcUsd / a.totalUsd) * 100) : 0;
 
             return (
-              <>
+              <Fragment key={po.po_id}>
                 {/* ── 메인 행 ── */}
                 <tr
-                  key={po.po_id}
                   className="border-t hover:bg-muted/20 transition-colors cursor-pointer"
                   onClick={() => toggle(po.po_id)}
                 >
@@ -684,7 +683,7 @@ export default function POListTable({ items, onDetail, onNew, onEditLC, onNewLC,
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             );
           })}
         </tbody>

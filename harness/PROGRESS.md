@@ -143,6 +143,28 @@
 
 ---
 
+## 2026-04-28 세션 완료 작업 — 프론트엔드 회귀 테스트 기반 구축
+
+### Vitest + Testing Library 도입
+- `frontend`에 `vitest`, `jsdom`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event` 추가
+- `npm test` / `npm run test:watch` 스크립트 추가
+- `vite.config.ts`에 jsdom 테스트 환경과 `src/test/setup.ts` 공통 polyfill 설정 추가
+
+### 최근 회귀 위험 컴포넌트 테스트 추가
+- `src/test/fixtures.ts`, `src/test/mockApi.ts`: 공통 fixture, Zustand store 초기화, `fetchWithAuth` mock, JSON body 파서 헬퍼 추가
+- `OrderForm.test.tsx`: 가용재고 예약 → 수주 전환 prefill, `customer_hint` 거래처 자동 매칭, 수량/단가/발주번호/현장명 표시, 저장 payload, 미착품→실재고 자동 전환, `alloc_id` 기반 법인 복원 검증
+- `AllocationForm.test.tsx`: 모달 헤더/푸터 고정 + 본문 `overflow-y-auto` 스크롤 구조, 수정 모드 notes의 `[발주번호:X]` 파싱/저장, 현재고+미착품 분할 예약 group_id 검증
+- `POListTable.test.tsx`: PO 라인/LC/TT 집계 우선 로드, 행 펼침 시 B/L lazy-load와 B/L별 MW 표시, `+ L/C 추가`, B/L 행 선택, 초안 PO 삭제 전 T/T 연동 삭제 경고, 빈 목록 액션 검증
+- `POListTable` React key 경고 수정: PO 행 그룹 Fragment에 `key` 부여
+
+### 검증 결과
+- `npm test` 통과: 3개 테스트 파일 / 9개 테스트 PASS
+- `npm run build` 통과
+- `npm run lint`는 기존 프론트 전체 lint 198건으로 실패 (신규 테스트 파일 원인 아님)
+- `graphify update .` 실행 시도했으나 이 worktree에 `graphify` 명령과 `graphify-out/` 디렉터리가 없어 갱신 불가
+
+---
+
 ## 2026-04-27 세션 긴급 수정 — LC 다품목 PO 대응
 
 ### PO 라인아이템 → LC 품목 명세 연동
@@ -279,11 +301,12 @@
 3. **첨부파일 운영 검증** — `SOLARFLOW_FILE_ROOT` 저장 경로, PDF 미리보기/다운로드/삭제 권한 점검
 4. **출고 운송비 실사용 검증** — 출고 상세 운송비 패널과 결재안 운송비 월정산 데이터 흐름 확인
 5. **수요예측 실사용 검증** — `module_demand_forecasts` 수동 계획이 재고/수급전망 판단에 맞게 보이는지 확인
+6. **프론트엔드 회귀 테스트 확장** — Vitest 기반 9개 회귀 테스트는 구축 완료. 아직 전체 컴포넌트/useEffect 커버리지는 낮으므로 주요 CRUD 폼과 페이지 단위 테스트 추가 필요
 
 ### 중기 작업
-6. 전체 UI 색상/아이콘 개선 (사용자 요청: 단조로운 디자인 개선, 밤/낮 배경색 등)
-7. PODetailView 종합정보 LC 개설 38.82 MW 표시 정확성 확인 (실제 데이터 2개 LC 합계)
-8. 코드 주석 TODO 중 실제 Rust 연동이 끝난 항목(LandedCostPanel 등) 표현 정리
+7. 전체 UI 색상/아이콘 개선 (사용자 요청: 단조로운 디자인 개선, 밤/낮 배경색 등)
+8. PODetailView 종합정보 LC 개설 38.82 MW 표시 정확성 확인 (실제 데이터 2개 LC 합계)
+9. 코드 주석 TODO 중 실제 Rust 연동이 끝난 항목(LandedCostPanel 등) 표현 정리
 
 ### Phase 확장 미해결 (장기)
 - LC 수수료 수동 보정 (D-030) — 코드 앵커: `backend/internal/handler/lc.go`

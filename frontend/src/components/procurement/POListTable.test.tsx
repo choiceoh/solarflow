@@ -1,0 +1,105 @@
+import type { ComponentProps } from 'react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { testBl, testBlLine, testLc, testPo, testPoLine, testTt } from '@/test/fixtures';
+import { callsFor, mockFetchWithAuth, resetAppStore, seedCompanyStore } from '@/test/mockApi';
+import POListTable from './POListTable';
+
+vi.mock('@/lib/api', () => ({
+  fetchWithAuth: vi.fn(),
+}));
+
+function mockPOListApi() {
+  mockFetchWithAuth((path) => {
+    if (path === `/api/v1/pos/${testPo.po_id}/lines`) return [testPoLine];
+    if (path === `/api/v1/lcs?po_id=${testPo.po_id}`) return [testLc];
+    if (path === `/api/v1/tts?po_id=${testPo.po_id}`) return [testTt];
+    if (path === `/api/v1/bls?po_id=${testPo.po_id}`) return [{ ...testBl, po_id: testPo.po_id, lc_id: testLc.lc_id }];
+    if (path === `/api/v1/bls/${testBl.bl_id}/lines`) return [testBlLine];
+    throw new Error(`Unexpected API call: ${path}`);
+  });
+}
+
+function renderTable(props: Partial<ComponentProps<typeof POListTable>> = {}) {
+  return render(
+    <POListTable
+      items={[testPo]}
+      onDetail={vi.fn()}
+      onNew={vi.fn()}
+      {...props}
+    />,
+  );
+}
+
+describe('POListTable', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    resetAppStore();
+  });
+
+  it('loads PO aggregates first and lazy-loads B/L MW when expanded', async () => {
+    seedCompanyStore();
+    mockPOListApi();
+    const onNewLC = vi.fn();
+    const onSelectBL = vi.fn();
+
+    renderTable({ onNewLC, onSelectBL });
+
+    expect(await screen.findByText('$100,000.00')).not.toBeNull();
+    expect(await screen.findByText('$60,000.00')).not.toBeNull();
+    expect(screen.getByText('미개설').textContent).toContain('미개설');
+    expect(callsFor(`/api/v1/bls?po_id=${testPo.po_id}`)).toHaveLength(0);
+
+    const poRow = screen.getByText(testPo.po_number).closest('tr');
+    expect(poRow).not.toBeNull();
+    fireEvent.click(poRow!);
+
+    expect(await screen.findByText('MW 진행 현황')).not.toBeNull();
+    expect(await screen.findByText(testBl.bl_number)).not.toBeNull();
+    await waitFor(() => {
+      expect(screen.getAllByText('0.64 MW').length).toBeGreaterThan(0);
+    });
+    expect(callsFor(`/api/v1/bls?po_id=${testPo.po_id}`)).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole('button', { name: /L\/C 추가/ }));
+    expect(onNewLC).toHaveBeenCalledWith(testPo);
+
+    fireEvent.click(screen.getByText(testBl.bl_number));
+    expect(onSelectBL).toHaveBeenCalledWith(testBl.bl_id);
+  });
+
+  it('warns that linked T/T rows are deleted before deleting a draft PO', async () => {
+    seedCompanyStore();
+    mockPOListApi();
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+
+    renderTable({
+      items: [{ ...testPo, status: 'draft' }],
+      onDelete,
+    });
+
+    expect(await screen.findByText('$100,000.00')).not.toBeNull();
+    fireEvent.click(screen.getByTitle('삭제 (초안만 가능)'));
+
+    expect(await screen.findByText(/T\/T 1건도 삭제됩니다/)).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '삭제' }));
+
+    await waitFor(() => expect(onDelete).toHaveBeenCalledWith(testPo.po_id));
+  });
+
+  it('renders an empty action state when no PO exists', () => {
+    const onNew = vi.fn();
+
+    render(
+      <POListTable
+        items={[]}
+        onDetail={vi.fn()}
+        onNew={onNew}
+      />,
+    );
+
+    expect(screen.getByText('등록된 PO가 없습니다')).not.toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '새로 등록' }));
+    expect(onNew).toHaveBeenCalledTimes(1);
+  });
+});
