@@ -46,14 +46,18 @@ export async function fetchCalc<T>(
     });
   }
   const ids = await getActiveCompanyIds();
-  const results = await Promise.all(
+  const results = await Promise.allSettled(
     ids.map((id) =>
       fetchWithAuth<T>(endpoint, {
         method: 'POST',
         body: JSON.stringify({ company_id: id, ...extraBody }),
-      }).catch(() => null)
+      })
     ),
   );
-  const valid = results.filter((r) => r !== null) as T[];
+  const failed = results.filter((r) => r.status === 'rejected');
+  if (failed.length > 0) {
+    throw new Error(`전체 법인 계산 중 ${failed.length}/${ids.length}개 법인 계산에 실패했습니다`);
+  }
+  const valid = results.map((r) => (r as PromiseFulfilledResult<T>).value);
   return merge(valid);
 }

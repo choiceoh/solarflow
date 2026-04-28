@@ -42,6 +42,35 @@ function readTokenFromStorage(): string | null {
 // getSession()에 타임아웃 적용 — 토큰 갱신 중 블로킹 방지
 const SESSION_TIMEOUT_MS = 3000;
 
+async function parseResponseBody<T>(res: Response): Promise<T> {
+  if (res.status === 204 || res.status === 205) {
+    return undefined as T;
+  }
+
+  const text = await res.text();
+  if (!text.trim()) {
+    return undefined as T;
+  }
+
+  const contentType = res.headers.get('content-type')?.toLowerCase() ?? '';
+  if (!contentType.includes('application/json')) {
+    return text as T;
+  }
+
+  return JSON.parse(text) as T;
+}
+
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const parsed = await parseResponseBody<{ message?: string } | string>(res);
+    if (typeof parsed === 'string' && parsed.trim()) return parsed;
+    if (parsed && typeof parsed === 'object' && parsed.message) return parsed.message;
+  } catch {
+    // 에러 응답 본문이 깨져 있어도 원래 HTTP 상태는 유지한다.
+  }
+  return fallback;
+}
+
 async function getSessionToken(): Promise<string | null> {
   try {
     const result = await Promise.race([
@@ -97,7 +126,7 @@ export async function fetchWithAuth<T>(path: string, options?: RequestInit): Pro
       });
 
       if (retryRes.ok) {
-        return retryRes.json();
+        return parseResponseBody<T>(retryRes);
       }
 
       // 재시도도 401이면 로그아웃
@@ -107,8 +136,8 @@ export async function fetchWithAuth<T>(path: string, options?: RequestInit): Pro
         throw new Error('인증이 만료되었습니다');
       }
 
-      const retryError = await retryRes.json().catch(() => ({ message: '요청 실패' }));
-      throw new Error(retryError.message || `HTTP ${retryRes.status}`);
+      const retryError = await readErrorMessage(retryRes, '요청 실패');
+      throw new Error(retryError || `HTTP ${retryRes.status}`);
     }
 
     // 갱신 실패 — 로그아웃
@@ -118,11 +147,11 @@ export async function fetchWithAuth<T>(path: string, options?: RequestInit): Pro
   }
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ message: '요청 실패' }));
-    throw new Error(error.message || `HTTP ${res.status}`);
+    const error = await readErrorMessage(res, '요청 실패');
+    throw new Error(error || `HTTP ${res.status}`);
   }
 
-  return res.json();
+  return parseResponseBody<T>(res);
 }
 
 export async function fetchBlobWithAuth(path: string, options?: RequestInit): Promise<Response> {
