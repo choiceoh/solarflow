@@ -476,3 +476,8 @@
 - **이유**: 공개 GitHub 히스토리에 과거 환경값이 노출되었을 가능성이 있으므로, 로컬 DB API(PostgREST) 접근키를 Supabase 프로젝트 JWT secret과 분리해야 한다. 분리 후에는 로컬 PostgREST 키 회전이 Supabase 로그인/Auth 설정에 영향을 주지 않는다.
 - **운영 기준**: `postgrest.conf`에는 비밀값을 직접 쓰지 않고 `$(POSTGREST_JWT_SECRET)`만 둔다. 실제 값은 launchd plist와 로컬 `.env*`에만 둔다.
 - **날짜**: 2026-04-27
+
+## D-092: 개발 반복 검증과 서비스 반영 스크립트 표준화
+- **결정**: 루트 `scripts/`에 전체 검증(`verify_all.sh`)과 서비스 반영(`apply_go.sh`, `apply_rust.sh`, `apply_frontend.sh`) 스크립트를 둔다. 기본 전체 검증은 Go/Rust/프론트 빌드·테스트를 차단 기준으로 삼고, 기존 RULES lint 부채는 advisory로 표시한다. 엄격 차단이 필요할 때는 `STRICT_RULES=1 ./scripts/verify_all.sh`를 사용한다.
+- **이유**: 매 작업마다 명령어를 새로 조합하면 누락과 순서 실수가 반복된다. 특히 Go 변경 후 코드서명과 launchd bootout/bootstrap, Request 구조체 변경 후 스키마 검사가 빠지면 운영 화면에서 500 회귀가 난다. 반복 절차를 스크립트로 고정해 개발 속도를 높이고, 기존 lint 부채는 별도 정리 전까지 일상 검증을 막지 않도록 분리한다.
+- **날짜**: 2026-04-28

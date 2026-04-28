@@ -14,6 +14,9 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import LinkedMemoWidget from '@/components/memo/LinkedMemoWidget';
 import POInboundProgress from './POInboundProgress';
 import AttachmentWidget from '@/components/common/AttachmentWidget';
+import GroupedMiniTable, { type GroupedMiniTableColumn } from '@/components/common/GroupedMiniTable';
+import ProgressMiniBar from '@/components/common/ProgressMiniBar';
+import StatusPill from '@/components/common/StatusPill';
 import { parseDeposit } from './DepositStatusPanel';
 import { fetchWithAuth } from '@/lib/api';
 import { usePOLines, useLCList, useTTList } from '@/hooks/useProcurement';
@@ -21,7 +24,6 @@ import type { BLShipment, BLLineItem } from '@/types/inbound';
 import { PO_STATUS_LABEL, PO_STATUS_COLOR, CONTRACT_TYPE_LABEL, type PurchaseOrder, type POLineItem, type LCRecord, type TTRemittance } from '@/types/procurement';
 import { LC_STATUS_LABEL, LC_STATUS_COLOR, TT_STATUS_LABEL, TT_STATUS_COLOR } from '@/types/procurement';
 import { formatUSD, formatNumber } from '@/lib/utils';
-import EmptyState from '@/components/common/EmptyState';
 
 interface Props { po: PurchaseOrder; onBack: () => void; onReload: () => void; allPos?: PurchaseOrder[]; }
 
@@ -30,56 +32,78 @@ function Field({ label, value }: { label: string; value: string | undefined }) {
 }
 
 function LCSubTable({ items }: { items: LCRecord[] }) {
-  if (items.length === 0) return <EmptyState message="연결된 LC가 없습니다" />;
   const totalUsd = items.reduce((s, l) => s + (l.amount_usd ?? 0), 0);
   const totalMw  = items.reduce((s, l) => s + (l.target_mw ?? 0), 0);
+  const columns: GroupedMiniTableColumn<LCRecord>[] = [
+    {
+      key: 'lc_number',
+      label: 'LC번호',
+      render: (lc, idx) => (
+        <span className="font-mono font-medium">
+          <span className="mr-1 text-[10px] font-normal text-muted-foreground">#{idx + 1}</span>
+          {lc.lc_number || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'bank',
+      label: '은행',
+      className: 'text-muted-foreground',
+      render: (lc) => lc.bank_name ?? '—',
+    },
+    {
+      key: 'open_date',
+      label: '개설일',
+      className: 'text-muted-foreground',
+      render: (lc) => formatDate(lc.open_date ?? ''),
+    },
+    {
+      key: 'amount_usd',
+      label: '금액(USD)',
+      align: 'right',
+      headerClassName: 'text-foreground',
+      className: 'font-mono tabular-nums',
+      render: (lc) => formatUSD(lc.amount_usd),
+    },
+    {
+      key: 'target_mw',
+      label: 'MW',
+      className: 'font-mono',
+      render: (lc) => lc.target_mw != null ? `${lc.target_mw.toFixed(2)} MW` : '—',
+    },
+    {
+      key: 'maturity_date',
+      label: '만기일',
+      className: 'text-muted-foreground',
+      render: (lc) => formatDate(lc.maturity_date ?? ''),
+    },
+    {
+      key: 'status',
+      label: '상태',
+      align: 'center',
+      render: (lc) => (
+        <StatusPill
+          label={LC_STATUS_LABEL[lc.status]}
+          colorClassName={LC_STATUS_COLOR[lc.status]}
+        />
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-3">
-      <div className="rounded-md border overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b bg-muted/20">
-              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">LC번호</th>
-              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">은행</th>
-              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">개설일</th>
-              <th className="px-3 py-1.5 text-right font-medium">금액(USD)</th>
-              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">MW</th>
-              <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">만기일</th>
-              <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">상태</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((lc, idx) => (
-              <tr key={lc.lc_id} className="border-t hover:bg-muted/10">
-                <td className="px-3 py-2 font-mono font-medium">
-                  <span className="text-[10px] font-normal text-muted-foreground mr-1">#{idx + 1}</span>
-                  {lc.lc_number || '—'}
-                </td>
-                <td className="px-3 py-2 text-muted-foreground">{lc.bank_name ?? '—'}</td>
-                <td className="px-3 py-2 text-muted-foreground">{formatDate(lc.open_date ?? '')}</td>
-                <td className="px-3 py-2 text-right font-mono tabular-nums">{formatUSD(lc.amount_usd)}</td>
-                <td className="px-3 py-2 font-mono">{lc.target_mw != null ? `${lc.target_mw.toFixed(2)} MW` : '—'}</td>
-                <td className="px-3 py-2 text-muted-foreground">{formatDate(lc.maturity_date ?? '')}</td>
-                <td className="px-3 py-2 text-center">
-                  <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', LC_STATUS_COLOR[lc.status])}>
-                    {LC_STATUS_LABEL[lc.status]}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          {items.length > 1 && (
-            <tfoot>
-              <tr className="border-t bg-muted/20">
-                <td colSpan={3} className="px-3 py-1.5 text-[10px] text-muted-foreground">합계 {items.length}건</td>
-                <td className="px-3 py-1.5 text-right font-mono font-semibold tabular-nums">{formatUSD(totalUsd)}</td>
-                <td className="px-3 py-1.5 font-mono font-semibold text-[10px]">{totalMw > 0 ? `${totalMw.toFixed(2)} MW` : '—'}</td>
-                <td colSpan={2} />
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+      <GroupedMiniTable
+        columns={columns}
+        data={items}
+        getRowKey={(lc) => lc.lc_id}
+        emptyMessage="연결된 LC가 없습니다"
+        footerCells={items.length > 1 ? [
+          { content: `합계 ${items.length}건`, colSpan: 3, className: 'text-[10px] text-muted-foreground' },
+          { content: formatUSD(totalUsd), align: 'right', className: 'font-mono font-semibold tabular-nums' },
+          { content: totalMw > 0 ? `${totalMw.toFixed(2)} MW` : '—', className: 'font-mono font-semibold text-[10px]' },
+          { content: null, colSpan: 2 },
+        ] : undefined}
+      />
       <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
         {items.map((lc) => (
           <AttachmentWidget
@@ -98,50 +122,69 @@ function LCSubTable({ items }: { items: LCRecord[] }) {
 }
 
 function TTSubTable({ items, poLines }: { items: TTRemittance[]; poLines: POLineItem[] }) {
-  if (items.length === 0) return <EmptyState message="연결된 TT가 없습니다" />;
   const totalUsd = items.reduce((s, t) => s + t.amount_usd, 0);
   const poTotalUsd = poLines.reduce((s, l) => s + (l.total_amount_usd ?? 0), 0);
   const remitRatio = poTotalUsd > 0 ? (totalUsd / poTotalUsd) * 100 : 0;
+  const columns: GroupedMiniTableColumn<TTRemittance>[] = [
+    {
+      key: 'remit_date',
+      label: '송금일',
+      className: 'text-muted-foreground',
+      render: (tt) => formatDate(tt.remit_date ?? ''),
+    },
+    {
+      key: 'amount_usd',
+      label: '금액(USD)',
+      align: 'right',
+      headerClassName: 'text-foreground',
+      className: 'font-mono tabular-nums',
+      render: (tt) => formatUSD(tt.amount_usd),
+    },
+    {
+      key: 'amount_krw',
+      label: '원화',
+      align: 'right',
+      className: 'font-mono tabular-nums text-muted-foreground',
+      render: (tt) => tt.amount_krw != null ? `${formatNumber(tt.amount_krw)}원` : '—',
+    },
+    {
+      key: 'exchange_rate',
+      label: '환율',
+      align: 'right',
+      className: 'font-mono text-muted-foreground',
+      render: (tt) => tt.exchange_rate?.toFixed(2) ?? '—',
+    },
+    {
+      key: 'purpose',
+      label: '목적',
+      className: 'text-muted-foreground',
+      render: (tt) => tt.purpose ?? '—',
+    },
+    {
+      key: 'status',
+      label: '상태',
+      align: 'center',
+      render: (tt) => (
+        <StatusPill
+          label={TT_STATUS_LABEL[tt.status]}
+          colorClassName={TT_STATUS_COLOR[tt.status]}
+        />
+      ),
+    },
+  ];
+
   return (
-    <div className="rounded-md border overflow-x-auto">
-      <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b bg-muted/20">
-            <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">송금일</th>
-            <th className="px-3 py-1.5 text-right font-medium">금액(USD)</th>
-            <th className="px-3 py-1.5 text-right font-medium text-muted-foreground">원화</th>
-            <th className="px-3 py-1.5 text-right font-medium text-muted-foreground">환율</th>
-            <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">목적</th>
-            <th className="px-3 py-1.5 text-center font-medium text-muted-foreground">상태</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((tt) => (
-            <tr key={tt.tt_id} className="border-t hover:bg-muted/10">
-              <td className="px-3 py-2 text-muted-foreground">{formatDate(tt.remit_date ?? '')}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">{formatUSD(tt.amount_usd)}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-muted-foreground">{tt.amount_krw != null ? `${formatNumber(tt.amount_krw)}원` : '—'}</td>
-              <td className="px-3 py-2 text-right font-mono text-muted-foreground">{tt.exchange_rate?.toFixed(2) ?? '—'}</td>
-              <td className="px-3 py-2 text-muted-foreground">{tt.purpose ?? '—'}</td>
-              <td className="px-3 py-2 text-center">
-                <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', TT_STATUS_COLOR[tt.status])}>
-                  {TT_STATUS_LABEL[tt.status]}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t bg-muted/20">
-            <td className="px-3 py-1.5 text-[10px] text-muted-foreground">합계 {items.length}건</td>
-            <td className="px-3 py-1.5 text-right font-mono font-semibold tabular-nums">{formatUSD(totalUsd)}</td>
-            <td colSpan={4} className="px-3 py-1.5 text-[10px] text-muted-foreground">
-              송금비율 {remitRatio.toFixed(1)}%
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
+    <GroupedMiniTable
+      columns={columns}
+      data={items}
+      getRowKey={(tt) => tt.tt_id}
+      emptyMessage="연결된 TT가 없습니다"
+      footerCells={[
+        { content: `합계 ${items.length}건`, className: 'text-[10px] text-muted-foreground' },
+        { content: formatUSD(totalUsd), align: 'right', className: 'font-mono font-semibold tabular-nums' },
+        { content: `송금비율 ${remitRatio.toFixed(1)}%`, colSpan: 4, className: 'text-[10px] text-muted-foreground' },
+      ]}
+    />
   );
 }
 
@@ -311,7 +354,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
         <h2 className="text-base font-semibold flex-1">PO {po.po_number || '—'}</h2>
-        <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-medium', PO_STATUS_COLOR[po.status])}>{PO_STATUS_LABEL[po.status]}</span>
+        <StatusPill label={PO_STATUS_LABEL[po.status]} colorClassName={PO_STATUS_COLOR[po.status]} className="px-2" />
         <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}><Pencil className="mr-1 h-3.5 w-3.5" />수정</Button>
         <Button variant="outline" size="sm" className="text-destructive hover:text-destructive"
           onClick={() => { setDeleteError(''); setDeleteOpen(true); }}>
@@ -403,9 +446,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
                       <span className="text-muted-foreground">잔여</span>
                       <span className="font-mono">{formatUSD(ttRemainUsd)}</span>
                     </div>
-                    <div className="h-2 rounded bg-muted overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: `${Math.min(100, ttPct)}%` }} />
-                    </div>
+                    <ProgressMiniBar percent={ttPct} />
                     <div className="text-[10px] text-muted-foreground text-right">{ttPct.toFixed(1)}%</div>
                   </div>
                   <div className="rounded-md border p-3 space-y-1.5">
@@ -418,9 +459,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
                       <span className="text-muted-foreground">미개설 잔액</span>
                       <span className="font-mono">{formatUSD(lcRemainUsd)}</span>
                     </div>
-                    <div className="h-2 rounded bg-muted overflow-hidden">
-                      <div className="h-full bg-green-600" style={{ width: `${Math.min(100, lcPct)}%` }} />
-                    </div>
+                    <ProgressMiniBar percent={lcPct} colorClassName="bg-green-600" />
                     <div className="text-[10px] text-muted-foreground text-right">{lcPct.toFixed(1)}%</div>
                   </div>
                 </div>
@@ -442,9 +481,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
                     <span className="text-muted-foreground">{label}</span>
                     <span className="font-mono">{value} ({pctVal.toFixed(1)}%)</span>
                   </div>
-                  <div className="h-2 rounded bg-muted overflow-hidden">
-                    <div className={cn('h-full', color)} style={{ width: `${pctVal}%` }} />
-                  </div>
+                  <ProgressMiniBar percent={pctVal} colorClassName={color} />
                 </div>
               );
               return (
@@ -535,9 +572,7 @@ export default function PODetailView({ po: initialPo, onBack, onReload, allPos =
                     {!isDone && remainUsd > 0 && <span className="text-muted-foreground">잔여 <span className="font-mono font-medium text-red-600">{formatUSD(remainUsd)}</span></span>}
                     {dep.plannedSplits > 0 && <span className="text-muted-foreground">분할 {dep.plannedSplits}회</span>}
                   </div>
-                  <div className="h-2 rounded bg-muted overflow-hidden">
-                    <div className={cn('h-full', isDone ? 'bg-green-600' : 'bg-orange-500')} style={{ width: `${Math.min(100, paidPct)}%` }} />
-                  </div>
+                  <ProgressMiniBar percent={paidPct} colorClassName={isDone ? 'bg-green-600' : 'bg-orange-500'} />
                   <div className="text-[10px] text-muted-foreground text-right">{paidPct.toFixed(1)}%</div>
                 </div>
               );
