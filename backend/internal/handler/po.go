@@ -339,22 +339,28 @@ func (h *POHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// ① T/T 송금이력 cascade 삭제 (PO 초안 취소 시 계약금도 함께 소멸)
-	_, _, _ = h.DB.From("tt_remittances").
+	if _, _, derr := h.DB.From("tt_remittances").
 		Delete("", "").
 		Eq("po_id", id).
-		Execute()
+		Execute(); derr != nil {
+		log.Printf("[PO 삭제] tt_remittances cascade 실패 po_id=%s err=%v", id, derr)
+	}
 
 	// ② 단가이력 삭제 (PO 등록 시 자동 생성, FK: price_histories.related_po_id)
-	_, _, _ = h.DB.From("price_histories").
+	if _, _, derr := h.DB.From("price_histories").
 		Delete("", "").
 		Eq("related_po_id", id).
-		Execute()
+		Execute(); derr != nil {
+		log.Printf("[PO 삭제] price_histories cascade 실패 po_id=%s err=%v", id, derr)
+	}
 
 	// ③ 라인아이템 삭제 (DB는 CASCADE이지만 명시적으로 처리)
-	_, _, _ = h.DB.From("po_line_items").
+	if _, _, derr := h.DB.From("po_line_items").
 		Delete("", "").
 		Eq("po_id", id).
-		Execute()
+		Execute(); derr != nil {
+		log.Printf("[PO 삭제] po_line_items cascade 실패 po_id=%s err=%v", id, derr)
+	}
 
 	// ④ PO 본체 삭제
 	_, _, err := h.DB.From("purchase_orders").

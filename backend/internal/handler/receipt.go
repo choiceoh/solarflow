@@ -227,10 +227,12 @@ func (h *ReceiptHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// 매칭 먼저 삭제 (FK 제약)
-	_, _, _ = h.DB.From("receipt_matches").
+	if _, _, derr := h.DB.From("receipt_matches").
 		Delete("", "").
 		Eq("receipt_id", id).
-		Execute()
+		Execute(); derr != nil {
+		log.Printf("[수금 삭제] receipt_matches cascade 실패 receipt_id=%s err=%v", id, derr)
+	}
 
 	_, _, err := h.DB.From("receipts").
 		Delete("", "").

@@ -172,10 +172,12 @@ func (h *DeclarationHandler) Update(w http.ResponseWriter, r *http.Request) {
 func (h *DeclarationHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	_, _, _ = h.DB.From("cost_details").
+	if _, _, derr := h.DB.From("cost_details").
 		Delete("", "").
 		Eq("declaration_id", id).
-		Execute()
+		Execute(); derr != nil {
+		log.Printf("[면장 삭제] cost_details cascade 실패 declaration_id=%s err=%v — 후속 import_declarations DELETE가 FK 위반으로 실패할 수 있음", id, derr)
+	}
 
 	_, _, err := h.DB.From("import_declarations").
 		Delete("", "").

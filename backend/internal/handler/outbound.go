@@ -507,11 +507,16 @@ func (h *OutboundHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	// bl_items가 제공된 경우 기존 항목 삭제 후 재등록
 	if blItems != nil {
-		_, _, _ = h.DB.From("outbound_bl_items").
+		// UPDATE 후 재등록 패턴 — 삭제 실패 시 INSERT가 UNIQUE/FK 위반으로 500 → 사용자에게 원인 불명
+		// 따라서 실패 시 로그를 남기고 재등록을 건너뛰어 진단 가능하게 함
+		if _, _, derr := h.DB.From("outbound_bl_items").
 			Delete("", "").
 			Eq("outbound_id", id).
-			Execute()
-		h.insertBLItems(id, blItems)
+			Execute(); derr != nil {
+			log.Printf("[출고 수정] 기존 outbound_bl_items 삭제 실패 id=%s err=%v — 재등록 건너뜀", id, derr)
+		} else {
+			h.insertBLItems(id, blItems)
+		}
 	}
 
 	updated[0].BLItems = h.fetchBLItems(id)
@@ -558,15 +563,19 @@ func (h *OutboundHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		if json.Unmarshal(saleData, &linkedSales) == nil {
 			for _, sale := range linkedSales {
 				if sale.OrderID != nil && *sale.OrderID != "" {
-					_, _, _ = h.DB.From("sales").
+					if _, _, uerr := h.DB.From("sales").
 						Update(map[string]interface{}{"outbound_id": nil}, "", "").
 						Eq("sale_id", sale.SaleID).
-						Execute()
+						Execute(); uerr != nil {
+						log.Printf("[출고 삭제] 매출 outbound_id 분리 실패 sale_id=%s err=%v — 후속 outbound DELETE가 FK 위반으로 실패할 수 있음", sale.SaleID, uerr)
+					}
 				} else {
-					_, _, _ = h.DB.From("sales").
+					if _, _, derr := h.DB.From("sales").
 						Delete("", "").
 						Eq("sale_id", sale.SaleID).
-						Execute()
+						Execute(); derr != nil {
+						log.Printf("[출고 삭제] 매출 삭제 실패 sale_id=%s err=%v — 후속 outbound DELETE가 FK 위반으로 실패할 수 있음", sale.SaleID, derr)
+					}
 				}
 			}
 		}

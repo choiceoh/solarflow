@@ -148,7 +148,11 @@ func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 			}
 
 			// 비유: 이메일도 토큰에서 꺼냄 (Supabase JWT에 email 클레임 포함)
+			// 신규 사용자 자동 프로비저닝(아래 INSERT)에서 사용되므로 누락 시 진단 로그 남김
 			email, _ := claims["email"].(string)
+			if email == "" {
+				log.Printf("[인증 미들웨어] JWT에 email 클레임 누락 또는 비문자열: user_id=%s — 자동 프로비저닝 시 빈 email로 INSERT 시도됨", userID)
+			}
 
 			// 비유: 인사카드(user_profiles)에서 해당 사번의 역할, 활성 여부 조회
 			data, _, err := db.From("user_profiles").

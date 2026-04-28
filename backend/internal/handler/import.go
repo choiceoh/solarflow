@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 
 	supa "github.com/supabase-community/supabase-go"
@@ -103,14 +104,25 @@ func getString(row map[string]interface{}, key string) string {
 
 // getFloat — map에서 float64 값 안전 추출 (없으면 0, 에러 시 0)
 func getFloat(row map[string]interface{}, key string) (float64, bool) {
-	v, ok := row[key]
-	if !ok || v == nil {
+	return assertFloat(row[key])
+}
+
+// assertFloat — interface{} 값을 float64로 안전 변환 (json.Number/int/string 포함)
+// 비유: 봉투 안 숫자가 어떤 형태(float/int/json.Number/문자열)로 와도 동일 규격으로 꺼냄
+// nil/타입 불일치/파싱 실패는 모두 ok=false. 호출부는 반드시 ok를 검사할 것.
+// (단정 실패를 zero value로 흘리면 VAT 0원 같은 무성 손상이 발생)
+func assertFloat(v interface{}) (float64, bool) {
+	if v == nil {
 		return 0, false
 	}
 	switch n := v.(type) {
 	case float64:
 		return n, true
+	case float32:
+		return float64(n), true
 	case int:
+		return float64(n), true
+	case int64:
 		return float64(n), true
 	case json.Number:
 		f, err := n.Float64()
@@ -118,9 +130,46 @@ func getFloat(row map[string]interface{}, key string) (float64, bool) {
 			return 0, false
 		}
 		return f, true
+	case string:
+		// 엑셀 텍스트 셀 또는 JSON에서 따옴표로 감싼 숫자 처리
+		s := strings.TrimSpace(n)
+		if s == "" {
+			return 0, false
+		}
+		f, err := strconv.ParseFloat(s, 64)
+		if err != nil {
+			return 0, false
+		}
+		return f, true
 	default:
 		return 0, false
 	}
+}
+
+// requireFloat — row에서 float 필수 추출. 형식 오류 시 사용자 친화적 ImportError 반환
+// 비유: validateRequired는 빈 칸만 보지만, 이건 숫자 형식까지 검증
+// validateRequired 통과 후 사용 — !ok면 "값은 있으나 숫자가 아님"을 의미
+func requireFloat(rowNum int, row map[string]interface{}, key string) (float64, *model.ImportError) {
+	v, ok := getFloat(row, key)
+	if !ok {
+		return 0, &model.ImportError{
+			Row: rowNum, Field: key,
+			Message: fmt.Sprintf("%s 숫자 형식이 올바르지 않습니다", key),
+		}
+	}
+	return v, nil
+}
+
+// requireInt — row에서 int 필수 추출. 형식 오류 시 사용자 친화적 ImportError 반환
+func requireInt(rowNum int, row map[string]interface{}, key string) (int, *model.ImportError) {
+	v, ok := getInt(row, key)
+	if !ok {
+		return 0, &model.ImportError{
+			Row: rowNum, Field: key,
+			Message: fmt.Sprintf("%s 숫자 형식이 올바르지 않습니다", key),
+		}
+	}
+	return v, nil
 }
 
 // getInt — map에서 int 값 안전 추출
@@ -231,8 +280,14 @@ func (h *ImportHandler) resolveProductWithWattage(productCode string) (string, f
 		return "", 0, fmt.Errorf("존재하지 않는 품번코드입니다: %s", productCode)
 	}
 
-	id, _ := results[0]["product_id"].(string)
-	wattage, _ := results[0]["wattage_kw"].(float64)
+	id, ok := results[0]["product_id"].(string)
+	if !ok || id == "" {
+		return "", 0, fmt.Errorf("product_id 추출 실패 (productCode=%s)", productCode)
+	}
+	wattage, ok := assertFloat(results[0]["wattage_kw"])
+	if !ok {
+		return "", 0, fmt.Errorf("wattage_kw 추출 실패 (productCode=%s) — 단가 계산 불가", productCode)
+	}
 	return id, wattage, nil
 }
 
@@ -407,7 +462,12 @@ func (h *ImportHandler) Inbound(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			qty, _ := getInt(lineRow, "quantity")
+			qty, qErr := requireInt(lineRowNum, lineRow, "quantity")
+			if qErr != nil {
+				importErrors = append(importErrors, *qErr)
+				lineOK = false
+				continue
+			}
 			capacityKW := float64(qty) * wattageKW
 
 			lineReq := model.CreateBLLineRequest{
@@ -531,7 +591,11 @@ func (h *ImportHandler) Outbound(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		qty, _ := getInt(row, "quantity")
+		qty, qErr := requireInt(rowNum, row, "quantity")
+		if qErr != nil {
+			importErrors = append(importErrors, *qErr)
+			continue
+		}
 		capacityKW := float64(qty) * wattageKW
 
 		// group_trade: "Y" -> true
@@ -657,12 +721,36 @@ func (h *ImportHandler) Sales(w http.ResponseWriter, r *http.Request) {
 		}
 
 		ob := outbounds[0]
-		quantity, _ := ob["quantity"].(float64)
+		quantity, qOk := assertFloat(ob["quantity"])
+		if !qOk || quantity <= 0 {
+			// 단정 실패 → 0이 흘러 VAT 0원으로 등록되는 무성 손상 방지
+			importErrors = append(importErrors, model.ImportError{
+				Row: rowNum, Field: "outbound_id",
+				Message: fmt.Sprintf("출고 수량(quantity) 추출 실패: outbound_id=%s", outboundID),
+			})
+			continue
+		}
 
 		// products 서브쿼리에서 spec_wp 추출
+		// PostgREST FK join은 객체 또는 배열로 올 수 있어 두 형태 모두 처리
 		var specWP float64
-		if products, ok := ob["products"].(map[string]interface{}); ok {
-			specWP, _ = products["spec_wp"].(float64)
+		var specOk bool
+		switch p := ob["products"].(type) {
+		case map[string]interface{}:
+			specWP, specOk = assertFloat(p["spec_wp"])
+		case []interface{}:
+			if len(p) > 0 {
+				if first, ok := p[0].(map[string]interface{}); ok {
+					specWP, specOk = assertFloat(first["spec_wp"])
+				}
+			}
+		}
+		if !specOk || specWP <= 0 {
+			importErrors = append(importErrors, model.ImportError{
+				Row: rowNum, Field: "outbound_id",
+				Message: fmt.Sprintf("품번 spec_wp 추출 실패 또는 0: outbound_id=%s — 단가/VAT 계산 불가", outboundID),
+			})
+			continue
 		}
 
 		// 거래처 FK
@@ -673,7 +761,11 @@ func (h *ImportHandler) Sales(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		unitPriceWp, _ := getFloat(row, "unit_price_wp")
+		unitPriceWp, upErr := requireFloat(rowNum, row, "unit_price_wp")
+		if upErr != nil {
+			importErrors = append(importErrors, *upErr)
+			continue
+		}
 		if unitPriceWp <= 0 {
 			importErrors = append(importErrors, model.ImportError{Row: rowNum, Field: "unit_price_wp", Message: "unit_price_wp는 양수여야 합니다"})
 			continue
@@ -849,10 +941,22 @@ func (h *ImportHandler) Declarations(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		qty, _ := getInt(row, "quantity")
+		qty, qErr := requireInt(rowNum, row, "quantity")
+		if qErr != nil {
+			importErrors = append(importErrors, *qErr)
+			continue
+		}
 		capacityKW := float64(qty) * wattageKW
-		exchangeRate, _ := getFloat(row, "exchange_rate")
-		cifTotalKrw, _ := getFloat(row, "cif_total_krw")
+		exchangeRate, exErr := requireFloat(rowNum, row, "exchange_rate")
+		if exErr != nil {
+			importErrors = append(importErrors, *exErr)
+			continue
+		}
+		cifTotalKrw, cifErr := requireFloat(rowNum, row, "cif_total_krw")
+		if cifErr != nil {
+			importErrors = append(importErrors, *cifErr)
+			continue
+		}
 
 		// cif_wp_krw 자동: cif_total_krw / (qty * spec_wp) — spec_wp가 0이면 0
 		cifWpKrw := 0.0
@@ -971,7 +1075,11 @@ func (h *ImportHandler) Expenses(w http.ResponseWriter, r *http.Request) {
 			blID = &bID
 		}
 
-		amount, _ := getFloat(row, "amount")
+		amount, amErr := requireFloat(rowNum, row, "amount")
+		if amErr != nil {
+			importErrors = append(importErrors, *amErr)
+			continue
+		}
 		vat := getFloatPtr(row, "vat")
 		total := amount
 		if vat != nil {
@@ -1096,9 +1204,17 @@ func (h *ImportHandler) Orders(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		qty, _ := getInt(row, "quantity")
+		qty, qErr := requireInt(rowNum, row, "quantity")
+		if qErr != nil {
+			importErrors = append(importErrors, *qErr)
+			continue
+		}
 		capacityKW := float64(qty) * wattageKW
-		unitPriceWp, _ := getFloat(row, "unit_price_wp")
+		unitPriceWp, upErr := requireFloat(rowNum, row, "unit_price_wp")
+		if upErr != nil {
+			importErrors = append(importErrors, *upErr)
+			continue
+		}
 
 		// 자동값: shipped_qty=0, remaining_qty=quantity, status="received"
 		shippedQty := 0
@@ -1207,7 +1323,11 @@ func (h *ImportHandler) Receipts(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		amount, _ := getFloat(row, "amount")
+		amount, amErr := requireFloat(rowNum, row, "amount")
+		if amErr != nil {
+			importErrors = append(importErrors, *amErr)
+			continue
+		}
 		if amount <= 0 {
 			importErrors = append(importErrors, model.ImportError{Row: rowNum, Field: "amount", Message: "amount는 양수여야 합니다"})
 			continue
