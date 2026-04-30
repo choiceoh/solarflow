@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, type DragEvent } from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -350,6 +350,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
   const [pendingCustomsOCRFile, setPendingCustomsOCRFile] = useState<File | null>(null);
   const [pendingCustomsOCRFields, setPendingCustomsOCRFields] = useState<CustomsDeclarationOCRFields | null>(null);
   const [customsOCRReviewOpen, setCustomsOCRReviewOpen] = useState(false);
+  const [customsOCRDragActive, setCustomsOCRDragActive] = useState(false);
   // R3: LC 선택 (해외직수입만 필수) — D-095 BL>LC=차단
   const [lcList, setLcList] = useState<{ lc_id: string; lc_number?: string; po_id: string; amount_usd: number; target_qty?: number; target_mw?: number; status: string; bank_name?: string }[]>([]);
   const [lcShippedQty, setLcShippedQty] = useState<number>(0); // 선택 LC의 기존 BL 합산 입고수량
@@ -689,9 +690,25 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     ].filter(Boolean).join(' / ') || '자동으로 채울 값을 찾지 못했습니다');
   };
 
+  const isCustomsOCRAcceptedFile = (file: File) => {
+    const name = file.name.toLowerCase();
+    return file.type === 'application/pdf'
+      || file.type.startsWith('image/')
+      || /\.(pdf|png|jpe?g|webp|heic|heif|bmp|tiff?)$/i.test(name);
+  };
+
   const prepareCustomsOCRFile = (fileList: FileList | null) => {
     const file = fileList?.[0];
     if (!file) return;
+    setCustomsOCRDragActive(false);
+    if (!isCustomsOCRAcceptedFile(file)) {
+      setCustomsOCRSummary('');
+      setCustomsOCRError('PDF 또는 사진 파일만 등록할 수 있습니다');
+      setPendingCustomsOCRFile(null);
+      setPendingCustomsOCRFields(null);
+      if (customsOCRInputRef.current) customsOCRInputRef.current.value = '';
+      return;
+    }
     setPendingCustomsOCRFile(file);
     if (customsOCRInputRef.current) customsOCRInputRef.current.value = '';
     void handleCustomsOCRFile(file);
@@ -741,12 +758,39 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     }
   };
 
+  const handleCustomsOCRDragOver = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = customsOCRLoading ? 'none' : 'copy';
+    if (!customsOCRLoading) setCustomsOCRDragActive(true);
+  };
+
+  const handleCustomsOCRDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const nextTarget = event.relatedTarget as Node | null;
+    if (nextTarget && event.currentTarget.contains(nextTarget)) return;
+    setCustomsOCRDragActive(false);
+  };
+
+  const handleCustomsOCRDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setCustomsOCRDragActive(false);
+    if (customsOCRLoading) return;
+    prepareCustomsOCRFile(event.dataTransfer.files);
+  };
+
   /* ── 폼 초기화 ── */
   useEffect(() => {
     if (!open) return;
     setSubmitError('');
     setCustomsOCRError('');
     setCustomsOCRSummary('');
+    setPendingCustomsOCRFile(null);
+    setPendingCustomsOCRFields(null);
+    setCustomsOCRReviewOpen(false);
+    setCustomsOCRDragActive(false);
     setPriceMode('cents');
     if (editData) {
       const d = editData;
@@ -1375,7 +1419,15 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 	                {isImport && (
 	                  <>
-	                    <div className="rounded-md border bg-muted/40 px-3 py-2 sm:col-span-2 lg:col-span-3 xl:col-span-4">
+	                    <div
+	                      className={`rounded-md border border-dashed px-3 py-2 transition-colors sm:col-span-2 lg:col-span-3 xl:col-span-4 ${
+	                        customsOCRDragActive ? 'border-primary bg-primary/10' : 'bg-muted/40'
+	                      } ${customsOCRLoading ? 'opacity-75' : ''}`}
+	                      onDragEnter={handleCustomsOCRDragOver}
+	                      onDragOver={handleCustomsOCRDragOver}
+	                      onDragLeave={handleCustomsOCRDragLeave}
+	                      onDrop={handleCustomsOCRDrop}
+	                    >
 	                      <div className="flex flex-wrap items-center gap-2">
 	                        <Button
 	                          type="button"
@@ -1387,6 +1439,9 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
 	                          <ScanText className={`mr-1.5 h-3.5 w-3.5 ${customsOCRLoading ? 'animate-pulse' : ''}`} />
 	                          {customsOCRLoading ? '면장 읽는 중' : '면장 PDF 자동채움'}
 	                        </Button>
+	                        <span className={`text-xs ${customsOCRDragActive ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+	                          {customsOCRDragActive ? '여기에 놓으면 읽습니다' : 'PDF/사진 드래그 가능'}
+	                        </span>
 	                        <input
 	                          ref={customsOCRInputRef}
 	                          type="file"
