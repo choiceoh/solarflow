@@ -279,9 +279,22 @@ interface CustomsDeclarationOCRLine {
   payment_type?: OCRFieldCandidate;
 }
 
+interface OCRLine {
+  text: string;
+  score?: number;
+  box?: {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  };
+}
+
 interface OCRExtractResponse {
   results: Array<{
     filename: string;
+    raw_text?: string;
+    lines?: OCRLine[];
     error?: string;
     fields?: {
       customs_declaration?: CustomsDeclarationOCRFields;
@@ -291,6 +304,224 @@ interface OCRExtractResponse {
 
 function normalizeOCRMatchText(value: string | undefined) {
   return (value ?? '').toUpperCase().replace(/[^A-Z0-9가-힣]/g, '');
+}
+
+const fallbackDeclarationNoRe = /\b(?:[A-Z]{2,4}\s*)?\d{5}[\s-]?\d{2}[\s-]?[A-Z0-9]{5,9}\b|\b[A-Z]{2,4}\s*\d{8,14}\b/i;
+const fallbackDateRe = /\b(20\d{2})[년./\-\s]*(\d{1,2})[월./\-\s]*(\d{1,2})\s*일?\b/;
+const fallbackNumberRe = /\d[\d,]*(?:\.\d+)?/g;
+const fallbackPcsRe = /([\d,]+)\s*PCS\b/i;
+const fallbackItemNoRe = /\(?\s*NO\.\s*\d+\s*\)?/i;
+const fallbackTradePartnerRe = /([A-Z][A-Z0-9&.,\-\s]{4,90}(?:CO\.?\s*LTD|CO\s+LTD|LIMITED|INC\.?|CORP\.?))/i;
+const fallbackModelLikeRe = /(LR\d[-A-Z0-9]*|[A-Z0-9]{2,}[-][A-Z0-9-]{4,})/i;
+
+function makeOCRCandidate(value: string, label: string, source: string, confidence?: number): OCRFieldCandidate {
+  return {
+    value,
+    label,
+    source_text: source,
+    confidence,
+  };
+}
+
+function normalizeOCRIdentifier(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+}
+
+function normalizeOCRDecimal(value: string | undefined) {
+  const cleaned = (value ?? '').replace(/,/g, '').trim();
+  return Number.isFinite(Number(cleaned)) ? cleaned : '';
+}
+
+function normalizeOCRDate(value: string | undefined) {
+  const match = fallbackDateRe.exec(value ?? '');
+  if (!match) return '';
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return '';
+  return `${match[1]}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function fallbackPort(text: string) {
+  if (text.includes('광양항') || /KRKAN/i.test(text)) return '광양항';
+  if (text.includes('부산항') || /KRPUS/i.test(text)) return '부산항';
+  if (text.includes('인천항') || /KRINC/i.test(text)) return '인천항';
+  if (text.includes('평택항') || /KRPTK/i.test(text)) return '평택항';
+  return '';
+}
+
+function fallbackLargestIntegerAmount(lines: OCRLine[]) {
+  let best = 0;
+  let source = '';
+  let confidence = 0;
+  for (const line of lines) {
+    for (const match of line.text.match(fallbackNumberRe) ?? []) {
+      if (match.includes('.')) continue;
+      const parsed = Number(match.replace(/,/g, ''));
+      if (Number.isFinite(parsed) && parsed >= 100_000_000 && parsed > best) {
+        best = parsed;
+        source = line.text;
+        confidence = line.score ?? 0;
+      }
+    }
+  }
+  return best > 0 ? makeOCRCandidate(String(best), '면장 CIF 원화금액', source, confidence) : undefined;
+}
+
+function fallbackExchangeRate(lines: OCRLine[]) {
+  for (const line of lines) {
+    for (const match of line.text.match(fallbackNumberRe) ?? []) {
+      if (!match.includes('.')) continue;
+      const normalized = normalizeOCRDecimal(match);
+      const parsed = Number(normalized);
+      if (Number.isFinite(parsed) && parsed >= 500 && parsed <= 2500) {
+        return makeOCRCandidate(normalized, '면장환율', line.text, line.score ?? 0);
+      }
+    }
+  }
+  return undefined;
+}
+
+function fallbackAmountUSD(section: OCRLine[]) {
+  let best = 0;
+  let bestText = '';
+  let source = '';
+  let confidence = 0;
+  for (const line of section) {
+    for (const match of line.text.match(fallbackNumberRe) ?? []) {
+      if (!match.includes('.')) continue;
+      const normalized = normalizeOCRDecimal(match);
+      const parsed = Number(normalized);
+      if (Number.isFinite(parsed) && parsed >= 100 && parsed > best) {
+        best = parsed;
+        bestText = normalized;
+        source = line.text;
+        confidence = line.score ?? 0;
+      }
+    }
+  }
+  return bestText ? makeOCRCandidate(bestText, '금액(USD)', source, confidence) : undefined;
+}
+
+function fallbackUnitPriceUSD(section: OCRLine[]) {
+  for (const line of section) {
+    for (const match of line.text.match(fallbackNumberRe) ?? []) {
+      if (!match.includes('.')) continue;
+      const normalized = normalizeOCRDecimal(match);
+      const parsed = Number(normalized);
+      if (Number.isFinite(parsed) && parsed > 0 && parsed < 10) {
+        return makeOCRCandidate(normalized, '단가(USD)', line.text, line.score ?? 0);
+      }
+    }
+  }
+  return undefined;
+}
+
+function fallbackLineItems(lines: OCRLine[]) {
+  const starts = lines
+    .map((line, index) => fallbackItemNoRe.test(line.text) ? index : -1)
+    .filter((index) => index >= 0);
+  const items: CustomsDeclarationOCRLine[] = [];
+  for (let i = 0; i < starts.length; i += 1) {
+    const section = lines.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : lines.length);
+    const joined = section.map((line) => line.text).join(' ');
+    const quantityLine = section.find((line) => fallbackPcsRe.test(line.text));
+    const quantityMatch = quantityLine ? fallbackPcsRe.exec(quantityLine.text) : null;
+    const specLines = section.filter((line) => /MODULE|SOLAR/i.test(line.text) || fallbackModelLikeRe.test(line.text) || fallbackPcsRe.test(line.text));
+    const specSource = specLines.map((line) => line.text).join(' ').trim();
+    const item: CustomsDeclarationOCRLine = {
+      payment_type: makeOCRCandidate(/FREE|SPARE|N\.C\.V/i.test(joined) ? 'free' : 'paid', '유무상', joined, 0),
+    };
+    if (specSource) item.model_spec = makeOCRCandidate(specSource, '모델/규격', specSource, Math.max(...specLines.map((line) => line.score ?? 0), 0));
+    if (quantityMatch?.[1]) item.quantity = makeOCRCandidate(quantityMatch[1].replace(/,/g, ''), '수량', quantityLine?.text ?? '', quantityLine?.score ?? 0);
+    const unitPrice = fallbackUnitPriceUSD(section);
+    if (unitPrice) item.unit_price_usd = unitPrice;
+    const amount = fallbackAmountUSD(section);
+    if (amount) item.amount_usd = amount;
+    if (item.model_spec || item.quantity || item.amount_usd) items.push(item);
+  }
+  return items;
+}
+
+function hasCustomsOCRCandidates(fields: CustomsDeclarationOCRFields) {
+  return Boolean(
+    fields.declaration_number ||
+    fields.declaration_date ||
+    fields.arrival_date ||
+    fields.release_date ||
+    fields.importer ||
+    fields.forwarder ||
+    fields.trade_partner ||
+    fields.exchange_rate ||
+    fields.cif_amount_krw ||
+    fields.hs_code ||
+    fields.customs_office ||
+    fields.port ||
+    fields.bl_number ||
+    fields.invoice_number ||
+    fields.line_items?.length
+  );
+}
+
+function buildFallbackCustomsOCRFields(result: OCRExtractResponse['results'][number], originalFilename: string) {
+  const rawLines: OCRLine[] = result.lines?.length
+    ? result.lines
+    : (result.raw_text ?? '').split('\n').map((text) => ({ text }));
+  const filenameLine = originalFilename || result.filename;
+  const lines: OCRLine[] = [
+    ...rawLines.filter((line) => line.text?.trim()),
+    ...(filenameLine ? [{ text: filenameLine, score: 0.55 }] : []),
+  ];
+  const allText = lines.map((line) => line.text).join('\n');
+  const fields: CustomsDeclarationOCRFields = {};
+
+  const declarationLine = lines.find((line) => fallbackDeclarationNoRe.test(line.text));
+  const declarationMatch = declarationLine ? fallbackDeclarationNoRe.exec(declarationLine.text) : null;
+  if (declarationMatch?.[0]) {
+    fields.declaration_number = makeOCRCandidate(normalizeOCRIdentifier(declarationMatch[0]), '면장번호', declarationLine?.text ?? '', declarationLine?.score ?? 0);
+  }
+
+  const blLine = lines.find((line) => /DFS\d{6,}/i.test(line.text)) ?? lines.find((line) => /B\/?L|AWB/i.test(line.text));
+  const blMatch = blLine ? /DFS\d{6,}|[A-Z]{2,}[A-Z0-9/-]{5,35}/i.exec(blLine.text) : null;
+  if (blMatch?.[0] && !/UNIPASS|MASTERB/i.test(blMatch[0])) {
+    fields.bl_number = makeOCRCandidate(blMatch[0].trim(), 'B/L번호', blLine?.text ?? '', blLine?.score ?? 0);
+  }
+
+  const dateCandidates = lines
+    .map((line) => ({ value: normalizeOCRDate(line.text), line }))
+    .filter((item) => item.value);
+  if (dateCandidates.length > 0) {
+    fields.arrival_date = makeOCRCandidate(dateCandidates[0].value, '입항일', dateCandidates[0].line.text, dateCandidates[0].line.score ?? 0);
+    const last = dateCandidates[dateCandidates.length - 1];
+    fields.declaration_date = makeOCRCandidate(last.value, '신고일', last.line.text, last.line.score ?? 0);
+  }
+
+  const port = fallbackPort(allText);
+  if (port) fields.port = makeOCRCandidate(port, '항구', allText, 0);
+
+  const exchangeRate = fallbackExchangeRate(lines);
+  if (exchangeRate) fields.exchange_rate = exchangeRate;
+
+  const cifAmount = fallbackLargestIntegerAmount(lines);
+  if (cifAmount) fields.cif_amount_krw = cifAmount;
+
+  const hsLine = lines.find((line) => /8541[.\-\s]?43|HS|세번|품목번호/i.test(line.text));
+  const hsMatch = hsLine ? /(\d{4}[.\-\s]?\d{2}[.\-\s]?\d{4}|\d{10})/.exec(hsLine.text) : null;
+  if (hsMatch?.[1]) fields.hs_code = makeOCRCandidate(hsMatch[1].replace(/\D/g, ''), 'HS코드', hsLine?.text ?? '', hsLine?.score ?? 0);
+
+  const tradeLine = lines.find((line) => fallbackTradePartnerRe.test(line.text));
+  const tradeMatch = tradeLine ? fallbackTradePartnerRe.exec(tradeLine.text) : null;
+  if (tradeMatch?.[1] && !/MASTERB|UNIPASS/i.test(tradeMatch[1])) {
+    fields.trade_partner = makeOCRCandidate(tradeMatch[1].trim(), '무역거래처', tradeLine?.text ?? '', tradeLine?.score ?? 0);
+  }
+
+  if (/탑솔라|TOP\s*SOLAR|TOPSOLAR/i.test(allText)) {
+    fields.importer = makeOCRCandidate(/탑솔라/i.test(allText) ? '탑솔라' : 'TOP SOLAR', '수입자', allText, 0.55);
+  }
+
+  const lineItems = fallbackLineItems(lines);
+  if (lineItems.length > 0) fields.line_items = lineItems;
+
+  return hasCustomsOCRCandidates(fields) ? fields : null;
 }
 
 function normalizeOCRPartyText(value: string | undefined) {
@@ -830,8 +1061,13 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       const result = response.results[0];
       if (!result) throw new Error('OCR 결과가 없습니다');
       if (result.error) throw new Error(result.error);
-      const fields = result.fields?.customs_declaration;
-      if (!fields) throw new Error('면장 입력 후보를 찾지 못했습니다');
+      const fields = result.fields?.customs_declaration ?? buildFallbackCustomsOCRFields(result, file.name);
+      if (!fields) {
+        const rawLineCount = result.lines?.length ?? (result.raw_text ? result.raw_text.split('\n').filter(Boolean).length : 0);
+        throw new Error(rawLineCount > 0
+          ? 'OCR 원문은 읽었지만 면장 입력 후보를 찾지 못했습니다. 문서가 잘리지 않았는지 확인해주세요.'
+          : 'OCR 원문을 읽지 못했습니다. 더 선명한 PDF/사진으로 다시 등록해주세요.');
+      }
       setPendingCustomsOCRFields(fields);
       setCustomsOCRReviewOpen(true);
     } catch (err) {
