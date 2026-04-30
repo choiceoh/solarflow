@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, type DragEvent } from 'react';
+import { useState, useEffect, useMemo, useCallback, type DragEvent as ReactDragEvent } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Plus, CheckCircle2, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -79,6 +79,67 @@ export default function InboundPage() {
 
   const { data, loading, reload } = useBLList(filters);
 
+  const hasDraggedFiles = useCallback((dataTransfer: DataTransfer | null) => {
+    return Boolean(dataTransfer && Array.from(dataTransfer.types).includes('Files'));
+  }, []);
+
+  const openCustomsOCRDropFile = useCallback((file: File | null) => {
+    if (!file) {
+      setToast('PDF 또는 사진 파일만 등록할 수 있습니다');
+      return;
+    }
+
+    setSelectedBL(null);
+    setPresetPOId(null);
+    setPresetLCId(null);
+    setCustomsOCRDropFile(file);
+    setCustomsOCRDropFileKey((value) => value + 1);
+    setFormOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedCompanyId || selectedBL || formOpen) {
+      setCustomsOCRDropActive(false);
+      return;
+    }
+
+    const handleWindowDrag = (event: DragEvent) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+      setCustomsOCRDropActive(true);
+    };
+    const handleWindowDragLeave = (event: DragEvent) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+      if (
+        event.clientX <= 0 ||
+        event.clientY <= 0 ||
+        event.clientX >= window.innerWidth ||
+        event.clientY >= window.innerHeight
+      ) {
+        setCustomsOCRDropActive(false);
+      }
+    };
+    const handleWindowDrop = (event: DragEvent) => {
+      if (!hasDraggedFiles(event.dataTransfer)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setCustomsOCRDropActive(false);
+      openCustomsOCRDropFile(firstCustomsOCRFile(event.dataTransfer?.files ?? null));
+    };
+
+    window.addEventListener('dragenter', handleWindowDrag);
+    window.addEventListener('dragover', handleWindowDrag);
+    window.addEventListener('dragleave', handleWindowDragLeave);
+    window.addEventListener('drop', handleWindowDrop);
+    return () => {
+      window.removeEventListener('dragenter', handleWindowDrag);
+      window.removeEventListener('dragover', handleWindowDrag);
+      window.removeEventListener('dragleave', handleWindowDragLeave);
+      window.removeEventListener('drop', handleWindowDrop);
+    };
+  }, [formOpen, hasDraggedFiles, openCustomsOCRDropFile, selectedBL, selectedCompanyId]);
+
   if (!selectedCompanyId) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -113,18 +174,17 @@ export default function InboundPage() {
 
   const typeFilterLabel = typeFilter ? (INBOUND_TYPE_LABEL[typeFilter as InboundType] ?? typeFilter) : '입고 구분';
   const statusFilterLabel = statusFilter ? (BL_STATUS_LABEL[statusFilter as BLStatus] ?? statusFilter) : '입고 현황';
-  const hasDraggedFiles = (event: DragEvent<HTMLDivElement>) => Array.from(event.dataTransfer.types).includes('Files');
 
-  const handleCustomsOCRPageDrag = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
+  const handleCustomsOCRPageDrag = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = 'copy';
     setCustomsOCRDropActive(true);
   };
 
-  const handleCustomsOCRPageDragLeave = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
+  const handleCustomsOCRPageDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
     const nextTarget = event.relatedTarget as Node | null;
@@ -132,24 +192,13 @@ export default function InboundPage() {
     setCustomsOCRDropActive(false);
   };
 
-  const handleCustomsOCRPageDrop = (event: DragEvent<HTMLDivElement>) => {
-    if (!hasDraggedFiles(event)) return;
+  const handleCustomsOCRPageDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
     event.stopPropagation();
     setCustomsOCRDropActive(false);
 
-    const file = firstCustomsOCRFile(event.dataTransfer.files);
-    if (!file) {
-      setToast('PDF 또는 사진 파일만 등록할 수 있습니다');
-      return;
-    }
-
-    setSelectedBL(null);
-    setPresetPOId(null);
-    setPresetLCId(null);
-    setCustomsOCRDropFile(file);
-    setCustomsOCRDropFileKey((value) => value + 1);
-    setFormOpen(true);
+    openCustomsOCRDropFile(firstCustomsOCRFile(event.dataTransfer.files));
   };
 
   return (
