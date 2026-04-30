@@ -29,6 +29,50 @@ func TestExport_OutboundHeaderCount(t *testing.T) {
 	if len(outboundERPCodes) != 35 {
 		t.Errorf("기대: 출고 ERP 코드 35개, 실제: %d개", len(outboundERPCodes))
 	}
+	if len(outboundDescriptions) != 35 {
+		t.Errorf("기대: 출고 설명행 35개, 실제: %d개", len(outboundDescriptions))
+	}
+}
+
+// TestExport_OutboundRealTemplateRows — 실물 아마란스 출고 양식은 3행 설명, 4행 데이터 시작
+func TestExport_OutboundRealTemplateRows(t *testing.T) {
+	if outboundDataStartRow != 4 {
+		t.Errorf("기대: 출고 데이터 시작 행 4, 실제: %d", outboundDataStartRow)
+	}
+	if outboundDescriptions[0] == "" || !strings.Contains(outboundDescriptions[0], "0.DOMESTIC") {
+		t.Errorf("출고 설명행 A열에 거래구분 안내가 없습니다: %s", outboundDescriptions[0])
+	}
+	if outboundDescriptions[19] == "" || !strings.Contains(outboundDescriptions[19], "필수 : True") {
+		t.Errorf("출고 설명행 T열 장소코드 필수 안내가 없습니다: %s", outboundDescriptions[19])
+	}
+}
+
+// TestExport_OutboundDefaultERPPolicy — 2026-04-30 실물 샘플 기준 기본 정책
+func TestExport_OutboundDefaultERPPolicy(t *testing.T) {
+	t.Setenv("AMARANTH_DEFAULT_PLN_CD", "")
+	t.Setenv("AMARANTH_OUTBOUND_MGMT_CD", "")
+	t.Setenv("AMARANTH_DEFAULT_MGMT_CD", "")
+
+	if got := amaranthDefaultSalespersonCode(); got != "A001" {
+		t.Errorf("기대: 담당자코드 A001, 실제: %s", got)
+	}
+	if got := amaranthDefaultOutboundMgmtCode(); got != "LS10" {
+		t.Errorf("기대: 관리구분 LS10, 실제: %s", got)
+	}
+}
+
+// TestExport_OutboundDefaultERPPolicyEnv — 운영 환경값으로 기본 코드 override
+func TestExport_OutboundDefaultERPPolicyEnv(t *testing.T) {
+	t.Setenv("AMARANTH_DEFAULT_PLN_CD", "B002")
+	t.Setenv("AMARANTH_OUTBOUND_MGMT_CD", "MG01")
+	t.Setenv("AMARANTH_DEFAULT_MGMT_CD", "MG00")
+
+	if got := amaranthDefaultSalespersonCode(); got != "B002" {
+		t.Errorf("기대: 담당자코드 B002, 실제: %s", got)
+	}
+	if got := amaranthDefaultOutboundMgmtCode(); got != "MG01" {
+		t.Errorf("기대: 관리구분 MG01, 실제: %s", got)
+	}
 }
 
 // TestExport_ColName — 컬럼 인덱스 → 엑셀 열 이름 변환
