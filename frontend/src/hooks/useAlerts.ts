@@ -11,7 +11,62 @@ import type { AlertItem } from '@/types/dashboard';
 import type { LCLimitTimeline, LCMaturityAlert } from '@/types/banking';
 import type { Outbound } from '@/types/outbound';
 
+interface CustomerAnalysisAlertItem {
+  customer_id?: string;
+  customer_name: string;
+  outstanding_krw?: number;
+  outstanding_amount?: number;
+  outstanding_count: number;
+  oldest_outstanding_days?: number;
+  max_days_overdue?: number;
+}
+
 interface CustomerAnalysis {
+  items?: CustomerAnalysisAlertItem[];
+  customers?: CustomerAnalysisAlertItem[];
+  summary?: {
+    total_outstanding_krw?: number;
+  };
+  total_outstanding?: number;
+}
+
+interface Sale {
+  sale_id: string;
+  outbound_id?: string;
+  tax_invoice_date?: string;
+  sale?: {
+    tax_invoice_date?: string;
+  };
+}
+
+function customerRows(data: CustomerAnalysis): CustomerAnalysisAlertItem[] {
+  return data.items ?? data.customers ?? [];
+}
+
+function customerOverdueDays(customer: CustomerAnalysisAlertItem) {
+  return customer.oldest_outstanding_days ?? customer.max_days_overdue ?? 0;
+}
+
+function customerOutstanding(customer: CustomerAnalysisAlertItem) {
+  return customer.outstanding_krw ?? customer.outstanding_amount ?? 0;
+}
+
+function daysUntil(value: string | undefined, today: Date) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.floor((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function hasIssuedTaxInvoice(sale: Sale | undefined) {
+  return Boolean(sale?.tax_invoice_date ?? sale?.sale?.tax_invoice_date);
+}
+
+/*
+ * 비유: 헤더 알림은 상황판의 작은 경광등입니다.
+ * 각 API 응답 모양이 조금 달라도 여기서 운영 알림 하나의 형태로 정리합니다.
+ */
+interface LegacyCustomerAnalysis {
   customers: {
     customer_name: string;
     outstanding_amount: number;
@@ -19,12 +74,6 @@ interface CustomerAnalysis {
     max_days_overdue: number;
   }[];
   total_outstanding: number;
-}
-
-interface Sale {
-  sale_id: string;
-  outbound_id: string;
-  tax_invoice_date?: string;
 }
 
 // D-060: merge 함수들
@@ -41,7 +90,12 @@ function mergeTimeline(rs: LCLimitTimeline[]): LCLimitTimeline {
   };
 }
 function mergeCustomer(rs: CustomerAnalysis[]): CustomerAnalysis {
-  return { customers: rs.flatMap((r) => r.customers || []), total_outstanding: rs.reduce((s, r) => s + (r.total_outstanding || 0), 0) };
+  return {
+    items: rs.flatMap(customerRows),
+    summary: {
+      total_outstanding_krw: rs.reduce((s, r) => s + (r.summary?.total_outstanding_krw ?? r.total_outstanding ?? 0), 0),
+    },
+  };
 }
 function mergeInventory(rs: InventoryResponse[]): InventoryResponse {
   return {
@@ -69,7 +123,7 @@ export function useAlerts(companyId: string | null) {
     const results = await Promise.allSettled([
       fetchCalc<LCMaturityAlert>(companyId, '/api/v1/calc/lc-maturity-alert', { days_ahead: 7 }, mergeMaturity),
       fetchCalc<LCLimitTimeline>(companyId, '/api/v1/calc/lc-limit-timeline', { months_ahead: 3 }, mergeTimeline),
-      fetchCalc<CustomerAnalysis>(companyId, '/api/v1/calc/customer-analysis', {}, mergeCustomer),
+      fetchCalc<CustomerAnalysis | LegacyCustomerAnalysis>(companyId, '/api/v1/calc/customer-analysis', {}, (rs) => mergeCustomer(rs as CustomerAnalysis[])),
       fetchCalc<InventoryResponse>(companyId, '/api/v1/calc/inventory', {}, mergeInventory),
       // CRUD: "all"이면 company_id 생략
       fetchWithAuth<BLShipment[]>(companyQueryUrl('/api/v1/bls', companyId)),
@@ -105,9 +159,13 @@ export function useAlerts(companyId: string | null) {
 
     // 3,4: 미수금 주의/연체
     if (custResult.status === 'fulfilled') {
-      const customers = custResult.value?.customers ?? [];
-      const warn30 = customers.filter((c) => c.max_days_overdue > 30 && c.max_days_overdue <= 60).length;
-      const crit60 = customers.filter((c) => c.max_days_overdue > 60).length;
+      const customers = customerRows(custResult.value as CustomerAnalysis)
+        .filter((c) => customerOutstanding(c) > 0);
+      const warn30 = customers.filter((c) => {
+        const days = customerOverdueDays(c);
+        return days > 30 && days <= 60;
+      }).length;
+      const crit60 = customers.filter((c) => customerOverdueDays(c) > 60).length;
       if (crit60 > 0) items.push({ id: String(++id), type: 'overdue_critical', severity: 'critical', icon: 'AlertCircle', title: '미수금 연체', description: `60일 초과 거래처 ${crit60}곳`, count: crit60, link: '/orders?tab=matching' });
       if (warn30 > 0) items.push({ id: String(++id), type: 'overdue_warning', severity: 'warning', icon: 'AlertTriangle', title: '미수금 주의', description: `30일 초과 거래처 ${warn30}곳`, count: warn30, link: '/orders?tab=matching' });
     }
@@ -117,9 +175,13 @@ export function useAlerts(companyId: string | null) {
     let sales: Sale[] = [];
     if (outResult.status === 'fulfilled') outbounds = outResult.value;
     if (saleResult.status === 'fulfilled') sales = saleResult.value;
-    const saleOutboundIds = new Set(sales.map((s) => s.outbound_id).filter(Boolean));
-    const noInvoice = outbounds.filter((o) => o.status === 'active' && !saleOutboundIds.has(o.outbound_id)).length;
-    if (noInvoice > 0) items.push({ id: String(++id), type: 'no_invoice', severity: 'warning', icon: 'FileText', title: '계산서 미발행', description: `출고완료+미등록 ${noInvoice}건`, count: noInvoice, link: '/outbound?tab=sales' });
+    const salesByOutboundId = new Map(sales.filter((s) => s.outbound_id).map((s) => [s.outbound_id!, s]));
+    const noInvoice = outbounds.filter((o) => {
+      if (o.status !== 'active') return false;
+      const sale = o.sale ?? salesByOutboundId.get(o.outbound_id);
+      return !hasIssuedTaxInvoice(sale);
+    }).length;
+    if (noInvoice > 0) items.push({ id: String(++id), type: 'no_invoice', severity: 'warning', icon: 'FileText', title: '계산서 미발행', description: `출고완료+미발행 ${noInvoice}건`, count: noInvoice, link: '/orders?tab=sales' });
 
     // 6: 입항 예정
     const today = new Date();
@@ -128,11 +190,11 @@ export function useAlerts(companyId: string | null) {
     if (blResult.status === 'fulfilled') blData = blResult.value;
     const eta7 = blData.filter((bl) => {
       if (bl.status !== 'shipping' || !bl.eta) return false;
-      const eta = new Date(bl.eta);
-      const diff = Math.floor((eta.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const diff = daysUntil(bl.eta, today);
+      if (diff == null) return false;
       return diff >= 0 && diff <= 7;
     }).length;
-    if (eta7 > 0) items.push({ id: String(++id), type: 'eta_soon', severity: 'info', icon: 'Ship', title: '입항 예정', description: `7일 이내 입항 ${eta7}건`, count: eta7, link: '/inbound' });
+    if (eta7 > 0) items.push({ id: String(++id), type: 'eta_soon', severity: 'info', icon: 'Ship', title: '입항 예정', description: `7일 이내 입항 ${eta7}건`, count: eta7, link: '/procurement?tab=bl' });
 
     // 7,8: 장기재고
     if (invResult.status === 'fulfilled') {
@@ -148,8 +210,8 @@ export function useAlerts(companyId: string | null) {
     const deliverySoon = orderData.filter((o) => {
       if (o.status !== 'received' && o.status !== 'partial') return false;
       if (!o.delivery_due || (o.remaining_qty ?? 0) <= 0) return false;
-      const due = new Date(o.delivery_due);
-      const diff = Math.floor((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      const diff = daysUntil(o.delivery_due, today);
+      if (diff == null) return false;
       return diff >= 0 && diff <= 7;
     }).length;
     if (deliverySoon > 0) items.push({ id: String(++id), type: 'delivery_soon', severity: 'info', icon: 'Truck', title: '출고 예정', description: `납기 7일 이내 미출고 ${deliverySoon}건`, count: deliverySoon, link: '/orders' });

@@ -12,13 +12,16 @@ import LoadingSpinner from '@/components/common/LoadingSpinner';
 import { CardB, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
 import type { CustomerAnalysis } from '@/hooks/useDashboard';
 import type {
+  AlertItem,
   DashboardSectionState,
   DashboardSummary,
   MonthlyRevenue,
   PriceTrend,
 } from '@/types/dashboard';
 import type { ForecastResponse, InventoryItem, InventoryResponse } from '@/types/inventory';
+import type { BLShipment } from '@/types/inbound';
 import type { Manufacturer, Product } from '@/types/masters';
+import type { Order } from '@/types/orders';
 import type { SaleListItem } from '@/types/outbound';
 import type { TurnoverResponse } from '@/types/turnover';
 
@@ -31,6 +34,9 @@ interface Props {
   forecast: { data: ForecastResponse | null; loading: boolean; error: string | null };
   sales: DashboardSectionState<SaleListItem[]>;
   outstanding: DashboardSectionState<CustomerAnalysis>;
+  alerts: DashboardSectionState<AlertItem[]>;
+  incoming: DashboardSectionState<BLShipment[]>;
+  orderBacklog: DashboardSectionState<Order[]>;
   manufacturers: Manufacturer[];
   products: Product[];
   longTermWarning: number;
@@ -64,6 +70,17 @@ function usdShort(value: number | undefined | null) {
   const n = value ?? 0;
   if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('ko-KR', { maximumFractionDigits: 2 })}M$`;
   return `${Math.round(n / 1000).toLocaleString('ko-KR')}K$`;
+}
+
+function dateShort(value: string | undefined | null) {
+  if (!value) return '일정 없음';
+  return value.slice(5, 10).replace('-', '.');
+}
+
+function alertToneClass(severity: AlertItem['severity']) {
+  if (severity === 'critical') return 'border-[var(--sf-neg)] bg-[var(--sf-neg-bg)] text-[var(--sf-neg)]';
+  if (severity === 'warning') return 'border-[var(--sf-warn)] bg-[var(--sf-warn-bg)] text-[var(--sf-warn)]';
+  return 'border-[var(--sf-info)] bg-[var(--sf-info-bg)] text-[var(--sf-info)]';
 }
 
 function productLabel(item: InventoryItem) {
@@ -104,6 +121,9 @@ export default function CommandDashboard({
   forecast,
   sales,
   outstanding,
+  alerts,
+  incoming,
+  orderBacklog,
   manufacturers,
   products,
   longTermWarning,
@@ -121,6 +141,9 @@ export default function CommandDashboard({
   const forecastMonths = forecast.data?.summary?.months?.slice(0, 6) ?? [];
   const latestSales = (sales.data ?? []).slice(0, 6);
   const outstandingItems = outstanding.data?.items?.slice(0, 5) ?? [];
+  const alertRows = (alerts.data ?? []).filter((alert) => alert.count > 0).slice(0, 6);
+  const incomingRows = (incoming.data ?? []).slice(0, 5);
+  const backlogRows = (orderBacklog.data ?? []).slice(0, 5);
   const manufacturerCount = manufacturers.length;
   const productCount = products.length;
   const priceRows = priceTrend.data?.manufacturers?.slice(0, 4) ?? [];
@@ -306,6 +329,77 @@ export default function CommandDashboard({
           </CardB>
 
           <CardB
+            title="운영 워크큐"
+            sub="실제 알림 조건에서 계산"
+            right={<Link className="text-xs font-bold text-[var(--solar-3)]" to="/dashboard">동기화</Link>}
+          >
+            <SectionState loading={alerts.loading} error={alerts.error}>
+              <div className="divide-y divide-[var(--line)]">
+                {alertRows.map((alert) => (
+                  <Link
+                    key={`${alert.type}-${alert.title}`}
+                    to={alert.link}
+                    className="block px-4 py-3 transition hover:bg-[var(--bg-2)]"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-bold">{alert.title}</div>
+                        <div className="mt-1 truncate text-[10.5px] text-[var(--ink-3)]">{alert.description}</div>
+                      </div>
+                      <div className={`mono shrink-0 rounded border px-2 py-1 text-[10px] font-bold ${alertToneClass(alert.severity)}`}>
+                        {alert.count}
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+                {alertRows.length === 0 ? <div className="p-4 text-xs text-[var(--ink-3)]">현재 처리할 운영 알림이 없습니다.</div> : null}
+              </div>
+            </SectionState>
+          </CardB>
+
+          <CardB
+            title="미착품 · 납기"
+            sub="B/L ETA와 수주 잔량 기준"
+          >
+            <SectionState
+              loading={incoming.loading || orderBacklog.loading}
+              error={incoming.error ?? orderBacklog.error}
+            >
+              <RailBlock title="미착품" count={incomingRows.length}>
+                <div className="flex flex-col gap-2">
+                  {incomingRows.map((bl) => (
+                    <Link to="/procurement?tab=bl" key={bl.bl_id} className="rounded bg-[var(--bg-2)] px-3 py-2 transition hover:bg-[var(--bg-3)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-bold">{bl.bl_number}</span>
+                        <span className="mono text-[10px] text-[var(--ink-3)]">ETA {dateShort(bl.eta)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-[10.5px] text-[var(--ink-4)]">{bl.manufacturer_name ?? '제조사 미지정'} · {bl.status}</div>
+                    </Link>
+                  ))}
+                  {incomingRows.length === 0 ? <div className="text-xs text-[var(--ink-3)]">진행 중인 미착품이 없습니다.</div> : null}
+                </div>
+              </RailBlock>
+
+              <RailBlock title="수주 잔량" count={backlogRows.length} last>
+                <div className="flex flex-col gap-2">
+                  {backlogRows.map((order) => (
+                    <Link to="/orders" key={order.order_id} className="rounded bg-[var(--bg-2)] px-3 py-2 transition hover:bg-[var(--bg-3)]">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate text-xs font-bold">{order.customer_name ?? '거래처 미지정'}</span>
+                        <span className="mono text-[10px] text-[var(--ink-3)]">납기 {dateShort(order.delivery_due)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-[10.5px] text-[var(--ink-4)]">
+                        {order.product_code ?? order.product_name ?? '품목 미지정'} · 잔량 {(order.remaining_qty ?? 0).toLocaleString('ko-KR')}
+                      </div>
+                    </Link>
+                  ))}
+                  {backlogRows.length === 0 ? <div className="text-xs text-[var(--ink-3)]">납기 임박 잔량이 없습니다.</div> : null}
+                </div>
+              </RailBlock>
+            </SectionState>
+          </CardB>
+
+          <CardB
             title="최근 판매"
             right={<Link className="text-xs font-bold text-[var(--solar-3)]" to="/orders?tab=sales">전체</Link>}
           >
@@ -330,7 +424,7 @@ export default function CommandDashboard({
           </CardB>
 
           <div className="card">
-            <RailBlock title="주의 항목" last>
+            <RailBlock title="재고 주의" last>
               <div className="mb-2 rounded bg-[var(--warn-bg)] px-3 py-2 text-xs text-[var(--warn)]">
                 장기재고 주의 {longTermWarning.toLocaleString('ko-KR')}건 · 심각 {longTermCritical.toLocaleString('ko-KR')}건
               </div>

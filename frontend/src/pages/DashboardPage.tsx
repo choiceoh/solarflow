@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/stores/appStore';
 import { useDashboard } from '@/hooks/useDashboard';
+import { useAlerts } from '@/hooks/useAlerts';
 import { useTurnover } from '@/hooks/useTurnover';
 import { useInventory } from '@/hooks/useInventory';
 import { useForecast } from '@/hooks/useForecast';
@@ -64,9 +65,10 @@ export default function DashboardPage() {
   const userRole = role || 'viewer';
 
   const {
-    summary, revenue, priceTrend, sales, outstanding,
+    summary, revenue, priceTrend, sales, outstanding, incoming, orderBacklog,
     longTermWarning, longTermCritical,
   } = useDashboard(selectedCompanyId, userRole);
+  const alertState = useAlerts(selectedCompanyId);
 
   const turnover = useTurnover(selectedCompanyId, 90);
   const inventory = useInventory();
@@ -108,6 +110,9 @@ export default function DashboardPage() {
         forecast={{ data: forecast.data, loading: forecast.loading, error: forecast.error }}
         sales={sales}
         outstanding={outstanding}
+        alerts={{ data: alertState.alerts, loading: alertState.loading, error: null }}
+        incoming={incoming}
+        orderBacklog={orderBacklog}
         manufacturers={manufacturers}
         products={products}
         longTermWarning={longTermWarning}

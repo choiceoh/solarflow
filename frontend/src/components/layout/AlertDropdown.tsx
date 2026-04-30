@@ -55,7 +55,7 @@ export default function AlertDropdown({ alerts, onClose }: Props) {
       )}
 
       <div className="px-3 py-2 border-t">
-        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { navigate('/'); onClose(); }}>
+        <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => { navigate('/dashboard'); onClose(); }}>
           전체 보기 (대시보드)
         </Button>
       </div>

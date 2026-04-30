@@ -3,13 +3,16 @@ import { useState, useRef, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAppStore } from '@/stores/appStore';
-import { useAlerts } from '@/hooks/useAlerts';
 import AlertDropdown from './AlertDropdown';
+import type { AlertItem } from '@/types/dashboard';
 
-export default function AlertBell() {
-  const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
-  const { alerts, totalCount, criticalCount } = useAlerts(selectedCompanyId);
+interface Props {
+  alerts: AlertItem[];
+  totalCount: number;
+  criticalCount: number;
+}
+
+export default function AlertBell({ alerts, totalCount, criticalCount }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 

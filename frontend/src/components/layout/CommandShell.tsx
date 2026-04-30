@@ -26,10 +26,12 @@ import QuickRegister from '@/components/layout/QuickRegister';
 import FloatingMwEaCalculator from '@/components/common/FloatingMwEaCalculator';
 import { canAccessMenu, type MenuKey, type Role } from '@/config/permissions';
 import { useAuth } from '@/hooks/useAuth';
+import { useAlerts } from '@/hooks/useAlerts';
 import { usePermission } from '@/hooks/usePermission';
 import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
+import type { AlertItem } from '@/types/dashboard';
 
 interface CommandNavItem {
   key: string;
@@ -48,25 +50,25 @@ interface CommandNavGroup {
 const NAV_GROUPS: CommandNavGroup[] = [
   {
     items: [
-      { key: 'inventory', label: '가용재고', path: '/inventory', icon: Box, menu: 'inventory', count: 28 },
+      { key: 'inventory', label: '가용재고', path: '/inventory', icon: Box, menu: 'inventory' },
       { key: 'dashboard', label: '대시보드', path: '/dashboard', icon: BarChart3, menu: 'dashboard' },
     ],
   },
   {
     label: '구매',
     items: [
-      { key: 'po', label: 'P/O 발주', path: '/procurement', icon: ClipboardList, menu: 'procurement', count: 8 },
-      { key: 'lc', label: 'L/C 개설', path: '/procurement?tab=lc', icon: Landmark, menu: 'lc', count: 11 },
-      { key: 'bl', label: 'B/L 입고', path: '/procurement?tab=bl', icon: Ship, menu: 'inbound', count: 4 },
+      { key: 'po', label: 'P/O 발주', path: '/procurement', icon: ClipboardList, menu: 'procurement' },
+      { key: 'lc', label: 'L/C 개설', path: '/procurement?tab=lc', icon: Landmark, menu: 'lc' },
+      { key: 'bl', label: 'B/L 입고', path: '/procurement?tab=bl', icon: Ship, menu: 'inbound' },
       { key: 'customs', label: '면장/원가', path: '/customs', icon: Calculator, menu: 'inbound' },
     ],
   },
   {
     label: '판매',
     items: [
-      { key: 'orders', label: '수주 관리', path: '/orders', icon: ScrollText, menu: 'orders', count: 22 },
+      { key: 'orders', label: '수주 관리', path: '/orders', icon: ScrollText, menu: 'orders' },
       { key: 'outbound', label: '출고/판매', path: '/orders?tab=outbound', icon: Truck, menu: 'outbound' },
-      { key: 'receipts', label: '수금 관리', path: '/orders?tab=receipts', icon: Wallet, menu: 'receipts', count: 8 },
+      { key: 'receipts', label: '수금 관리', path: '/orders?tab=receipts', icon: Wallet, menu: 'receipts' },
     ],
   },
   {
@@ -139,6 +141,13 @@ function isItemActive(itemPath: string, pathname: string, search: string) {
   return pathname === base;
 }
 
+function sumAlertCounts(alerts: AlertItem[], types: string[]) {
+  const set = new Set(types);
+  return alerts
+    .filter((alert) => set.has(alert.type))
+    .reduce((sum, alert) => sum + alert.count, 0);
+}
+
 export default function CommandShell() {
   const { pathname, search } = useLocation();
   const navigate = useNavigate();
@@ -149,11 +158,22 @@ export default function CommandShell() {
   const loadCompanies = useAppStore((s) => s.loadCompanies);
   const { selectedCompanyId, setCompanyId } = useAppStore();
   const meta = routeMeta(pathname, search);
+  const alertState = useAlerts(selectedCompanyId);
 
   useEffect(() => { loadCompanies(); }, [loadCompanies]);
 
   const selectedCompany = companies.find((c) => c.company_id === selectedCompanyId);
   const userInitial = (user?.name || user?.email || 'S').trim().slice(0, 1).toUpperCase();
+  const navCounts = useMemo(() => ({
+    inventory: sumAlertCounts(alertState.alerts, ['longterm_warning', 'longterm_critical']),
+    dashboard: alertState.totalCount,
+    lc: sumAlertCounts(alertState.alerts, ['lc_maturity', 'lc_shortage']),
+    bl: sumAlertCounts(alertState.alerts, ['eta_soon']),
+    orders: sumAlertCounts(alertState.alerts, ['delivery_soon', 'no_site']),
+    outbound: sumAlertCounts(alertState.alerts, ['no_invoice']),
+    receipts: sumAlertCounts(alertState.alerts, ['overdue_warning', 'overdue_critical']),
+    banking: sumAlertCounts(alertState.alerts, ['lc_maturity', 'lc_shortage']),
+  }), [alertState.alerts, alertState.totalCount]);
 
   return (
     <div className="sf-shell">
@@ -193,6 +213,7 @@ export default function CommandShell() {
                 {visibleItems.map((item) => {
                   const Icon = item.icon;
                   const active = isItemActive(item.path, pathname, search);
+                  const count = navCounts[item.key as keyof typeof navCounts] ?? item.count;
                   return (
                     <NavLink
                       key={item.key}
@@ -202,7 +223,7 @@ export default function CommandShell() {
                     >
                       <Icon className="h-3.5 w-3.5 shrink-0" />
                       <span className="sf-nav-label min-w-0 flex-1 truncate">{item.label}</span>
-                      {item.count != null ? <span className="sf-nav-badge">{item.count}</span> : null}
+                      {count ? <span className="sf-nav-badge">{count}</span> : null}
                     </NavLink>
                   );
                 })}
@@ -249,7 +270,11 @@ export default function CommandShell() {
             >
               <Search className="h-4 w-4" />
             </Button>
-            <AlertBell />
+            <AlertBell
+              alerts={alertState.alerts}
+              totalCount={alertState.totalCount}
+              criticalCount={alertState.criticalCount}
+            />
             <QuickRegister userId={user?.user_id} role={r} />
           </div>
         </header>

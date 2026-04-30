@@ -5,14 +5,42 @@
 | 항목 | 상태 |
 |------|------|
 | 현재 Phase | **실데이터 이관 + 운영 기능 보강 진행 중** |
-| 다음 작업 | 아마란스 RPA 배포 ZIP 생성/운영 PC 1회 로그인 리허설 + OCR 실사용 샘플 검증 + 품목/거래처 후보 매칭 고도화 + E2E smoke 로컬 DB 실행 확인 |
+| 다음 작업 | 로그인 후 실제 권한별 PR19 반응형 확인 + 아마란스 RPA 배포 ZIP 생성/운영 PC 1회 로그인 리허설 + OCR 실사용 샘플 검증 + E2E smoke 로컬 DB 실행 확인 |
 | 인프라 | Mac mini (Go+Rust+PostgREST+Caddy+PostgreSQL) + Supabase Auth(인증만) + Tailscale(외부접속) |
 | 프론트엔드 | Caddy 정적 서빙 (dist/) — localhost:5173, Tailscale 100.123.70.19:5173 |
 | DB | 로컬 PostgreSQL + PostgREST (D-075, D-076) |
 | Go 테스트 | 129개 PASS |
 | Rust 테스트 | 75개 PASS |
-| DECISIONS | D-001~D-100 (98개, D-080/D-081 번호 공백) |
+| DECISIONS | D-001~D-102 (D-080/D-081 번호 공백) |
 | launchd | 5개 서비스 자동 시작 |
+
+---
+
+## 2026-05-01 세션 — PR19 운영 신호 실제 데이터 배선
+
+### 완료
+- PR19 좌측 사이드바의 목업 숫자 배지를 제거하고 실제 `useAlerts` 알림 건수에서 파생하도록 변경
+  - 재고: 장기재고 주의/심각
+  - L/C·은행: LC 만기/한도 부족
+  - B/L: 입항 예정
+  - 수주/출고/수금: 납기 임박, 현장 미등록, 계산서 미발행, 미수금 주의/연체
+- 헤더 알림 벨과 사이드바 배지가 같은 알림 계산 결과를 사용하도록 `AlertBell` 입력을 정리
+- 대시보드 우측 레일에 실제 운영 워크큐, 미착품 ETA, 수주 잔량/납기 데이터를 연결
+- `useAlerts`의 미수금 계산을 현재 `customer-analysis.items` 응답 스키마에 맞게 보정
+- 계산서 미발행 조건을 “매출 없음 또는 세금계산서 발행일 없음”으로 보정
+- 알림 계산 회귀 테스트 `useAlerts.test.tsx` 추가
+- 설계 판단 D-102 추가: PR19 내비게이션 배지는 운영 알림 훅을 정본으로 사용
+
+### 검증
+- `cd frontend && npm run test` 성공 — 4 files / 10 tests
+- `cd frontend && npm run lint` 성공
+- `cd frontend && npm run build` 성공
+- in-app browser에서 `/login` 렌더 확인
+
+### 다음 작업
+- 로그인 세션이 있는 상태에서 대시보드/재고/구매/판매/설정의 권한별 반응형 화면 직접 확인
+- 아마란스 RPA 배포 ZIP 생성 및 운영 PC 1회 로그인 리허설
+- OCR 실사용 샘플 기반 품목/거래처 후보 매칭 고도화
 
 ---
 
