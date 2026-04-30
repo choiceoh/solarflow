@@ -973,6 +973,53 @@ func (h *ExportHandler) DownloadUploadJobFile(w http.ResponseWriter, r *http.Req
 	http.ServeContent(w, r, job.FileName, fileModTime(path), file)
 }
 
+// ClaimUploadJob — POST /api/v1/export/amaranth/jobs/{id}/claim
+// 비유: RPA 기사가 작업표에 자기 도장을 찍고 가져가는 단계. 이미 누가 가져간 표는 다시 가져가지 않는다.
+func (h *ExportHandler) ClaimUploadJob(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	job, ok := h.getUploadJob(w, id)
+	if !ok {
+		return
+	}
+	if job.Status != "pending" {
+		response.RespondError(w, http.StatusConflict, "이미 처리 중이거나 완료된 아마란스 업로드 작업입니다")
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	update := amaranthUploadJobStatusUpdate{
+		Status:       "running",
+		UpdatedAt:    now,
+		Attempts:     job.Attempts + 1,
+		RPAStartedAt: &now,
+	}
+
+	data, _, err := h.DB.From("amaranth_upload_jobs").
+		Update(update, "", "").
+		Eq("job_id", id).
+		Eq("status", "pending").
+		Execute()
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업 선점] 수정 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 선점에 실패했습니다")
+		return
+	}
+
+	var updated []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &updated); err != nil {
+		log.Printf("[아마란스 업로드 작업 선점] 응답 처리 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 선점 결과를 확인할 수 없습니다")
+		return
+	}
+	if len(updated) == 0 {
+		response.RespondError(w, http.StatusConflict, "이미 다른 RPA 워커가 가져간 작업입니다")
+		return
+	}
+
+	redactUploadJob(&updated[0])
+	response.RespondJSON(w, http.StatusOK, model.AmaranthUploadJobClaimResponse{Job: updated[0]})
+}
+
 // UpdateUploadJobStatus — PUT /api/v1/export/amaranth/jobs/{id}/status
 func (h *ExportHandler) UpdateUploadJobStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")

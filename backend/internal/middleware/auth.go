@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -84,6 +85,12 @@ type autoProvisionInsert struct {
 func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if authenticateAmaranthRPA(r) {
+				ctx := SetUserContext(r.Context(), "amaranth-rpa", "operator", "amaranth-rpa@solarflow.local", nil)
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+
 			// 비유: 사원증(Authorization 헤더)을 꺼내 달라고 요청
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
@@ -233,6 +240,22 @@ func AuthMiddleware(db *supa.Client) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func authenticateAmaranthRPA(r *http.Request) bool {
+	expected := strings.TrimSpace(os.Getenv("SOLARFLOW_AMARANTH_RPA_TOKEN"))
+	if expected == "" {
+		return false
+	}
+	if !strings.HasPrefix(r.URL.Path, "/api/v1/export/amaranth/") {
+		return false
+	}
+
+	presented := strings.TrimSpace(r.Header.Get("X-SolarFlow-RPA-Token"))
+	if presented == "" || len(presented) != len(expected) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(presented), []byte(expected)) == 1
 }
 
 // RoleMiddleware — 특정 역할만 접근을 허용하는 미들웨어

@@ -300,6 +300,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/jobs", exportH.ListUploadJobs)
 			r.Get("/jobs/{id}/download", exportH.DownloadUploadJobFile)
 			r.With(write).Post("/outbound/jobs", exportH.CreateOutboundUploadJob)
+			r.With(write).Post("/jobs/{id}/claim", exportH.ClaimUploadJob)
 			r.With(write).Put("/jobs/{id}/status", exportH.UpdateUploadJobStatus)
 		})
 

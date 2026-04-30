@@ -1,0 +1,20 @@
+{
+  "name": "@solarflow/amaranth-uploader",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "SolarFlow Amaranth outbound Excel upload worker",
+  "scripts": {
+    "check": "node --check src/config.js && node --check src/solarflowClient.js && node --check src/amaranthBrowser.js && node --check src/worker.js",
+    "login": "node src/worker.js login",
+    "once": "node src/worker.js once",
+    "watch": "node src/worker.js watch",
+    "install:browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "1.59.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
