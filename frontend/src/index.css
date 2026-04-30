@@ -1035,6 +1035,155 @@ a:focus-visible,
   font-size: 12px;
 }
 
+/* ============================================================
+   v3 mockup parity polish — shadcn 안에 mockup density·정밀도 주입
+   ============================================================ */
+
+/* 테이블 wrap에 overflow:clip — sticky thead 가 .sf-page-scroll에서 동작하도록 */
+.sf-page .rounded-md.border.overflow-hidden,
+.sf-command-surface .rounded-md.border.overflow-hidden,
+.sf-table-wrap {
+  overflow: clip;
+}
+
+/* sticky thead — 긴 테이블 스크롤 시 헤더 고정 */
+.sf-page [data-slot="table-head"],
+.sf-page table:not(.grid) thead th,
+.sf-command-surface [data-slot="table-head"],
+.sf-command-surface table:not(.grid) thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+/* 테이블 행 트랜지션 + 선택된 행 솔라 인셋 */
+.sf-page [data-slot="table-row"],
+.sf-page table:not(.grid) tbody tr,
+.sf-command-surface [data-slot="table-row"],
+.sf-command-surface table:not(.grid) tbody tr {
+  transition: background 100ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-page table tbody tr.selected td,
+.sf-command-surface table tbody tr.selected td,
+.sf-page [data-slot="table-row"][data-state="selected"] td,
+.sf-command-surface [data-slot="table-row"][data-state="selected"] td {
+  background: var(--sf-solar-bg);
+  box-shadow: inset 2px 0 0 var(--sf-solar-2);
+}
+
+/* shadcn Card chrome — border/shadow/radius만 mockup 토큰으로 (font/padding은 건드리지 않음 — 레이아웃 보존) */
+.sf-page [data-slot="card"],
+.sf-command-surface [data-slot="card"] {
+  border: 1px solid var(--sf-line);
+  border-radius: 6px;
+  box-shadow: var(--sf-shadow-1);
+  background: var(--sf-surface);
+}
+
+/* Input·Textarea 포커스 — 솔라 보더 + soft glow */
+.sf-page input[type="text"]:focus,
+.sf-page input[type="number"]:focus,
+.sf-page input[type="email"]:focus,
+.sf-page input[type="search"]:focus,
+.sf-page input[type="date"]:focus,
+.sf-page input[type="password"]:focus,
+.sf-page input[type="tel"]:focus,
+.sf-page textarea:focus,
+.sf-command-surface input[type="text"]:focus,
+.sf-command-surface input[type="number"]:focus,
+.sf-command-surface input[type="email"]:focus,
+.sf-command-surface input[type="search"]:focus,
+.sf-command-surface input[type="date"]:focus,
+.sf-command-surface textarea:focus {
+  border-color: var(--sf-solar-2);
+  box-shadow: var(--sf-shadow-focus);
+  outline: none;
+}
+
+/* 헤더 검색 input — 모션 + 솔라 포커스 */
+.sf-topbar input {
+  transition: border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-topbar input:focus {
+  border-color: var(--sf-solar-2);
+  background: var(--sf-surface);
+  box-shadow: var(--sf-shadow-focus);
+  outline: none;
+}
+
+/* 사이드바 네비링크 — easing 통일 */
+.sf-nav-link {
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 스켈레톤 shimmer — 로딩 상태 LoadingSpinner 대체용 */
+.sf-skeleton {
+  position: relative;
+  background: var(--sf-bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.sf-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgb(255 255 255 / 0.55) 50%, transparent 100%);
+  animation: sf-skeleton-shimmer 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes sf-skeleton-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* 톤 칩 — Bloomberg-density 상태 표시 */
+.sf-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-family: var(--sf-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sf-pill.solar { background: var(--sf-solar-bg); color: var(--sf-solar-3); }
+.sf-pill.pos   { background: var(--sf-pos-bg);   color: var(--sf-pos); }
+.sf-pill.neg   { background: var(--sf-neg-bg);   color: var(--sf-neg); }
+.sf-pill.warn  { background: var(--sf-warn-bg);  color: var(--sf-warn); }
+.sf-pill.info  { background: var(--sf-info-bg);  color: var(--sf-info); }
+.sf-pill.ink   { background: var(--sf-ink); color: #fff; }
+.sf-pill.ghost { background: var(--sf-bg-2); color: var(--sf-ink-3); border: 1px solid var(--sf-line-2); font-weight: 500; }
+
+/* 상태 dot */
+.sf-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* 카드 호버 리프트 — 클릭 가능한 카드에 opt-in */
+.sf-card-hover {
+  transition: box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 160ms cubic-bezier(0.22, 1, 0.36, 1),
+              transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-card-hover:hover {
+  box-shadow: var(--sf-shadow-3);
+  border-color: var(--sf-line-2);
+}
+.sf-card-hover:active {
+  transform: translateY(0.5px);
+}
+
 @media (max-width: 1180px) {
   .sf-kpi-grid,
   .sf-command-kpis {
