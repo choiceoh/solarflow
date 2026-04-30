@@ -84,7 +84,7 @@ export default function GlobalSearchBar() {
             <X className="h-3.5 w-3.5 text-muted-foreground" />
           </button>
         )}
-        <kbd className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground bg-muted px-1 rounded">
+        <kbd className="sf-kbd absolute right-2 top-1/2 -translate-y-1/2">
           {navigator.platform.includes('Mac') ? '⌘K' : 'Ctrl+K'}
         </kbd>
       </div>
