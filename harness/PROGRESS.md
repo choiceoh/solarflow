@@ -5,13 +5,13 @@
 | 항목 | 상태 |
 |------|------|
 | 현재 Phase | **실데이터 이관 + 운영 기능 보강 진행 중** |
-| 다음 작업 | OCR 실사용 샘플 검증 + 품목/거래처 후보 매칭 고도화 + E2E smoke 로컬 DB 실행 확인 |
+| 다음 작업 | 아마란스 RPA 실제 계정 1회 로그인/업로드 리허설 + OCR 실사용 샘플 검증 + 품목/거래처 후보 매칭 고도화 + E2E smoke 로컬 DB 실행 확인 |
 | 인프라 | Mac mini (Go+Rust+PostgREST+Caddy+PostgreSQL) + Supabase Auth(인증만) + Tailscale(외부접속) |
 | 프론트엔드 | Caddy 정적 서빙 (dist/) — localhost:5173, Tailscale 100.123.70.19:5173 |
 | DB | 로컬 PostgreSQL + PostgREST (D-075, D-076) |
 | Go 테스트 | 129개 PASS |
 | Rust 테스트 | 75개 PASS |
-| DECISIONS | D-001~D-099 (97개, D-080/D-081 번호 공백) |
+| DECISIONS | D-001~D-100 (98개, D-080/D-081 번호 공백) |
 | launchd | 5개 서비스 자동 시작 |
 
 ---
@@ -68,6 +68,39 @@
 - 수입자/무역거래처를 마스터와 자동 매칭해 법인/제조사를 바꾸는 것은 아직 하지 않음
 - 품목 자동채움은 OCR 모델/규격 문자열이 현재 제조사의 품번명 또는 품번코드와 매칭될 때만 적용
 - `graphify update .`는 별도 확인 필요
+
+---
+
+## 2026-04-30 세션 — 아마란스 웹 출고 업로드 RPA 워커 초안
+
+### 완료
+- `rpa/amaranth-uploader` Node/Playwright 워커 추가
+  - `npm run login`: 사람이 아마란스 로그인 후 브라우저 프로필 저장
+  - `npm run once`: `pending` 출고 업로드 작업 1회 처리
+  - `npm run watch`: 대기열을 주기적으로 감시하며 처리
+- 아마란스 자동화 흐름 반영
+  - `출고등록엑셀업로드` 화면 확인
+  - 로그인 화면 감지 시 `AMARANTH_AUTO_LOGIN=true` 환경에서 회사코드/아이디/비밀번호 자동 입력 fallback
+  - `기능모음 → 엑셀 업로드 → 변환확인`
+  - 성공 문구 미확인 시 `manual_required`로 남김
+- 실패 복구 기반 추가
+  - `artifacts/` 스크린샷 저장
+  - `last_error`에 오류 코드와 캡처 경로 기록
+  - 화면 문구 변경은 `.env` 정규식으로 조정
+- RPA 인증 보강
+  - `SOLARFLOW_AMARANTH_RPA_TOKEN` 설정 시 `/api/v1/export/amaranth/*` 경로에서만 operator 권한으로 통과
+  - 사용자 access token 직접 복사 없이 워커 실행 가능
+- Go API에 작업 선점 엔드포인트 추가
+  - `POST /api/v1/export/amaranth/jobs/{id}/claim`
+  - `pending` 작업만 `running`으로 바꾸고 attempts를 1 증가
+  - 이미 다른 워커가 가져간 작업은 409로 차단
+- 설계 판단 D-100 추가: 아마란스 웹 자동화는 별도 Playwright 워커 + 수동확인 안전장치로 시작
+
+### 제한
+- 실제 아마란스 계정/세션으로 브라우저 리허설 필요
+- `SOLARFLOW_AMARANTH_RPA_TOKEN`은 운영 환경변수로 길고 임의적인 값을 지정해야 함
+- `AMARANTH_PASSWORD`는 자동화 전용 PC의 로컬 `.env`에만 두고 저장소에 포함 금지
+- Windows 시작프로그램/launchd 등록은 실제 PC 리허설 후 고정
 
 ---
 

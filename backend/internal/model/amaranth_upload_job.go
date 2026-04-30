@@ -78,3 +78,8 @@ type AmaranthUploadJobCreateResponse struct {
 	Job       AmaranthUploadJob `json:"job"`
 	Duplicate bool              `json:"duplicate"`
 }
+
+// AmaranthUploadJobClaimResponse — RPA 워커가 작업을 선점한 결과
+type AmaranthUploadJobClaimResponse struct {
+	Job AmaranthUploadJob `json:"job"`
+}
