@@ -10,6 +10,7 @@ import QuickRegister from '@/components/layout/QuickRegister';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermission } from '@/hooks/usePermission';
+import { useAlerts } from '@/hooks/useAlerts';
 import { useAppStore } from '@/stores/appStore';
 import GlobalSearchBar from '@/components/search/GlobalSearchBar';
 import AlertBell from './AlertBell';
@@ -95,6 +96,7 @@ export default function TopNav() {
   const companies = useAppStore((s) => s.companies);
   const loadCompanies = useAppStore((s) => s.loadCompanies);
   const { selectedCompanyId, setCompanyId } = useAppStore();
+  const alertState = useAlerts(selectedCompanyId);
 
   useEffect(() => { loadCompanies(); }, [loadCompanies]);
 
@@ -341,7 +343,7 @@ export default function TopNav() {
 
       <QuickRegister userId={user?.user_id} role={r} />
       <GlobalSearchBar />
-      <AlertBell />
+      <AlertBell alerts={alertState.alerts} totalCount={alertState.totalCount} criticalCount={alertState.criticalCount} />
 
       {/* 사용자 드롭다운 */}
       <DropdownMenu>
