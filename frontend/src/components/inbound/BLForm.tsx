@@ -311,8 +311,24 @@ const fallbackDateRe = /\b(20\d{2})[년./\-\s]*(\d{1,2})[월./\-\s]*(\d{1,2})\s*
 const fallbackNumberRe = /\d[\d,]*(?:\.\d+)?/g;
 const fallbackPcsRe = /([\d,]+)\s*PCS\b/i;
 const fallbackItemNoRe = /\(?\s*NO\.\s*\d+\s*\)?/i;
+const fallbackImporterRe = /(TOP\s*SOLAR|TOPSOLAR|탑솔라(?:\s*\(?주\)?)?)/i;
 const fallbackTradePartnerRe = /([A-Z][A-Z0-9&.,\-\s]{4,90}(?:CO\.?\s*LTD|CO\s+LTD|LIMITED|INC\.?|CORP\.?))/i;
 const fallbackModelLikeRe = /(LR\d[-A-Z0-9]*|[A-Z0-9]{2,}[-][A-Z0-9-]{4,})/i;
+const ocrModelWpRe = /(?:^|[^0-9])(\d{3,4})\s*(?:M|W|WP)\b/i;
+const ocrCapacityWpRe = /([\d,]+)\s*WP\b/i;
+type OCRZone = { x0: number; y0: number; x1: number; y1: number };
+const customsOCRZones = {
+  declarationNumber: { x0: 180, y0: 250, x1: 430, y1: 315 },
+  arrivalDate: { x0: 490, y0: 250, x1: 650, y1: 315 },
+  declarationDate: { x0: 980, y0: 250, x1: 1145, y1: 315 },
+  blNumber: { x0: 250, y0: 325, x1: 470, y1: 380 },
+  importer: { x0: 140, y0: 390, x1: 720, y1: 500 },
+  port: { x0: 1180, y0: 490, x1: 1320, y1: 555 },
+  tradePartner: { x0: 140, y0: 600, x1: 760, y1: 690 },
+  hsCode: { x0: 360, y0: 1025, x1: 660, y1: 1105 },
+  exchangeRate: { x0: 1320, y0: 1505, x1: 1465, y1: 1565 },
+  cifAmountKRW: { x0: 1320, y0: 1570, x1: 1510, y1: 1635 },
+} as const satisfies Record<string, OCRZone>;
 
 function makeOCRCandidate(value: string, label: string, source: string, confidence?: number): OCRFieldCandidate {
   return {
@@ -349,7 +365,30 @@ function fallbackPort(text: string) {
   return '';
 }
 
+function ocrLineCenter(line: OCRLine) {
+  if (!line.box) return null;
+  return {
+    x: (line.box.x0 + line.box.x1) / 2,
+    y: (line.box.y0 + line.box.y1) / 2,
+  };
+}
+
+function isInOCRZone(line: OCRLine, zone: OCRZone) {
+  const center = ocrLineCenter(line);
+  return Boolean(center && center.x >= zone.x0 && center.x <= zone.x1 && center.y >= zone.y0 && center.y <= zone.y1);
+}
+
+function findOCRZoneLine(lines: OCRLine[], zone: OCRZone, pattern?: RegExp) {
+  return lines.find((line) => isInOCRZone(line, zone) && (!pattern || pattern.test(line.text)));
+}
+
 function fallbackLargestIntegerAmount(lines: OCRLine[]) {
+  const zoneLine = findOCRZoneLine(lines, customsOCRZones.cifAmountKRW, /\d[\d,]{7,}/);
+  if (zoneLine) {
+    const match = zoneLine.text.match(/\d[\d,]{7,}/);
+    if (match?.[0]) return makeOCRCandidate(match[0].replace(/,/g, ''), '면장 CIF 원화금액', zoneLine.text, zoneLine.score ?? 0);
+  }
+
   let best = 0;
   let source = '';
   let confidence = 0;
@@ -368,6 +407,13 @@ function fallbackLargestIntegerAmount(lines: OCRLine[]) {
 }
 
 function fallbackExchangeRate(lines: OCRLine[]) {
+  const zoneLine = findOCRZoneLine(lines, customsOCRZones.exchangeRate, /\d[\d,]*\.\d+/);
+  if (zoneLine) {
+    const match = zoneLine.text.match(/\d[\d,]*\.\d+/);
+    const normalized = normalizeOCRDecimal(match?.[0]);
+    if (normalized) return makeOCRCandidate(normalized, '면장환율', zoneLine.text, zoneLine.score ?? 0);
+  }
+
   for (const line of lines) {
     for (const match of line.text.match(fallbackNumberRe) ?? []) {
       if (!match.includes('.')) continue;
@@ -382,6 +428,16 @@ function fallbackExchangeRate(lines: OCRLine[]) {
 }
 
 function fallbackAmountUSD(section: OCRLine[]) {
+  const zoneLine = section.find((line) => {
+    const center = ocrLineCenter(line);
+    return center && center.x >= 1330 && /\d[\d,]*\.\d+/.test(line.text) && !/WP|WTT/i.test(line.text);
+  });
+  if (zoneLine) {
+    const match = zoneLine.text.match(/\d[\d,]*\.\d+/);
+    const normalized = normalizeOCRDecimal(match?.[0]);
+    if (normalized) return makeOCRCandidate(normalized, '금액(USD)', zoneLine.text, zoneLine.score ?? 0);
+  }
+
   let best = 0;
   let bestText = '';
   let source = '';
@@ -391,7 +447,7 @@ function fallbackAmountUSD(section: OCRLine[]) {
       if (!match.includes('.')) continue;
       const normalized = normalizeOCRDecimal(match);
       const parsed = Number(normalized);
-      if (Number.isFinite(parsed) && parsed >= 100 && parsed > best) {
+      if (Number.isFinite(parsed) && parsed >= 100 && parsed > best && !/WP|WTT/i.test(line.text)) {
         best = parsed;
         bestText = normalized;
         source = line.text;
@@ -403,6 +459,18 @@ function fallbackAmountUSD(section: OCRLine[]) {
 }
 
 function fallbackUnitPriceUSD(section: OCRLine[]) {
+  const zoneLine = section.find((line) => {
+    const center = ocrLineCenter(line);
+    return center && center.x >= 1180 && center.x <= 1320 && /\d[\d,]*\.\d+/.test(line.text);
+  });
+  if (zoneLine) {
+    const match = zoneLine.text.match(/\d[\d,]*\.\d+/);
+    const normalized = normalizeOCRDecimal(match?.[0]);
+    if (normalized && Number(normalized) > 0 && Number(normalized) < 10) {
+      return makeOCRCandidate(normalized, '단가(USD)', zoneLine.text, zoneLine.score ?? 0);
+    }
+  }
+
   for (const line of section) {
     for (const match of line.text.match(fallbackNumberRe) ?? []) {
       if (!match.includes('.')) continue;
@@ -422,7 +490,17 @@ function fallbackLineItems(lines: OCRLine[]) {
     .filter((index) => index >= 0);
   const items: CustomsDeclarationOCRLine[] = [];
   for (let i = 0; i < starts.length; i += 1) {
-    const section = lines.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : lines.length);
+    const startLine = lines[starts[i]];
+    const startY = startLine.box?.y0;
+    const nextStartY = i + 1 < starts.length ? lines[starts[i + 1]].box?.y0 : undefined;
+    const section = startY == null
+      ? lines.slice(starts[i], i + 1 < starts.length ? starts[i + 1] : lines.length)
+      : lines.filter((line) => {
+        const y = line.box?.y0;
+        if (y == null) return false;
+        const endY = nextStartY != null && nextStartY - startY < 220 ? nextStartY : startY + 95;
+        return y >= startY - 12 && y < endY;
+      });
     const joined = section.map((line) => line.text).join(' ');
     const quantityLine = section.find((line) => fallbackPcsRe.test(line.text));
     const quantityMatch = quantityLine ? fallbackPcsRe.exec(quantityLine.text) : null;
@@ -474,29 +552,48 @@ function buildFallbackCustomsOCRFields(result: OCRExtractResponse['results'][num
   const allText = lines.map((line) => line.text).join('\n');
   const fields: CustomsDeclarationOCRFields = {};
 
-  const declarationLine = lines.find((line) => fallbackDeclarationNoRe.test(line.text));
+  const declarationLine = findOCRZoneLine(lines, customsOCRZones.declarationNumber, fallbackDeclarationNoRe)
+    ?? lines.find((line) => fallbackDeclarationNoRe.test(line.text));
   const declarationMatch = declarationLine ? fallbackDeclarationNoRe.exec(declarationLine.text) : null;
   if (declarationMatch?.[0]) {
     fields.declaration_number = makeOCRCandidate(normalizeOCRIdentifier(declarationMatch[0]), '면장번호', declarationLine?.text ?? '', declarationLine?.score ?? 0);
   }
 
-  const blLine = lines.find((line) => /DFS\d{6,}/i.test(line.text)) ?? lines.find((line) => /B\/?L|AWB/i.test(line.text));
+  const blLine = findOCRZoneLine(lines, customsOCRZones.blNumber, /[A-Z]{2,}[A-Z0-9/-]{5,35}/i)
+    ?? lines.find((line) => /DFS\d{6,}/i.test(line.text))
+    ?? lines.find((line) => /B\/?L|AWB/i.test(line.text));
   const blMatch = blLine ? /DFS\d{6,}|[A-Z]{2,}[A-Z0-9/-]{5,35}/i.exec(blLine.text) : null;
   if (blMatch?.[0] && !/UNIPASS|MASTERB/i.test(blMatch[0])) {
     fields.bl_number = makeOCRCandidate(blMatch[0].trim(), 'B/L번호', blLine?.text ?? '', blLine?.score ?? 0);
+  }
+
+  const arrivalLine = findOCRZoneLine(lines, customsOCRZones.arrivalDate, fallbackDateRe);
+  const arrivalDate = normalizeOCRDate(arrivalLine?.text);
+  if (arrivalDate) {
+    fields.arrival_date = makeOCRCandidate(arrivalDate, '입항일', arrivalLine?.text ?? '', arrivalLine?.score ?? 0);
+  }
+  const declarationDateLine = findOCRZoneLine(lines, customsOCRZones.declarationDate, fallbackDateRe);
+  const declarationDate = normalizeOCRDate(declarationDateLine?.text);
+  if (declarationDate) {
+    fields.declaration_date = makeOCRCandidate(declarationDate, '신고일', declarationDateLine?.text ?? '', declarationDateLine?.score ?? 0);
   }
 
   const dateCandidates = lines
     .map((line) => ({ value: normalizeOCRDate(line.text), line }))
     .filter((item) => item.value);
   if (dateCandidates.length > 0) {
-    fields.arrival_date = makeOCRCandidate(dateCandidates[0].value, '입항일', dateCandidates[0].line.text, dateCandidates[0].line.score ?? 0);
+    if (!fields.arrival_date) {
+      fields.arrival_date = makeOCRCandidate(dateCandidates[0].value, '입항일', dateCandidates[0].line.text, dateCandidates[0].line.score ?? 0);
+    }
     const last = dateCandidates[dateCandidates.length - 1];
-    fields.declaration_date = makeOCRCandidate(last.value, '신고일', last.line.text, last.line.score ?? 0);
+    if (!fields.declaration_date) {
+      fields.declaration_date = makeOCRCandidate(last.value, '신고일', last.line.text, last.line.score ?? 0);
+    }
   }
 
-  const port = fallbackPort(allText);
-  if (port) fields.port = makeOCRCandidate(port, '항구', allText, 0);
+  const portLine = findOCRZoneLine(lines, customsOCRZones.port, /KR[A-Z]{3}|광양항|부산항|인천항|평택항/i);
+  const port = fallbackPort(portLine?.text ?? allText);
+  if (port) fields.port = makeOCRCandidate(port, '항구', portLine?.text ?? allText, portLine?.score ?? 0);
 
   const exchangeRate = fallbackExchangeRate(lines);
   if (exchangeRate) fields.exchange_rate = exchangeRate;
@@ -504,24 +601,49 @@ function buildFallbackCustomsOCRFields(result: OCRExtractResponse['results'][num
   const cifAmount = fallbackLargestIntegerAmount(lines);
   if (cifAmount) fields.cif_amount_krw = cifAmount;
 
-  const hsLine = lines.find((line) => /8541[.\-\s]?43|HS|세번|품목번호/i.test(line.text));
+  const hsLine = findOCRZoneLine(lines, customsOCRZones.hsCode, /\d{4}[.\-\s]?\d{2}/)
+    ?? lines.find((line) => /8541[.\-\s]?43|HS|세번|품목번호/i.test(line.text));
   const hsMatch = hsLine ? /(\d{4}[.\-\s]?\d{2}[.\-\s]?\d{4}|\d{10})/.exec(hsLine.text) : null;
   if (hsMatch?.[1]) fields.hs_code = makeOCRCandidate(hsMatch[1].replace(/\D/g, ''), 'HS코드', hsLine?.text ?? '', hsLine?.score ?? 0);
 
-  const tradeLine = lines.find((line) => fallbackTradePartnerRe.test(line.text));
+  const tradeLine = findOCRZoneLine(lines, customsOCRZones.tradePartner, fallbackTradePartnerRe)
+    ?? lines.find((line) => fallbackTradePartnerRe.test(line.text));
   const tradeMatch = tradeLine ? fallbackTradePartnerRe.exec(tradeLine.text) : null;
   if (tradeMatch?.[1] && !/MASTERB|UNIPASS/i.test(tradeMatch[1])) {
     fields.trade_partner = makeOCRCandidate(tradeMatch[1].trim(), '무역거래처', tradeLine?.text ?? '', tradeLine?.score ?? 0);
   }
 
-  if (/탑솔라|TOP\s*SOLAR|TOPSOLAR/i.test(allText)) {
-    fields.importer = makeOCRCandidate(/탑솔라/i.test(allText) ? '탑솔라' : 'TOP SOLAR', '수입자', allText, 0.55);
+  const importerLine = findOCRZoneLine(lines, customsOCRZones.importer, fallbackImporterRe)
+    ?? lines.find((line) => fallbackImporterRe.test(line.text));
+  const importerMatch = importerLine ? fallbackImporterRe.exec(importerLine.text) : fallbackImporterRe.exec(allText);
+  if (importerMatch?.[1]) {
+    fields.importer = makeOCRCandidate(importerMatch[1].trim(), '수입자', importerLine?.text ?? allText, importerLine?.score ?? 0.55);
   }
 
   const lineItems = fallbackLineItems(lines);
   if (lineItems.length > 0) fields.line_items = lineItems;
 
   return hasCustomsOCRCandidates(fields) ? fields : null;
+}
+
+function lineItemOCRCompleteness(items: CustomsDeclarationOCRLine[] | undefined) {
+  return (items ?? []).reduce((score, item) => score
+    + (item.model_spec ? 2 : 0)
+    + (item.quantity ? 2 : 0)
+    + (item.unit_price_usd ? 1 : 0)
+    + (item.amount_usd ? 1 : 0)
+    + (item.payment_type ? 1 : 0), 0);
+}
+
+function mergeCustomsOCRFields(primary: CustomsDeclarationOCRFields | undefined | null, fallback: CustomsDeclarationOCRFields | null) {
+  if (!primary) return fallback;
+  const merged: CustomsDeclarationOCRFields = { ...(fallback ?? {}), ...primary };
+  const primaryLineScore = lineItemOCRCompleteness(primary.line_items);
+  const fallbackLineScore = lineItemOCRCompleteness(fallback?.line_items);
+  if ((fallback?.line_items?.length ?? 0) > (primary.line_items?.length ?? 0) || fallbackLineScore > primaryLineScore) {
+    merged.line_items = fallback?.line_items;
+  }
+  return hasCustomsOCRCandidates(merged) ? merged : null;
 }
 
 function normalizeOCRPartyText(value: string | undefined) {
@@ -556,6 +678,47 @@ function scoreOCRPartyCandidate(rawValue: string | undefined, candidateValues: A
     }
   }
   return best;
+}
+
+function manufacturerOCRAliases(manufacturer: Pick<Manufacturer, 'name_kr' | 'name_en' | 'short_name'>) {
+  const base = [manufacturer.name_kr, manufacturer.name_en, manufacturer.short_name].filter((value): value is string => Boolean(value));
+  const joined = normalizeOCRMatchText(base.join(' '));
+  const aliases: string[] = [];
+  if (/론지|롱기|LONGI/.test(joined)) aliases.push('LONGI', 'LONGISOLAR', 'LONGISOLARTECHNOLOGY');
+  if (/진코|JINKO/.test(joined)) aliases.push('JINKO', 'JINKOSOLAR');
+  if (/트리나|TRINA/.test(joined)) aliases.push('TRINA', 'TRINASOLAR');
+  if (/JA|제이에이|징아오|JASOLAR/.test(joined)) aliases.push('JA', 'JASOLAR');
+  if (/캐나디안|CANADIAN/.test(joined)) aliases.push('CANADIAN', 'CANADIANSOLAR');
+  if (/라이젠|RISEN/.test(joined)) aliases.push('RISEN', 'RISENSOLAR');
+  if (/한화|HANWHA|QCELL|QCELLS/.test(joined)) aliases.push('HANWHA', 'QCELLS', 'HANWHAQCELLS');
+  if (/선텍|SUNTECH/.test(joined)) aliases.push('SUNTECH');
+  return Array.from(new Set([...base, ...aliases]));
+}
+
+function extractOCRSpecWp(item: CustomsDeclarationOCRLine) {
+  const text = item.model_spec?.value ?? '';
+  const direct = ocrModelWpRe.exec(text);
+  if (direct?.[1]) return Number(direct[1]);
+
+  const quantity = parseOCRNumber(item.quantity?.value);
+  const capacityMatch = ocrCapacityWpRe.exec(text);
+  const capacity = capacityMatch?.[1] ? parseOCRNumber(capacityMatch[1]) : NaN;
+  if (Number.isFinite(quantity) && quantity > 0 && Number.isFinite(capacity) && capacity > 0) {
+    return Math.round(capacity / quantity);
+  }
+  return 0;
+}
+
+function extractOCRModelTokens(value: string | undefined) {
+  const normalized = normalizeOCRMatchText(value);
+  const tokens = new Set<string>();
+  for (const match of normalized.matchAll(/[A-Z]{1,4}\d[A-Z0-9]*/g)) {
+    if (match[0].length >= 3) tokens.add(match[0]);
+  }
+  for (const match of normalized.matchAll(/\d{2,4}[A-Z]{2,}[A-Z0-9]*/g)) {
+    if (match[0].length >= 4) tokens.add(match[0]);
+  }
+  return Array.from(tokens);
 }
 
 function parseOCRNumber(value: string | undefined) {
@@ -885,11 +1048,7 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     let bestManufacturer: Manufacturer | null = null;
     let bestScore = 0;
     for (const manufacturer of manufacturers) {
-      const score = scoreOCRPartyCandidate(value, [
-        manufacturer.name_kr,
-        manufacturer.name_en,
-        manufacturer.short_name,
-      ]);
+      const score = scoreOCRPartyCandidate(value, manufacturerOCRAliases(manufacturer));
       if (score > bestScore) {
         bestManufacturer = manufacturer;
         bestScore = score;
@@ -909,14 +1068,47 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
     }
   };
 
+  const loadAllProductsForOCR = async () => {
+    try {
+      const list = await fetchWithAuth<Product[]>('/api/v1/products?active=true');
+      return list.filter((p) => p.is_active);
+    } catch {
+      return products;
+    }
+  };
+
   const findProductForOCRLine = (item: CustomsDeclarationOCRLine, productSource: Product[] = products): Product | null => {
     const raw = normalizeOCRMatchText(item.model_spec?.value);
     if (!raw) return null;
-    return productSource.find((product) => {
+    const specWp = extractOCRSpecWp(item);
+    const rawTokens = extractOCRModelTokens(item.model_spec?.value);
+    const manufacturerCount = new Set(productSource.map((product) => product.manufacturer_id)).size;
+    let bestProduct: Product | null = null;
+    let bestScore = 0;
+
+    for (const product of productSource) {
       const code = normalizeOCRMatchText(product.product_code);
       const name = normalizeOCRMatchText(product.product_name);
-      return (code && raw.includes(code)) || (name && raw.includes(name)) || (name && name.includes(raw));
-    }) ?? null;
+      const productTokens = new Set(extractOCRModelTokens(`${product.product_code} ${product.product_name}`));
+      let score = 0;
+
+      if (code && raw.includes(code)) score += 1000 + code.length;
+      if (name && raw.includes(name)) score += 900 + name.length;
+      if (code && raw.length >= 6 && code.includes(raw)) score += 700;
+      if (name && raw.length >= 6 && name.includes(raw)) score += 650;
+      if (specWp > 0 && product.spec_wp === specWp) score += 500;
+
+      for (const token of rawTokens) {
+        if (productTokens.has(token) || code.includes(token) || name.includes(token)) score += 120;
+      }
+      if (selMfgId && product.manufacturer_id === selMfgId) score += 80;
+      if (score > bestScore) {
+        bestProduct = product;
+        bestScore = score;
+      }
+    }
+
+    return bestScore >= (manufacturerCount <= 1 ? 500 : 620) ? bestProduct : null;
   };
 
   const applyOCRLineItems = (items: CustomsDeclarationOCRLine[] | undefined, productSource: Product[] = products) => {
@@ -976,6 +1168,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       productSource = products.some((product) => product.manufacturer_id === tradePartnerManufacturer.manufacturer_id)
         ? products
         : await loadProductsForManufacturer(tradePartnerManufacturer.manufacturer_id);
+    } else if (fields.line_items?.length) {
+      productSource = await loadAllProductsForOCR();
     }
 
     const rate = fields.exchange_rate?.value?.replace(/,/g, '').trim();
@@ -1061,7 +1255,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
       const result = response.results[0];
       if (!result) throw new Error('OCR 결과가 없습니다');
       if (result.error) throw new Error(result.error);
-      const fields = result.fields?.customs_declaration ?? buildFallbackCustomsOCRFields(result, file.name);
+      const fallbackFields = buildFallbackCustomsOCRFields(result, file.name);
+      const fields = mergeCustomsOCRFields(result.fields?.customs_declaration, fallbackFields);
       if (!fields) {
         const rawLineCount = result.lines?.length ?? (result.raw_text ? result.raw_text.split('\n').filter(Boolean).length : 0);
         throw new Error(rawLineCount > 0
