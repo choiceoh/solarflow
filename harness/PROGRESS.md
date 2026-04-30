@@ -1,6 +1,6 @@
 # SolarFlow 진행 상황
 
-## 현재 상태 요약 (최종 업데이트: 2026-04-28)
+## 현재 상태 요약 (최종 업데이트: 2026-04-30)
 
 | 항목 | 상태 |
 |------|------|
@@ -11,8 +11,34 @@
 | DB | 로컬 PostgreSQL + PostgREST (D-075, D-076) |
 | Go 테스트 | 116개 PASS |
 | Rust 테스트 | 75개 PASS |
-| DECISIONS | D-001~D-095 (93개, D-080/D-081 번호 공백) |
+| DECISIONS | D-001~D-096 (94개, D-080/D-081 번호 공백) |
 | launchd | 5개 서비스 자동 시작 |
+
+---
+
+## 2026-04-30 세션 — 아마란스 웹 출고 업로드 기반
+
+### 출고 export 실물 양식 반영
+- 아마란스 웹 `출고등록엑셀업로드` 실물 파일 기준으로 출고 export 구조 보정
+  - 1행: 한글 헤더
+  - 2행: ERP 필드코드
+  - 3행: 타입/길이/필수 여부 설명
+  - 4행부터 데이터
+- 출고 기본 정책 결정
+  - `PLN_CD`: 기본 `A001` (`AMARANTH_DEFAULT_PLN_CD`로 override 가능)
+  - `MGMT_CD`: 기본 `LS10` (`AMARANTH_OUTBOUND_MGMT_CD` 또는 `AMARANTH_DEFAULT_MGMT_CD`로 override 가능)
+  - `VAT_UM`: 실물 샘플과 동일하게 공란
+
+### 아마란스 업로드 작업 대기열
+- `amaranth_upload_jobs` 테이블 추가
+  - 생성된 `.xlsx` 파일 경로, 파일명, SHA-256, 행 수, 상태, 생성자, 시도 횟수, 결과 메시지 추적
+  - `job_type + file_sha256` unique로 동일 파일 중복 작업 생성 방지
+- Go API 추가
+  - `POST /api/v1/export/amaranth/outbound/jobs`: 출고 엑셀 생성 + 파일 저장 + 작업 생성
+  - `GET /api/v1/export/amaranth/jobs`: 작업 목록
+  - `GET /api/v1/export/amaranth/jobs/{id}/download`: 저장된 엑셀 다운로드
+  - `PUT /api/v1/export/amaranth/jobs/{id}/status`: RPA 상태 갱신
+- 프론트 `AmaranthExportDialog`에 출고용 `업로드 작업` 버튼 추가
 
 ---
 

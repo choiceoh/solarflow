@@ -288,6 +288,10 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Get("/inbound", exportH.AmaranthInbound)
 			r.Get("/outbound", exportH.AmaranthOutbound)
 			r.Get("/sales", exportH.AmaranthSalesClosing)
+			r.Get("/jobs", exportH.ListUploadJobs)
+			r.Get("/jobs/{id}/download", exportH.DownloadUploadJobFile)
+			r.With(write).Post("/outbound/jobs", exportH.CreateOutboundUploadJob)
+			r.With(write).Put("/jobs/{id}/status", exportH.UpdateUploadJobStatus)
 		})
 
 		// 비유: 엑셀 일괄 등록 창구 — 7종 Import API (Step 29B) — 쓰기 권한 필수

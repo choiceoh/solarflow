@@ -181,6 +181,13 @@ func NewLCRecordInsert(req CreateLCRequest) LCRecordInsert {
 	}
 }
 
+// CreateLCWithLinesRPCRequest — LC 본문과 품목 명세를 함께 저장하는 DB 함수 payload
+// 비유: LC 신청서 본문과 품목 명세표를 한 봉투에 담아 접수한다.
+type CreateLCWithLinesRPCRequest struct {
+	LC    LCRecordInsert        `json:"p_lc"`
+	Lines []CreateLCLineRequest `json:"p_lines"`
+}
+
 // UpdateLCRequest — LC 수정 시 클라이언트가 보내는 데이터
 // 비유: "LC 정보 변경 신청서" — 바꾸고 싶은 항목만 적어서 제출
 type UpdateLCRequest struct {
@@ -278,4 +285,13 @@ func NewLCRecordUpdate(req UpdateLCRequest) LCRecordUpdate {
 		Status:         req.Status,
 		Memo:           req.Memo,
 	}
+}
+
+// UpdateLCWithLinesRPCRequest — LC 본문 수정과 품목 명세 교체 DB 함수 payload
+// 비유: 수정 신청서와 새 품목 명세표를 한 번에 접수해 중간 누락을 막는다.
+type UpdateLCWithLinesRPCRequest struct {
+	LCID         string                `json:"p_lc_id"`
+	LC           LCRecordUpdate        `json:"p_lc"`
+	Lines        []CreateLCLineRequest `json:"p_lines"`
+	ReplaceLines bool                  `json:"p_replace_lines"`
 }

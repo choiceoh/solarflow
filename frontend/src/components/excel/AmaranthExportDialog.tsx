@@ -2,14 +2,15 @@
 // 비유: 기간 선택 → 아마란스 양식 .xlsx 다운로드
 
 import { useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, UploadCloud } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { DateInput } from '@/components/ui/date-input';
 import { Label } from '@/components/ui/label';
-import { supabase } from '@/lib/supabase';
+import { fetchBlobWithAuth, fetchWithAuth } from '@/lib/api';
+import { useAppStore } from '@/stores/appStore';
 
 interface Props {
   type: 'inbound' | 'outbound';
@@ -27,36 +28,41 @@ function defaultTo(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+interface UploadJobResponse {
+  duplicate: boolean;
+  job: {
+    job_id: string;
+    row_count: number;
+    status: string;
+  };
+}
 
 export default function AmaranthExportDialog({ type, open, onClose }: Props) {
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [loading, setLoading] = useState(false);
+  const [jobLoading, setJobLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jobMessage, setJobMessage] = useState<string | null>(null);
+  const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
 
   const label = type === 'inbound' ? '입고' : '출고';
+
+  const queryParams = () => {
+    const params = new URLSearchParams({ from, to });
+    if (selectedCompanyId && selectedCompanyId !== 'all') {
+      params.set('company_id', selectedCompanyId);
+    }
+    return params;
+  };
 
   const handleExport = async () => {
     setLoading(true);
     setError(null);
+    setJobMessage(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = {};
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-
-      const params = new URLSearchParams({ from, to });
-      const res = await fetch(
-        `${API_BASE_URL}/api/v1/export/amaranth/${type}?${params}`,
-        { headers },
-      );
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: '내보내기 실패' }));
-        throw new Error(err.message || `HTTP ${res.status}`);
-      }
+      const params = queryParams();
+      const res = await fetchBlobWithAuth(`/api/v1/export/amaranth/${type}?${params}`);
 
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -74,6 +80,28 @@ export default function AmaranthExportDialog({ type, open, onClose }: Props) {
       setError(e instanceof Error ? e.message : '내보내기 실패');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreateJob = async () => {
+    if (type !== 'outbound') return;
+    setJobLoading(true);
+    setError(null);
+    setJobMessage(null);
+    try {
+      const result = await fetchWithAuth<UploadJobResponse>(
+        `/api/v1/export/amaranth/outbound/jobs?${queryParams()}`,
+        { method: 'POST' },
+      );
+      if (result.duplicate) {
+        setJobMessage(`동일한 업로드 작업이 이미 있습니다 (${result.job.row_count}건)`);
+      } else {
+        setJobMessage(`업로드 작업을 만들었습니다 (${result.job.row_count}건)`);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '업로드 작업 생성 실패');
+    } finally {
+      setJobLoading(false);
     }
   };
 
@@ -96,10 +124,17 @@ export default function AmaranthExportDialog({ type, open, onClose }: Props) {
             </div>
           </div>
           {error && <p className="text-xs text-red-600">{error}</p>}
+          {jobMessage && <p className="text-xs text-emerald-700">{jobMessage}</p>}
         </div>
 
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={onClose}>취소</Button>
+          {type === 'outbound' && (
+            <Button variant="outline" size="sm" onClick={handleCreateJob} disabled={jobLoading || loading}>
+              <UploadCloud className="mr-1.5 h-4 w-4" />
+              {jobLoading ? '작업 생성 중...' : '업로드 작업'}
+            </Button>
+          )}
           <Button size="sm" onClick={handleExport} disabled={loading}>
             <Download className="mr-1.5 h-4 w-4" />
             {loading ? '내보내는 중...' : '내보내기'}

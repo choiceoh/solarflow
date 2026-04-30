@@ -152,13 +152,13 @@ func (h *LCHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 비유: LC 본문과 품목 명세표를 같은 봉투에 넣어 DB 함수로 접수한다.
-	data, err := dbrpc.Call(r.Context(), "sf_create_lc_with_lines", map[string]interface{}{
-		"p_lc":    model.NewLCRecordInsert(req),
-		"p_lines": req.LineItems,
+	data, err := dbrpc.Call(r.Context(), "sf_create_lc_with_lines", model.CreateLCWithLinesRPCRequest{
+		LC:    model.NewLCRecordInsert(req),
+		Lines: req.LineItems,
 	})
 	if err != nil {
 		log.Printf("[LC 등록 실패] %v", err)
-		response.RespondError(w, dbrpc.StatusCode(err, http.StatusInternalServerError), "LC 등록에 실패했습니다: "+err.Error())
+		response.RespondError(w, dbrpc.StatusCode(err, http.StatusInternalServerError), "LC 등록에 실패했습니다")
 		return
 	}
 
@@ -203,15 +203,15 @@ func (h *LCHandler) Update(w http.ResponseWriter, r *http.Request) {
 
 	if req.LineItems != nil {
 		// 비유: LC 본문 수정과 품목 명세표 교체를 한 번에 접수해 중간 실패를 막는다.
-		data, err := dbrpc.Call(r.Context(), "sf_update_lc_with_lines", map[string]interface{}{
-			"p_lc_id":         id,
-			"p_lc":            model.NewLCRecordUpdate(req),
-			"p_lines":         req.LineItems,
-			"p_replace_lines": true,
+		data, err := dbrpc.Call(r.Context(), "sf_update_lc_with_lines", model.UpdateLCWithLinesRPCRequest{
+			LCID:         id,
+			LC:           model.NewLCRecordUpdate(req),
+			Lines:        req.LineItems,
+			ReplaceLines: true,
 		})
 		if err != nil {
 			log.Printf("[LC 수정 실패] id=%s, err=%v", id, err)
-			response.RespondError(w, dbrpc.StatusCode(err, http.StatusInternalServerError), "LC 수정에 실패했습니다: "+err.Error())
+			response.RespondError(w, dbrpc.StatusCode(err, http.StatusInternalServerError), "LC 수정에 실패했습니다")
 			return
 		}
 

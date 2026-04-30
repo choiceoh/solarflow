@@ -1,17 +1,33 @@
 package handler
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
+	"mime"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/supabase-community/postgrest-go"
 	supa "github.com/supabase-community/supabase-go"
 	"github.com/xuri/excelize/v2"
 
+	"solarflow-backend/internal/middleware"
+	"solarflow-backend/internal/model"
 	"solarflow-backend/internal/response"
+)
+
+const (
+	amaranthXLSXContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	outboundDataStartRow    = 4
 )
 
 // ExportHandler — 아마란스10 ERP 내보내기 핸들러
@@ -74,6 +90,44 @@ var outboundERPCodes = []string{
 	"MGMT_CD", "PJT_CD", "REMARK_DC_D", "SHIP_CD", "AREA_CD",
 	"EXCH_UM", "EXCH_AM", "SHIP_FG", "LOT_NB", "SO_NB",
 	"SO_SQ", "REQ_NB", "REQ_SQ", "QC_NB", "QC_SQ",
+}
+
+var outboundDescriptions = []string{
+	"타입 : 문자\n 길이 : 1\n 필수 : True\n 설명 : 숫자만 입력하세요. (0.DOMESTIC, 1.LOCAL L/C, 2.구매승인서, 3.MASTER L/C, 4.T/T, 5.D/A, 6.D/P)",
+	"타입 : 날짜\n 길이 : 8\n 필수 : True\n 설명 : 숫자 기준 8자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : True\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 4\n 필수 : True\n 설명 : 영문/숫자 기준 4자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : True\n 설명 : 숫자 기준 17,6자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 1\n 필수 : True\n 설명 : 숫자 1자리(최대)를 입력 하세요.(0.매출과세 1.수출영세 2.매출면세 3. 매출기타)",
+	"타입 : 문자\n 길이 : 1\n 필수 : True\n 설명 : 숫자 1자리(최대)를 입력 하세요.(0. 부가세미포함 1.부가세포함)",
+	"타입 : 문자\n 길이 : 4\n 필수 : True\n 설명 : 영문/숫자 기준 4자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 60\n 필수 : False\n 설명 : 영문/숫자 기준 60자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 30\n 필수 : True\n 설명 : 영문/숫자 기준 30자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : True\n 설명 : 숫자 기준 17,6자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : True\n 설명 : 숫자 기준 17,6자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : False\n 설명 : 숫자 기준 17,6자리(최대)를 입력하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : False\n 설명 : 숫자 기준 17,6자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,4\n 필수 : False\n 설명 : 숫자 기준 17,4자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,4\n 필수 : False\n 설명 : 숫자 기준 17,4자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,4\n 필수 : False\n 설명 : 숫자 기준 17,4자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 4\n 필수 : True\n 설명 : 영문/숫자 기준 4자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 60\n 필수 : False\n 설명 : 영문/숫자 기준 60자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 5\n 필수 : False\n 설명 : 영문/숫자 기준 5자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,6\n 필수 : False\n 설명 : 숫자 기준 17,6자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 17,4\n 필수 : False\n 설명 : 숫자 기준 17,4자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 10\n 필수 : False\n 설명 : 영문/숫자 기준 10자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 50\n 필수 : False\n 설명 : 영문/숫자 기준 50자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 12\n 필수 : False\n 설명 : 영문/숫자 기준12자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 5,0\n 필수 : False\n 설명 : 숫자 기준 5자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 12\n 필수 : False\n 설명 : 영문/숫자 기준 12자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 5,0\n 필수 : False\n 설명 : 숫자 기준 5자리(최대)를 입력 하세요.",
+	"타입 : 문자\n 길이 : 12\n 필수 : False\n 설명 : 영문/숫자 기준 12자리(최대)를 입력 하세요.",
+	"타입 : 숫자\n 길이 : 5,0\n 필수 : False\n 설명 : 숫자 기준 5자리(최대)를 입력 하세요.",
 }
 
 // --- 입고 내보내기 구조체 (DB 조회용) ---
@@ -237,10 +291,28 @@ func colName(idx int) string {
 func writeHeaders(f *excelize.File, sheet string, headers []string, erpCodes []string) {
 	for i, h := range headers {
 		col := colName(i)
-		f.SetCellValue(sheet, fmt.Sprintf("%s1", col), h)
-		if i < len(erpCodes) && erpCodes[i] != "" {
-			f.SetCellValue(sheet, fmt.Sprintf("%s2", col), erpCodes[i])
+		if err := f.SetCellValue(sheet, fmt.Sprintf("%s1", col), h); err != nil {
+			log.Printf("[아마란스 헤더] 셀 %s1 값 설정 실패: %v", col, err)
 		}
+		if i < len(erpCodes) && erpCodes[i] != "" {
+			if err := f.SetCellValue(sheet, fmt.Sprintf("%s2", col), erpCodes[i]); err != nil {
+				log.Printf("[아마란스 헤더] 셀 %s2 값 설정 실패: %v", col, err)
+			}
+		}
+	}
+}
+
+// writeHeadersWithDescriptions — 행1 한글헤더, 행2 ERP코드, 행3 실물 업로드 설명 작성
+func writeHeadersWithDescriptions(f *excelize.File, sheet string, headers []string, erpCodes []string, descriptions []string) {
+	writeHeaders(f, sheet, headers, erpCodes)
+	for i, desc := range descriptions {
+		col := colName(i)
+		if err := f.SetCellValue(sheet, fmt.Sprintf("%s3", col), desc); err != nil {
+			log.Printf("[아마란스 설명행] 셀 %s3 값 설정 실패: %v", col, err)
+		}
+	}
+	if err := f.SetRowHeight(sheet, 3, 96); err != nil {
+		log.Printf("[아마란스 설명행] 높이 설정 실패: %v", err)
 	}
 }
 
@@ -547,6 +619,26 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 	fromDate := r.URL.Query().Get("from")
 	toDate := r.URL.Query().Get("to")
 
+	f, _, err := h.buildAmaranthOutboundWorkbook(companyID, fromDate, toDate)
+	if err != nil {
+		log.Printf("[아마란스 출고 내보내기] 엑셀 생성 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 출고 엑셀 생성에 실패했습니다")
+		return
+	}
+	defer closeWorkbook("아마란스 출고 내보내기", f)
+
+	today := time.Now().Format("20060102")
+	fileName := fmt.Sprintf("amaranth_outbound_%s.xlsx", today)
+
+	w.Header().Set("Content-Type", amaranthXLSXContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+
+	if _, err := f.WriteTo(w); err != nil {
+		log.Printf("[아마란스 출고 내보내기] 파일 전송 실패: %v", err)
+	}
+}
+
+func (h *ExportHandler) buildAmaranthOutboundWorkbook(companyID, fromDate, toDate string) (*excelize.File, int, error) {
 	// outbounds 조회 (status=active, 기간 필터)
 	query := h.DB.From("outbounds").
 		Select("outbound_id, outbound_date, quantity, site_name, memo, products(product_code), warehouses(warehouse_code, location_code)", "exact", false).
@@ -564,16 +656,12 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 
 	outData, _, err := query.Execute()
 	if err != nil {
-		log.Printf("[아마란스 출고 내보내기] 출고 조회 실패: %v", err)
-		response.RespondError(w, http.StatusInternalServerError, "출고 조회에 실패했습니다")
-		return
+		return nil, 0, fmt.Errorf("출고 조회 실패: %w", err)
 	}
 
 	var outbounds []outboundExportRow
 	if err := json.Unmarshal(outData, &outbounds); err != nil {
-		log.Printf("[아마란스 출고 내보내기] 출고 디코딩 실패: %v", err)
-		response.RespondError(w, http.StatusInternalServerError, "데이터 처리에 실패했습니다")
-		return
+		return nil, 0, fmt.Errorf("출고 디코딩 실패: %w", err)
 	}
 
 	// 매출 데이터 조회 (outbound_id → sale)
@@ -607,18 +695,17 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 	// 거래처 맵 (partner_id → erp_code)
 	partnerIDMap, err := h.loadPartnerIDERPMap()
 	if err != nil {
-		log.Printf("[아마란스 출고 내보내기] 거래처 조회 실패: %v", err)
-		response.RespondError(w, http.StatusInternalServerError, "거래처 조회에 실패했습니다")
-		return
+		return nil, 0, fmt.Errorf("거래처 조회 실패: %w", err)
 	}
 
 	// 엑셀 생성
 	f := excelize.NewFile()
+	applyAmaranthWorkbookProperties(f, "SolarFlow Amaranth Outbound")
 	sheet := "Sheet1"
-	writeHeaders(f, sheet, outboundHeaders, outboundERPCodes)
+	writeHeadersWithDescriptions(f, sheet, outboundHeaders, outboundERPCodes, outboundDescriptions)
 
 	for i, ob := range outbounds {
-		row := i + 3
+		row := i + outboundDataStartRow
 
 		productCode := ""
 		if ob.Products != nil {
@@ -642,16 +729,14 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 			trCode = partnerIDMap[sale.CustomerID]
 		}
 
-		var unitPriceEa, vatUM, supplyAmt, vatAmt, totalAmt interface{}
+		var unitPriceEa, supplyAmt, vatAmt, totalAmt interface{}
 		if hasSale {
 			unitPriceEa = ptrFloat(sale.UnitPriceEa)
-			vatUM = ptrFloat(sale.UnitPriceEa) * 1.1
 			supplyAmt = ptrFloat(sale.SupplyAmount)
 			vatAmt = ptrFloat(sale.VatAmount)
 			totalAmt = ptrFloat(sale.TotalAmount)
 		} else {
 			unitPriceEa = ""
-			vatUM = ""
 			supplyAmt = ""
 			vatAmt = ""
 			totalAmt = ""
@@ -659,41 +744,41 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 
 		// 35컬럼 기록
 		cells := []interface{}{
-			"0",             // A 거래구분
-			dateStr,         // B 출고일자
-			trCode,          // C 고객코드
-			"KRW",           // D 환종
-			1,               // E 환율
-			"0",             // F 과세구분
-			"0",             // G 단가구분
-			whCode,          // H 창고코드
-			"",              // I 담당자코드
-			remark,          // J 비고(건)
-			productCode,     // K 품번
-			ob.Quantity,     // L 출고수량
-			ob.Quantity,     // M 재고단위수량
-			"",              // N 단가유형
-			unitPriceEa,     // O 부가세미포함단가
-			vatUM,           // P 부가세포함단가
-			supplyAmt,       // Q 공급가
-			vatAmt,          // R 부가세
-			totalAmt,        // S 합계액
-			lcCode,          // T 장소코드
-			"",              // U 관리구분 (D-068)
-			"",              // V 프로젝트코드
-			ptrStr(ob.Memo), // W 비고(내역)
-			"",              // X 납품처코드
-			"",              // Y 지역
-			0,               // Z 외화단가
-			0,               // AA 외화금액
-			"",              // AB 배송방법
-			"",              // AC LOT번호
-			"",              // AD 주문번호
-			"",              // AE 주문순번
-			"",              // AF 출고의뢰번호
-			"",              // AG 출고의뢰순번
-			"",              // AH 출고검사번호
-			"",              // AI 출고검사순번
+			"0",                               // A 거래구분
+			dateStr,                           // B 출고일자
+			trCode,                            // C 고객코드
+			"KRW",                             // D 환종
+			1,                                 // E 환율
+			"0",                               // F 과세구분
+			"0",                               // G 단가구분
+			whCode,                            // H 창고코드
+			amaranthDefaultSalespersonCode(),  // I 담당자코드
+			remark,                            // J 비고(건)
+			productCode,                       // K 품번
+			ob.Quantity,                       // L 출고수량
+			ob.Quantity,                       // M 재고단위수량
+			"",                                // N 단가유형
+			unitPriceEa,                       // O 부가세미포함단가
+			"",                                // P 부가세포함단가 — 실물 업로드 샘플과 동일하게 공란
+			supplyAmt,                         // Q 공급가
+			vatAmt,                            // R 부가세
+			totalAmt,                          // S 합계액
+			lcCode,                            // T 장소코드
+			amaranthDefaultOutboundMgmtCode(), // U 관리구분
+			"",                                // V 프로젝트코드
+			ptrStr(ob.Memo),                   // W 비고(내역)
+			"",                                // X 납품처코드
+			"",                                // Y 지역
+			0,                                 // Z 외화단가
+			0,                                 // AA 외화금액
+			"",                                // AB 배송방법
+			"",                                // AC LOT번호
+			"",                                // AD 주문번호
+			"",                                // AE 주문순번
+			"",                                // AF 출고의뢰번호
+			"",                                // AG 출고의뢰순번
+			"",                                // AH 출고검사번호
+			"",                                // AI 출고검사순번
 		}
 
 		for ci, val := range cells {
@@ -704,14 +789,385 @@ func (h *ExportHandler) AmaranthOutbound(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	return f, len(outbounds), nil
+}
+
+// CreateOutboundUploadJob — POST /api/v1/export/amaranth/outbound/jobs
+// 비유: RPA 작업함에 "이 출고 엑셀을 아마란스에 올려주세요" 접수증을 만든다.
+func (h *ExportHandler) CreateOutboundUploadJob(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		response.RespondError(w, http.StatusUnauthorized, "인증 정보가 없습니다")
+		return
+	}
+
+	companyID, fromDate, toDate, ok := parseAmaranthJobFilters(w, r)
+	if !ok {
+		return
+	}
+
+	f, rowCount, err := h.buildAmaranthOutboundWorkbook(ptrStr(companyID), ptrStr(fromDate), ptrStr(toDate))
+	if err != nil {
+		log.Printf("[아마란스 출고 업로드 작업] 엑셀 생성 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 출고 엑셀 생성에 실패했습니다")
+		return
+	}
+	defer closeWorkbook("아마란스 출고 업로드 작업", f)
+
+	var buf bytes.Buffer
+	if _, err := f.WriteTo(&buf); err != nil {
+		log.Printf("[아마란스 출고 업로드 작업] 엑셀 버퍼 생성 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 출고 엑셀 파일을 만들 수 없습니다")
+		return
+	}
+
+	hash := sha256.Sum256(buf.Bytes())
+	fileHash := hex.EncodeToString(hash[:])
+	existing, err := h.findUploadJobByHash("outbound", fileHash)
+	if err != nil {
+		log.Printf("[아마란스 출고 업로드 작업] 중복 작업 조회 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 중복 확인에 실패했습니다")
+		return
+	}
+	if existing != nil {
+		redactUploadJob(existing)
+		response.RespondJSON(w, http.StatusOK, model.AmaranthUploadJobCreateResponse{
+			Job:       *existing,
+			Duplicate: true,
+		})
+		return
+	}
+
+	jobID := uuid.NewString()
 	today := time.Now().Format("20060102")
 	fileName := fmt.Sprintf("amaranth_outbound_%s.xlsx", today)
+	storedName := jobID + ".xlsx"
+	dir := filepath.Join(amaranthUploadRoot(), "outbound", today)
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		log.Printf("[아마란스 출고 업로드 작업] 저장 폴더 생성 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 파일 저장 폴더를 만들 수 없습니다")
+		return
+	}
 
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", fileName))
+	storedPath := filepath.Join(dir, storedName)
+	if err := os.WriteFile(storedPath, buf.Bytes(), 0o640); err != nil {
+		log.Printf("[아마란스 출고 업로드 작업] 파일 저장 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 파일을 저장할 수 없습니다")
+		return
+	}
 
-	if _, err := f.WriteTo(w); err != nil {
-		log.Printf("[아마란스 출고 내보내기] 파일 전송 실패: %v", err)
+	email := middleware.GetUserEmail(r.Context())
+	req := model.CreateAmaranthUploadJobRequest{
+		JobID:          jobID,
+		JobType:        "outbound",
+		Status:         "pending",
+		CompanyID:      companyID,
+		DateFrom:       fromDate,
+		DateTo:         toDate,
+		FileName:       fileName,
+		StoredName:     storedName,
+		StoredPath:     storedPath,
+		ContentType:    amaranthXLSXContentType,
+		SizeBytes:      int64(buf.Len()),
+		FileSHA256:     fileHash,
+		RowCount:       rowCount,
+		CreatedBy:      &userID,
+		CreatedByEmail: ptrIfNotEmpty(email),
+	}
+
+	data, _, err := h.DB.From("amaranth_upload_jobs").
+		Insert(req, false, "", "", "").
+		Execute()
+	if err != nil {
+		removeStoredFile(storedPath)
+		log.Printf("[아마란스 출고 업로드 작업] DB 등록 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업을 저장할 수 없습니다")
+		return
+	}
+
+	var created []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &created); err != nil || len(created) == 0 {
+		removeStoredFile(storedPath)
+		log.Printf("[아마란스 출고 업로드 작업] DB 응답 처리 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 생성 결과를 확인할 수 없습니다")
+		return
+	}
+
+	redactUploadJob(&created[0])
+	response.RespondJSON(w, http.StatusCreated, model.AmaranthUploadJobCreateResponse{
+		Job:       created[0],
+		Duplicate: false,
+	})
+}
+
+// ListUploadJobs — GET /api/v1/export/amaranth/jobs
+func (h *ExportHandler) ListUploadJobs(w http.ResponseWriter, r *http.Request) {
+	query := h.DB.From("amaranth_upload_jobs").
+		Select("*", "exact", false).
+		Order("created_at", &postgrest.OrderOpts{Ascending: false})
+
+	if jobType := strings.TrimSpace(r.URL.Query().Get("job_type")); jobType != "" {
+		query = query.Eq("job_type", jobType)
+	}
+	if status := strings.TrimSpace(r.URL.Query().Get("status")); status != "" {
+		query = query.Eq("status", status)
+	}
+	if companyID := strings.TrimSpace(r.URL.Query().Get("company_id")); companyID != "" && companyID != "all" {
+		if _, err := uuid.Parse(companyID); err != nil {
+			response.RespondError(w, http.StatusBadRequest, "company_id는 UUID 형식이어야 합니다")
+			return
+		}
+		query = query.Eq("company_id", companyID)
+	}
+
+	data, _, err := query.Execute()
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업 목록] 조회 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 목록 조회에 실패했습니다")
+		return
+	}
+
+	var jobs []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &jobs); err != nil {
+		log.Printf("[아마란스 업로드 작업 목록] 디코딩 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 목록 처리에 실패했습니다")
+		return
+	}
+	for i := range jobs {
+		redactUploadJob(&jobs[i])
+	}
+	response.RespondJSON(w, http.StatusOK, jobs)
+}
+
+// DownloadUploadJobFile — GET /api/v1/export/amaranth/jobs/{id}/download
+func (h *ExportHandler) DownloadUploadJobFile(w http.ResponseWriter, r *http.Request) {
+	job, ok := h.getUploadJob(w, chi.URLParam(r, "id"))
+	if !ok {
+		return
+	}
+
+	path, err := safeStoredPath(job.StoredPath)
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업 다운로드] 경로 검증 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 파일 경로가 올바르지 않습니다")
+		return
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업 다운로드] 파일 열기 실패: %v", err)
+		response.RespondError(w, http.StatusNotFound, "아마란스 업로드 파일을 찾을 수 없습니다")
+		return
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("[아마란스 업로드 작업 다운로드] 파일 닫기 실패: %v", err)
+		}
+	}()
+
+	w.Header().Set("Content-Type", amaranthXLSXContentType)
+	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": job.FileName}))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", job.SizeBytes))
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	http.ServeContent(w, r, job.FileName, fileModTime(path), file)
+}
+
+// UpdateUploadJobStatus — PUT /api/v1/export/amaranth/jobs/{id}/status
+func (h *ExportHandler) UpdateUploadJobStatus(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	job, ok := h.getUploadJob(w, id)
+	if !ok {
+		return
+	}
+
+	var req model.UpdateAmaranthUploadJobStatusRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.RespondError(w, http.StatusBadRequest, "잘못된 요청 형식입니다")
+		return
+	}
+	if msg := req.Validate(); msg != "" {
+		response.RespondError(w, http.StatusBadRequest, msg)
+		return
+	}
+
+	now := time.Now().Format(time.RFC3339)
+	update := amaranthUploadJobStatusUpdate{
+		Status:        req.Status,
+		UploadMessage: req.UploadMessage,
+		LastError:     req.LastError,
+		UpdatedAt:     now,
+		Attempts:      job.Attempts,
+	}
+	if req.Status == "running" {
+		update.RPAStartedAt = &now
+		update.Attempts = job.Attempts + 1
+	}
+	if req.Status == "uploaded" {
+		update.UploadedAt = &now
+	}
+
+	data, _, err := h.DB.From("amaranth_upload_jobs").
+		Update(update, "", "").
+		Eq("job_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업 상태] 수정 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 상태 수정에 실패했습니다")
+		return
+	}
+
+	var updated []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &updated); err != nil || len(updated) == 0 {
+		log.Printf("[아마란스 업로드 작업 상태] 응답 처리 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 상태 수정 결과를 확인할 수 없습니다")
+		return
+	}
+
+	redactUploadJob(&updated[0])
+	response.RespondJSON(w, http.StatusOK, updated[0])
+}
+
+type amaranthUploadJobStatusUpdate struct {
+	Status        string  `json:"status"`
+	UploadMessage *string `json:"upload_message,omitempty"`
+	LastError     *string `json:"last_error,omitempty"`
+	RPAStartedAt  *string `json:"rpa_started_at,omitempty"`
+	UploadedAt    *string `json:"uploaded_at,omitempty"`
+	UpdatedAt     string  `json:"updated_at"`
+	Attempts      int     `json:"attempts"`
+}
+
+func (h *ExportHandler) findUploadJobByHash(jobType, fileHash string) (*model.AmaranthUploadJob, error) {
+	data, _, err := h.DB.From("amaranth_upload_jobs").
+		Select("*", "exact", false).
+		Eq("job_type", jobType).
+		Eq("file_sha256", fileHash).
+		Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	var jobs []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &jobs); err != nil {
+		return nil, err
+	}
+	if len(jobs) == 0 {
+		return nil, nil
+	}
+	return &jobs[0], nil
+}
+
+func (h *ExportHandler) getUploadJob(w http.ResponseWriter, id string) (model.AmaranthUploadJob, bool) {
+	if _, err := uuid.Parse(id); err != nil {
+		response.RespondError(w, http.StatusBadRequest, "작업 ID가 올바르지 않습니다")
+		return model.AmaranthUploadJob{}, false
+	}
+
+	data, _, err := h.DB.From("amaranth_upload_jobs").
+		Select("*", "exact", false).
+		Eq("job_id", id).
+		Execute()
+	if err != nil {
+		log.Printf("[아마란스 업로드 작업] 조회 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 조회에 실패했습니다")
+		return model.AmaranthUploadJob{}, false
+	}
+
+	var jobs []model.AmaranthUploadJob
+	if err := json.Unmarshal(data, &jobs); err != nil {
+		log.Printf("[아마란스 업로드 작업] 디코딩 실패: %v", err)
+		response.RespondError(w, http.StatusInternalServerError, "아마란스 업로드 작업 처리에 실패했습니다")
+		return model.AmaranthUploadJob{}, false
+	}
+	if len(jobs) == 0 {
+		response.RespondError(w, http.StatusNotFound, "아마란스 업로드 작업을 찾을 수 없습니다")
+		return model.AmaranthUploadJob{}, false
+	}
+	return jobs[0], true
+}
+
+func parseAmaranthJobFilters(w http.ResponseWriter, r *http.Request) (*string, *string, *string, bool) {
+	companyID := strings.TrimSpace(r.URL.Query().Get("company_id"))
+	fromDate := strings.TrimSpace(r.URL.Query().Get("from"))
+	toDate := strings.TrimSpace(r.URL.Query().Get("to"))
+
+	var companyPtr *string
+	if companyID != "" && companyID != "all" {
+		if _, err := uuid.Parse(companyID); err != nil {
+			response.RespondError(w, http.StatusBadRequest, "company_id는 UUID 형식이어야 합니다")
+			return nil, nil, nil, false
+		}
+		companyPtr = &companyID
+	}
+
+	fromPtr, ok := parseOptionalDateParam(w, fromDate, "from")
+	if !ok {
+		return nil, nil, nil, false
+	}
+	toPtr, ok := parseOptionalDateParam(w, toDate, "to")
+	if !ok {
+		return nil, nil, nil, false
+	}
+	if fromPtr != nil && toPtr != nil && *fromPtr > *toPtr {
+		response.RespondError(w, http.StatusBadRequest, "from은 to보다 늦을 수 없습니다")
+		return nil, nil, nil, false
+	}
+	return companyPtr, fromPtr, toPtr, true
+}
+
+func parseOptionalDateParam(w http.ResponseWriter, value string, field string) (*string, bool) {
+	if value == "" {
+		return nil, true
+	}
+	if _, err := time.Parse("2006-01-02", value); err != nil {
+		response.RespondError(w, http.StatusBadRequest, field+"은 YYYY-MM-DD 형식이어야 합니다")
+		return nil, false
+	}
+	return &value, true
+}
+
+func redactUploadJob(job *model.AmaranthUploadJob) {
+	job.StoredPath = ""
+	job.StoredName = ""
+}
+
+func amaranthUploadRoot() string {
+	return filepath.Join(attachmentRoot(), "amaranth_upload_jobs")
+}
+
+func amaranthDefaultSalespersonCode() string {
+	if code := strings.TrimSpace(os.Getenv("AMARANTH_DEFAULT_PLN_CD")); code != "" {
+		return code
+	}
+	return "A001"
+}
+
+func amaranthDefaultOutboundMgmtCode() string {
+	if code := strings.TrimSpace(os.Getenv("AMARANTH_OUTBOUND_MGMT_CD")); code != "" {
+		return code
+	}
+	if code := strings.TrimSpace(os.Getenv("AMARANTH_DEFAULT_MGMT_CD")); code != "" {
+		return code
+	}
+	return "LS10"
+}
+
+func closeWorkbook(label string, f *excelize.File) {
+	if err := f.Close(); err != nil {
+		log.Printf("[%s] 엑셀 파일 닫기 실패: %v", label, err)
+	}
+}
+
+func applyAmaranthWorkbookProperties(f *excelize.File, title string) {
+	if err := f.SetDocProps(&excelize.DocProperties{
+		Creator:        "SolarFlow",
+		LastModifiedBy: "SolarFlow",
+		Created:        "2000-01-01T00:00:00Z",
+		Modified:       "2000-01-01T00:00:00Z",
+		Title:          title,
+	}); err != nil {
+		log.Printf("[아마란스 엑셀 속성] 문서 속성 설정 실패: %v", err)
 	}
 }
 
