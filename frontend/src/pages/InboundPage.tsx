@@ -203,7 +203,9 @@ export default function InboundPage() {
 
   return (
     <div
-      className="min-h-[calc(100vh-5rem)] p-6 space-y-4"
+      className={`min-h-[calc(100vh-5rem)] p-6 space-y-4 transition-shadow ${
+        customsOCRDropActive ? 'ring-2 ring-primary/40 ring-offset-2 ring-offset-background' : ''
+      }`}
       onDragEnter={handleCustomsOCRPageDrag}
       onDragOver={handleCustomsOCRPageDrag}
       onDragLeave={handleCustomsOCRPageDragLeave}
@@ -216,6 +218,31 @@ export default function InboundPage() {
           <Button size="sm" onClick={() => setFormOpen(true)}>
             <Plus className="mr-1.5 h-4 w-4" />새로 등록
           </Button>
+        </div>
+      </div>
+
+      <div
+        className={`rounded-md border border-dashed p-3 transition-colors ${
+          customsOCRDropActive
+            ? 'border-primary bg-primary/10 text-primary'
+            : 'border-muted-foreground/30 bg-muted/30 text-foreground'
+        }`}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background ${
+            customsOCRDropActive ? 'border-primary text-primary' : 'text-muted-foreground'
+          }`}>
+            <ScanText className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium">면장 PDF/사진 드래그 등록</div>
+            <div className={`text-xs ${customsOCRDropActive ? 'font-medium text-primary' : 'text-muted-foreground'}`}>
+              {customsOCRDropActive ? '지금 놓으면 입고등록으로 이동합니다' : '이 박스 또는 입고관리 화면 어디에나 놓을 수 있습니다'}
+            </div>
+          </div>
+          <div className="rounded-md bg-background px-2.5 py-1 text-[11px] font-medium text-muted-foreground">
+            PDF · JPG · PNG
+          </div>
         </div>
       </div>
 
