@@ -82,8 +82,8 @@ export default function BankingPage() {
       {activeTab === 'changes' && (
         <>
           <div className="vr" style={{ height: 16 }} />
-          <Button size="sm" onClick={() => setLcFormOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />변경 등록
+          <Button size="xs" onClick={() => setLcFormOpen(true)}>
+            <Plus className="mr-1 h-3 w-3" />변경 등록
           </Button>
         </>
       )}

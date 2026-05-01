@@ -40,11 +40,11 @@ export default function ExcelUploadButton({ onFileSelect, loading, disabled }: P
     >
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         onClick={() => inputRef.current?.click()}
         disabled={disabled || loading}
       >
-        <Upload className="mr-1.5 h-4 w-4" />
+        <Upload className="mr-1 h-3 w-3" />
         {loading ? '파싱 중...' : '업로드'}
       </Button>
       <input

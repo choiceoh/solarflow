@@ -11,11 +11,11 @@ export default function ExcelDownloadButton({ onClick, loading, disabled }: Prop
   return (
     <Button
       variant="outline"
-      size="sm"
+      size="xs"
       onClick={onClick}
       disabled={disabled || loading}
     >
-      <Download className="mr-1.5 h-4 w-4" />
+      <Download className="mr-1 h-3 w-3" />
       {loading ? '생성 중...' : '양식 다운로드'}
     </Button>
   );

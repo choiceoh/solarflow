@@ -789,8 +789,8 @@ export default function OrdersPage() {
             },
           ]} />
           <ExcelToolbar type="order" />
-          <Button size="sm" onClick={() => setOrderFormOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          <Button size="xs" onClick={() => setOrderFormOpen(true)}>
+            <Plus className="mr-1 h-3 w-3" />새로 등록
           </Button>
         </>
       )}
@@ -818,8 +818,8 @@ export default function OrdersPage() {
             },
           ]} />
           <ExcelToolbar type="outbound" />
-          <Button size="sm" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}>
-            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          <Button size="xs" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}>
+            <Plus className="mr-1 h-3 w-3" />새로 등록
           </Button>
         </>
       )}
@@ -874,8 +874,8 @@ export default function OrdersPage() {
             },
           ]} />
           <ExcelToolbar type="receipt" />
-          <Button size="sm" onClick={() => setReceiptFormOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          <Button size="xs" onClick={() => setReceiptFormOpen(true)}>
+            <Plus className="mr-1 h-3 w-3" />새로 등록
           </Button>
         </>
       )}
