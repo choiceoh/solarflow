@@ -8,6 +8,8 @@ import {
   FileSignature,
   Landmark,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   ScanText,
   ScrollText,
   Search,
@@ -31,7 +33,17 @@ import { useAlerts } from '@/hooks/useAlerts';
 import { usePermission } from '@/hooks/usePermission';
 import { useAppStore } from '@/stores/appStore';
 import { cn } from '@/lib/utils';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+
+const SIDEBAR_COLLAPSED_KEY = 'sf.sidebar.collapsed';
+function readCollapsedFromStorage(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
 import type { AlertItem } from '@/types/dashboard';
 
 interface CommandNavItem {
@@ -161,7 +173,17 @@ export default function CommandShell() {
   const meta = routeMeta(pathname, search);
   const alertState = useAlerts(selectedCompanyId);
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(readCollapsedFromStorage);
+
   useEffect(() => { loadCompanies(); }, [loadCompanies]);
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0'); } catch { /* noop */ }
+      return next;
+    });
+  };
 
   const selectedCompany = companies.find((c) => c.company_id === selectedCompanyId);
   const userInitial = (user?.name || user?.email || 'S').trim().slice(0, 1).toUpperCase();
@@ -177,16 +199,25 @@ export default function CommandShell() {
   }), [alertState.alerts, alertState.totalCount]);
 
   return (
-    <div className="sf-shell">
+    <div className="sf-shell" data-sidebar-collapsed={sidebarCollapsed ? 'true' : 'false'}>
       <aside className="sf-sidebar" aria-label="주요 메뉴">
         <div className="sf-sidebar-logo">
           <span className="sf-solar-mark" aria-hidden>
             <Sun strokeWidth={2.4} />
           </span>
-          <Link to="/dashboard" className="min-w-0">
+          <Link to="/dashboard" className="sf-sidebar-logo-text min-w-0">
             <div className="text-[13.5px] font-bold leading-none">SolarFlow</div>
             <div className="sf-mono mt-1 text-[9.5px] font-semibold text-[var(--sf-solar)]">v3.0 · TOPSOLAR</div>
           </Link>
+          <button
+            type="button"
+            className="sf-sidebar-toggle"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+            title={sidebarCollapsed ? '사이드바 펼치기' : '사이드바 접기'}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="h-3.5 w-3.5" /> : <PanelLeftClose className="h-3.5 w-3.5" />}
+          </button>
         </div>
 
         <div className="sf-company-switcher">

@@ -281,6 +281,72 @@ a:focus-visible,
   background: var(--sf-bg-2);
   color: var(--sf-ink);
   font-family: var(--sf-sans);
+  transition: grid-template-columns 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 사이드바 collapsed 상태 — 토글 버튼으로 사용자가 수동 접음. 56px 아이콘 폭 */
+.sf-shell[data-sidebar-collapsed="true"] {
+  grid-template-columns: 56px minmax(0, 1fr);
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-logo-text,
+.sf-shell[data-sidebar-collapsed="true"] .sf-company-switcher,
+.sf-shell[data-sidebar-collapsed="true"] .sf-nav-section,
+.sf-shell[data-sidebar-collapsed="true"] .sf-nav-label,
+.sf-shell[data-sidebar-collapsed="true"] .sf-nav-badge,
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-user-info {
+  display: none;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-logo {
+  padding: 12px 0 8px;
+  height: auto;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 6px;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-toggle {
+  margin: 0;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-nav {
+  padding: 8px 6px;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-nav-link {
+  justify-content: center;
+  padding: 8px;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-nav-group {
+  margin-bottom: 4px;
+}
+.sf-shell[data-sidebar-collapsed="true"] .sf-sidebar-user {
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 6px;
+}
+
+/* 토글 버튼 — 다크 사이드바 안에 어우러지는 ghost icon */
+.sf-sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  height: 22px;
+  width: 22px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: transparent;
+  border: 0;
+  color: var(--sf-dark-ink-3);
+  cursor: pointer;
+  transition: background 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              color 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-sidebar-toggle:hover {
+  background: rgb(255 255 255 / 0.06);
+  color: var(--sf-dark-ink);
+}
+.sf-sidebar-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(245 184 0 / 0.4);
 }
 
 .sf-sidebar {
