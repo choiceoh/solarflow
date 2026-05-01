@@ -224,6 +224,23 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.With(write).Post("/{id}/clone", orderH.Clone)
 		})
 
+		// BARO Phase 2: 그룹내 매입 요청 — 바로(BARO)와 탑솔라(TS)가 같은 테이블에 다른 권한으로 접근
+		// - BARO: 등록/내 목록/취소/입고 확인
+		// - TS:   inbox 조회/거부/출고 연결
+		icrH := handler.NewIntercompanyRequestHandler(db)
+		r.Route("/intercompany-requests", func(r chi.Router) {
+			// BARO 측 액션
+			r.With(baroOnly).Get("/mine", icrH.Mine)
+			r.With(baroOnly, write).Post("/", icrH.Create)
+			r.With(baroOnly, write).Patch("/{id}/cancel", icrH.Cancel)
+			r.With(baroOnly, write).Patch("/{id}/receive", icrH.Receive)
+
+			// 탑솔라 측 액션
+			r.With(topsolarOnly).Get("/inbox", icrH.Inbox)
+			r.With(topsolarOnly, write).Patch("/{id}/reject", icrH.Reject)
+			r.With(topsolarOnly, write).Patch("/{id}/fulfill", icrH.Fulfill)
+		})
+
 		receiptH := handler.NewReceiptHandler(db)
 		r.Route("/receipts", func(r chi.Router) {
 			r.Get("/", receiptH.List)

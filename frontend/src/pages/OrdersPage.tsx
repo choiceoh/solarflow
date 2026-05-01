@@ -15,7 +15,6 @@ import OrderListTable from '@/components/orders/OrderListTable';
 import OrderDetailView from '@/components/orders/OrderDetailView';
 import OrderForm, { type OrderPrefillData } from '@/components/orders/OrderForm';
 import QuickReorderCard from '@/components/orders/QuickReorderCard';
-import { isBaroMode } from '@/lib/tenantScope';
 import ReceiptListTable from '@/components/orders/ReceiptListTable';
 import ReceiptForm from '@/components/orders/ReceiptForm';
 import ReceiptMatchingPanel from '@/components/orders/ReceiptMatchingPanel';
@@ -910,14 +909,12 @@ export default function OrdersPage() {
 
         {/* 탭 1: 수주 관리 */}
         <TabsContent value="orders" className="space-y-4 mt-4">
-          {/* BARO Phase 1: 빠른 재발주 — 거래처 필터 선택 시 최근 5건 카드 노출 */}
-          {isBaroMode() && (
-            <QuickReorderCard
-              partnerId={orderCustomerFilter}
-              partnerName={partners.find((p) => p.partner_id === orderCustomerFilter)?.partner_name}
-              onCloned={() => { reloadOrders(); }}
-            />
-          )}
+          {/* BARO Phase 1: 빠른 재발주 — BARO 전용 엔드포인트로 탑솔라 토큰은 403 silent skip → 카드 자체가 null 반환 */}
+          <QuickReorderCard
+            partnerId={orderCustomerFilter}
+            partnerName={partners.find((p) => p.partner_id === orderCustomerFilter)?.partner_name}
+            onCloned={() => { reloadOrders(); }}
+          />
           {ordersLoading ? <SkeletonRows rows={8} /> : (
             <OrderListTable
               items={orders}

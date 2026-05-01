@@ -17,6 +17,8 @@ export default function QuickReorderCard({ partnerId, partnerName, onCloned }: P
   const [loading, setLoading] = useState(false);
   const [cloningId, setCloningId] = useState<string | null>(null);
   const [error, setError] = useState<string>('');
+  // 비BARO 테넌트(탑솔라)에서 BARO 전용 엔드포인트 호출 시 403 — 카드 자체를 숨긴다.
+  const [hidden, setHidden] = useState(false);
 
   const load = useCallback(async () => {
     if (!partnerId) {
@@ -31,8 +33,14 @@ export default function QuickReorderCard({ partnerId, partnerName, onCloned }: P
       );
       setRecent(list);
     } catch (e) {
-      console.error('[빠른 재발주 — 최근 수주 조회 실패]', e);
-      setError('최근 수주를 불러오지 못했습니다');
+      // 403 (비BARO 테넌트)이면 카드 영구 숨김. 그 외 에러는 inline 표시.
+      const msg = e instanceof Error ? e.message : '';
+      if (msg.includes('403') || msg.toLowerCase().includes('forbidden')) {
+        setHidden(true);
+      } else {
+        console.error('[빠른 재발주 — 최근 수주 조회 실패]', e);
+        setError('최근 수주를 불러오지 못했습니다');
+      }
     } finally {
       setLoading(false);
     }
@@ -58,16 +66,8 @@ export default function QuickReorderCard({ partnerId, partnerName, onCloned }: P
     }
   };
 
-  if (!partnerId) {
-    return (
-      <div className="rounded-md border bg-muted/30 px-4 py-3 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <History className="h-3.5 w-3.5" />
-          빠른 재발주 — 상단 거래처 필터를 선택하면 최근 5건이 표시됩니다.
-        </div>
-      </div>
-    );
-  }
+  // 비BARO 테넌트(탑솔라)에서 403을 받았거나 거래처 미선택이면 렌더하지 않는다.
+  if (hidden || !partnerId) return null;
 
   return (
     <div className="rounded-md border bg-card">
