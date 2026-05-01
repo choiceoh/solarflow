@@ -130,11 +130,11 @@ interface FieldRenderProps {
 }
 
 function FieldRender({ field, value, error, options, setValue, register, watchedValues, role }: FieldRenderProps) {
-  // 조건부 표시
+  // 조건부 표시 — boolean(switch) 값도 비교되도록 양쪽 string 변환
   if (field.visibleIf) {
     const refValue = watchedValues[field.visibleIf.field];
     const expected = Array.isArray(field.visibleIf.value) ? field.visibleIf.value : [field.visibleIf.value];
-    if (!expected.includes(refValue as string)) return null;
+    if (!expected.includes(String(refValue))) return null;
   }
 
   const readOnly = isReadOnly(field, role);
