@@ -74,9 +74,13 @@ export default function LimitChangeForm({ open, onOpenChange, onSubmit }: Props)
         <DialogHeader>
           <DialogTitle>한도 변경 등록</DialogTitle>
         </DialogHeader>
-        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
-        <div className="grid gap-3 py-2">
-          <div>
+        {submitError && (
+          <div className="sf-banner neg">
+            <span className="sf-banner-body">{submitError}</span>
+          </div>
+        )}
+        <div className="sf-form">
+          <div className="sf-form-field">
             <Label>은행 *</Label>
             <Select value={bankId} onValueChange={(v) => setBankId(v ?? '')}>
               <SelectTrigger><Txt text={banks.find(b => b.bank_id === bankId)?.bank_name ?? ''} placeholder="은행 선택" /></SelectTrigger>
@@ -87,21 +91,21 @@ export default function LimitChangeForm({ open, onOpenChange, onSubmit }: Props)
               </SelectContent>
             </Select>
           </div>
-          <div>
+          <div className="sf-form-field">
             <Label>변경일 *</Label>
             <DateInput value={changeDate} onChange={setChangeDate} />
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
+          <div className="sf-form-row cols-2">
+            <div className="sf-form-field">
               <Label>이전한도 (USD) *</Label>
               <Input type="number" value={previousLimit} onChange={(e) => setPreviousLimit(e.target.value)} min={0} step="0.01" />
             </div>
-            <div>
+            <div className="sf-form-field">
               <Label>변경한도 (USD) *</Label>
               <Input type="number" value={newLimit} onChange={(e) => setNewLimit(e.target.value)} min={0} step="0.01" />
             </div>
           </div>
-          <div>
+          <div className="sf-form-field">
             <Label>사유</Label>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} />
           </div>
