@@ -1289,12 +1289,19 @@ a:focus-visible,
   --color-orange-600:  var(--sf-warn);
 
   --color-cyan-600:    var(--sf-info);
+  --color-purple-100:  var(--sf-info-bg);
   --color-purple-600:  var(--sf-info);
+  --color-purple-700:  var(--sf-info);
   --color-violet-500:  var(--sf-ink-3);
   --color-pink-600:    var(--sf-neg);
   --color-teal-600:    var(--sf-pos);
   --color-slate-600:   var(--sf-ink-2);
   --color-slate-700:   var(--sf-ink);
+  --color-gray-100:    var(--sf-bg-2);
+  --color-gray-200:    var(--sf-line-2);
+  --color-gray-500:    var(--sf-ink-3);
+  --color-gray-600:    var(--sf-ink-3);
+  --color-gray-700:    var(--sf-ink-2);
 }
 
 /* shadcn Card 텍스트 밀도 — mockup CardB 스펙에 맞춤 */
