@@ -1326,6 +1326,130 @@ a:focus-visible,
   box-shadow: none;
 }
 
+/* Input·Textarea placeholder — mockup 톤. 글로벌 적용 (Dialog 내부 폼 포함) */
+input::placeholder,
+textarea::placeholder {
+  color: var(--sf-ink-4);
+  opacity: 1;
+}
+
+/* 배너 / 인라인 알림 — 페이지 상단·카드 안 알림 메시지 */
+.sf-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--sf-line-2);
+  border-radius: 6px;
+  background: var(--sf-bg-2);
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--sf-ink-2);
+}
+.sf-banner-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--sf-ink-3);
+}
+.sf-banner-body {
+  min-width: 0;
+  flex: 1;
+}
+.sf-banner-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  color: var(--sf-ink-4);
+  padding: 2px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 120ms cubic-bezier(0.22, 1, 0.36, 1),
+              background 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-banner-close:hover {
+  background: rgb(20 17 12 / 0.06);
+  color: var(--sf-ink);
+}
+
+/* 톤별 배너 */
+.sf-banner.warn {
+  border-color: var(--sf-warn);
+  background: var(--sf-warn-bg);
+  color: var(--sf-warn);
+}
+.sf-banner.warn .sf-banner-icon { color: var(--sf-warn); }
+.sf-banner.warn .sf-banner-close { color: var(--sf-warn); }
+
+.sf-banner.pos {
+  border-color: var(--sf-pos);
+  background: var(--sf-pos-bg);
+  color: var(--sf-pos);
+}
+.sf-banner.pos .sf-banner-icon { color: var(--sf-pos); }
+
+.sf-banner.neg {
+  border-color: var(--sf-neg);
+  background: var(--sf-neg-bg);
+  color: var(--sf-neg);
+}
+.sf-banner.neg .sf-banner-icon { color: var(--sf-neg); }
+
+.sf-banner.info {
+  border-color: var(--sf-info);
+  background: var(--sf-info-bg);
+  color: var(--sf-info);
+}
+.sf-banner.info .sf-banner-icon { color: var(--sf-info); }
+
+.sf-banner.solar {
+  border-color: var(--sf-solar-2);
+  background: var(--sf-solar-bg);
+  color: var(--sf-solar-3);
+}
+.sf-banner.solar .sf-banner-icon { color: var(--sf-solar-2); }
+
+/* 폼 필드 에러 — Label/Input 아래 작게 표시 */
+.sf-field-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--sf-neg);
+}
+
+/* 상세 페이지 헤더 — 뒤로가기 + 제목 + 액션 패턴.
+   현재 BLDetailView·OrderDetailView·PODetailView가 공통 사용 가능 */
+.sf-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--sf-line);
+  margin-bottom: 14px;
+}
+.sf-detail-header-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 30px;
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: transparent;
+  border: 1px solid var(--sf-line-2);
+  color: var(--sf-ink-3);
+  cursor: pointer;
+  transition: all 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sf-detail-header-back:hover {
+  border-color: var(--sf-ink-3);
+  background: var(--sf-bg-2);
+  color: var(--sf-ink);
+}
+
 /* shadcn Label 정밀화 — 폼 안에서 더 컴팩트하고 mockup 톤
    다이얼로그 내부 폼에서도 자동 적용됨 (portal이라도 .sf-page 같은 ring가 보장된 곳 외엔 글로벌 적용) */
 [data-slot="label"] {
