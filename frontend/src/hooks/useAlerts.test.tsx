@@ -1,7 +1,16 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { mockFetchWithAuth } from '@/test/mockApi';
 import { useAlerts } from './useAlerts';
+
+function withQuery() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+}
 
 vi.mock('@/lib/api', () => ({
   fetchWithAuth: vi.fn(),
@@ -78,7 +87,7 @@ describe('useAlerts', () => {
       throw new Error(`Unexpected API call: ${path}`);
     });
 
-    const { result } = renderHook(() => useAlerts('company-1'));
+    const { result } = renderHook(() => useAlerts('company-1'), { wrapper: withQuery() });
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

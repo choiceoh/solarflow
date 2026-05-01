@@ -1,18 +1,16 @@
 /**
  * useTurnover — 재고 회전율 조회 훅
  *
- * 비유: "재고 건강검진 예약 데스크"
  * - 단일 법인: 한 번 호출
  * - 전체(all): 법인별 호출 후 kW 합산 → 회전율·DIO 재계산
  */
-import { useEffect, useState, useCallback } from 'react';
 import { fetchCalc } from '@/lib/companyUtils';
+import { useDetailQuery } from '@/lib/queryHelpers';
 import type {
   TurnoverResponse, TurnoverByManufacturer, TurnoverBySpecWp,
   TurnoverMatrixCell, TurnoverByProduct, TurnoverTotal,
 } from '@/types/turnover';
 
-/** kW 합산 후 회전율 재계산 헬퍼 */
 function recalc(inv: number, out: number, days: number): { ratio: number; dio: number } {
   const annualize = 365 / days;
   const ratio = inv > 0 ? (out * annualize) / inv : (out > 0 ? 999 : 0);
@@ -20,7 +18,6 @@ function recalc(inv: number, out: number, days: number): { ratio: number; dio: n
   return { ratio, dio };
 }
 
-/** 다중 법인 응답 병합 */
 function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
   if (rs.length === 0) {
     return {
@@ -33,7 +30,6 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
   }
   const days = rs[0].window_days;
 
-  // total
   const inv = rs.reduce((s, r) => s + r.total.inventory_kw, 0);
   const out = rs.reduce((s, r) => s + r.total.outbound_kw, 0);
   const totalRecalc = recalc(inv, out, days);
@@ -44,7 +40,6 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
     dio_days: totalRecalc.dio,
   };
 
-  // by_manufacturer
   const mfrMap = new Map<string, TurnoverByManufacturer>();
   for (const r of rs) {
     for (const m of r.by_manufacturer) {
@@ -62,7 +57,6 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
     return { ...m, turnover_ratio: c.ratio, dio_days: c.dio };
   }).sort((a, b) => a.manufacturer_name.localeCompare(b.manufacturer_name));
 
-  // by_spec_wp
   const wpMap = new Map<number, TurnoverBySpecWp>();
   for (const r of rs) {
     for (const w of r.by_spec_wp) {
@@ -80,7 +74,6 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
     return { ...w, turnover_ratio: c.ratio, dio_days: c.dio };
   }).sort((a, b) => a.spec_wp - b.spec_wp);
 
-  // matrix (mfr × wp)
   const matMap = new Map<string, TurnoverMatrixCell>();
   for (const r of rs) {
     for (const c of r.matrix) {
@@ -99,7 +92,6 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
     return { ...c, turnover_ratio: r.ratio };
   });
 
-  // top_movers / slow_movers — 법인 간 같은 product_id 합산 후 재선정
   const prodMap = new Map<string, TurnoverByProduct>();
   for (const r of rs) {
     for (const p of [...r.top_movers, ...r.slow_movers]) {
@@ -134,30 +126,15 @@ function mergeTurnover(rs: TurnoverResponse[]): TurnoverResponse {
 }
 
 export function useTurnover(companyId: string | null, days: number = 90) {
-  const [data, setData] = useState<TurnoverResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!companyId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await fetchCalc<TurnoverResponse>(
-        companyId,
-        '/api/v1/calc/inventory-turnover',
-        { days },
-        mergeTurnover,
-      );
-      setData(r);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '재고 회전율 조회 실패');
-    } finally {
-      setLoading(false);
-    }
-  }, [companyId, days]);
-
-  useEffect(() => { load(); }, [load]);
-
-  return { data, loading, error, reload: load };
+  const q = useDetailQuery<TurnoverResponse>(
+    ['turnover', companyId, days],
+    () => fetchCalc<TurnoverResponse>(
+      companyId!,
+      '/api/v1/calc/inventory-turnover',
+      { days },
+      mergeTurnover,
+    ),
+    { enabled: !!companyId },
+  );
+  return { data: q.data, loading: q.loading, error: q.error, reload: q.reload };
 }

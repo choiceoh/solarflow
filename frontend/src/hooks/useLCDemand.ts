@@ -1,9 +1,20 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { useAppStore } from '@/stores/appStore';
 import { companyQueryUrl, fetchCalc } from '@/lib/companyUtils';
+import { useDetailQuery } from '@/lib/queryHelpers';
 import type { PurchaseOrder, POLineItem, LCRecord, TTRemittance } from '@/types/procurement';
 import type { LCDemandByPO, LCDemandMonthly, LCLimitTimeline } from '@/types/banking';
+
+interface LCDemandSnapshot {
+  pos: PurchaseOrder[];
+  poTotals: Record<string, number>;
+  tts: TTRemittance[];
+  lcs: LCRecord[];
+  timeline: LCLimitTimeline | null;
+}
+
+const EMPTY_SNAPSHOT: LCDemandSnapshot = { pos: [], poTotals: {}, tts: [], lcs: [], timeline: null };
 
 function mergeTimeline(rs: LCLimitTimeline[]): LCLimitTimeline {
   const projMap = new Map<string, number>();
@@ -18,35 +29,17 @@ function mergeTimeline(rs: LCLimitTimeline[]): LCLimitTimeline {
 // LC 수요 예측 — D-061 패턴: 프론트에서 Go API 조합
 export function useLCDemand() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
-  const [pos, setPos] = useState<PurchaseOrder[]>([]);
-  const [poTotals, setPoTotals] = useState<Record<string, number>>({});
-  const [tts, setTts] = useState<TTRemittance[]>([]);
-  const [lcs, setLcs] = useState<LCRecord[]>([]);
-  const [timeline, setTimeline] = useState<LCLimitTimeline | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    if (!selectedCompanyId) {
-      setPos([]); setPoTotals({}); setTts([]); setLcs([]); setTimeline(null);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. PO/TT/LC 병렬 조회 (CRUD — "all"이면 company_id 생략)
+  const q = useDetailQuery<LCDemandSnapshot>(
+    ['lc-demand', selectedCompanyId],
+    async () => {
       const [poData, ttData, lcData] = await Promise.all([
-        fetchWithAuth<PurchaseOrder[]>(companyQueryUrl('/api/v1/pos', selectedCompanyId)),
-        fetchWithAuth<TTRemittance[]>(companyQueryUrl('/api/v1/tts', selectedCompanyId)),
-        fetchWithAuth<LCRecord[]>(companyQueryUrl('/api/v1/lcs', selectedCompanyId)),
+        fetchWithAuth<PurchaseOrder[]>(companyQueryUrl('/api/v1/pos', selectedCompanyId!)),
+        fetchWithAuth<TTRemittance[]>(companyQueryUrl('/api/v1/tts', selectedCompanyId!)),
+        fetchWithAuth<LCRecord[]>(companyQueryUrl('/api/v1/lcs', selectedCompanyId!)),
       ]);
       const activePOs = poData.filter((p) => p.status === 'contracted' || p.status === 'in_progress');
-      setPos(activePOs);
-      setTts(ttData);
-      setLcs(lcData);
 
-      // 2. 각 PO의 라인아이템 병렬 조회 → total_amount_usd 합산
       const lineResults = await Promise.all(
         activePOs.map((po) =>
           fetchWithAuth<POLineItem[]>(`/api/v1/pos/${po.po_id}/lines`)
@@ -58,47 +51,34 @@ export function useLCDemand() {
         )
       );
       const totals: Record<string, number> = {};
-      for (const r of lineResults) {
-        totals[r.poId] = r.total;
-      }
-      setPoTotals(totals);
+      for (const r of lineResults) totals[r.poId] = r.total;
 
-      // 3. Rust lc-limit-timeline (D-060: "all"이면 법인별 호출 후 merge)
+      let timeline: LCLimitTimeline | null = null;
       try {
-        const tl = await fetchCalc<LCLimitTimeline>(
-          selectedCompanyId, '/api/v1/calc/lc-limit-timeline', { months_ahead: 3 }, mergeTimeline,
+        timeline = await fetchCalc<LCLimitTimeline>(
+          selectedCompanyId!, '/api/v1/calc/lc-limit-timeline', { months_ahead: 3 }, mergeTimeline,
         );
-        setTimeline(tl);
-      } catch {
-        setTimeline(null);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'LC 수요 데이터 조회 실패');
-    }
-    setLoading(false);
-  }, [selectedCompanyId]);
+      } catch { /* timeline 실패 시 null */ }
 
-  // 초기/의존성 변경 시 데이터 재조회 — load 내부에서 setLoading/setData를 호출하므로 룰 비활성화
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
+      return { pos: activePOs, poTotals: totals, tts: ttData, lcs: lcData, timeline };
+    },
+    { enabled: !!selectedCompanyId },
+  );
+
+  const snapshot = q.data ?? EMPTY_SNAPSHOT;
 
   // PO별 LC 수요 계산
   const demandByPO: LCDemandByPO[] = useMemo(() => {
-    return pos.map((po) => {
-      // TT: 해당 PO의 completed 합산
-      const ttPaid = tts
+    return snapshot.pos.map((po) => {
+      const ttPaid = snapshot.tts
         .filter((t) => t.po_id === po.po_id && t.status === 'completed')
         .reduce((sum, t) => sum + t.amount_usd, 0);
 
-      // LC: 해당 PO의 opened/docs_received 합산
-      const lcOpened = lcs
+      const lcOpened = snapshot.lcs
         .filter((l) => l.po_id === po.po_id && (l.status === 'opened' || l.status === 'docs_received'))
         .reduce((sum, l) => sum + l.amount_usd, 0);
 
-      // PO 총액: 라인아이템 total_amount_usd 합산
-      const poTotal = poTotals[po.po_id] || 0;
-
-      // LC 미개설 = PO총액 - TT입금(completed) - LC개설(opened/docs_received)
+      const poTotal = snapshot.poTotals[po.po_id] || 0;
       const lcNeeded = Math.max(0, poTotal - ttPaid - lcOpened);
 
       // lc_due_date = contract_date + 30일
@@ -131,21 +111,16 @@ export function useLCDemand() {
         urgency,
       };
     }).filter((d) => d.lc_needed_usd > 0 || d.lc_opened_usd > 0 || d.tt_paid_usd > 0);
-  }, [pos, poTotals, tts, lcs]);
+  }, [snapshot]);
 
-  // 총 LC 미개설
   const totalLCNeeded = demandByPO.reduce((s, d) => s + d.lc_needed_usd, 0);
-
-  // 가용한도 (타임라인에서)
-  const totalAvailable = timeline?.bank_summaries
-    ? timeline.bank_summaries.reduce((s, b) => s + b.available, 0)
+  const totalAvailable = snapshot.timeline?.bank_summaries
+    ? snapshot.timeline.bank_summaries.reduce((s, b) => s + b.available, 0)
     : 0;
 
-  // 3개월 예측
   const monthlyForecast: LCDemandMonthly[] = useMemo(() => {
-    if (!timeline?.monthly_projection) return [];
-    return timeline.monthly_projection.map((mp) => {
-      // 해당 월에 lc_due_date가 있는 PO의 lc_needed 합산
+    if (!snapshot.timeline?.monthly_projection) return [];
+    return snapshot.timeline.monthly_projection.map((mp) => {
       const demand = demandByPO
         .filter((d) => d.lc_due_date && d.lc_due_date.startsWith(mp.month))
         .reduce((s, d) => s + d.lc_needed_usd, 0);
@@ -164,7 +139,7 @@ export function useLCDemand() {
         status,
       };
     });
-  }, [timeline, demandByPO]);
+  }, [snapshot.timeline, demandByPO]);
 
   return {
     demandByPO,
@@ -172,8 +147,8 @@ export function useLCDemand() {
     totalLCNeeded,
     totalAvailable,
     shortage: totalAvailable - totalLCNeeded,
-    loading,
-    error,
-    reload: load,
+    loading: q.loading,
+    error: q.error,
+    reload: q.reload,
   };
 }
