@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { cn, formatKw, formatWp } from '@/lib/utils';
+import { formatKw, formatWp } from '@/lib/utils';
 import EmptyState from '@/components/common/EmptyState';
 import type { ProductForecast } from '@/types/inventory';
 
@@ -16,10 +15,10 @@ interface Props {
 
 function ForecastCell({ value, insufficient }: { value: number; insufficient?: boolean }) {
   return (
-    <TableCell className={cn(
-      'text-right whitespace-nowrap',
-      insufficient && 'bg-red-50 text-red-600 font-medium'
-    )}>
+    <TableCell
+      className="whitespace-nowrap text-right tabular-nums"
+      style={insufficient ? { background: 'var(--sf-neg-bg)', color: 'var(--sf-neg)', fontWeight: 600 } : undefined}
+    >
       {insufficient && <AlertTriangle className="mr-0.5 inline h-3 w-3" />}
       {formatKw(value)}
     </TableCell>
@@ -53,8 +52,13 @@ function ProductForecastBlock({
         </button>
         <div className="flex shrink-0 items-center gap-2">
           <div className="text-right text-[11px] leading-tight">
-            <div className="font-semibold text-green-700">현재 가용 {formatKw(currentAvailable)}</div>
-            <div className={cn('text-muted-foreground', minAvailable < 0 && 'text-red-600 font-medium')}>
+            <div className="sf-mono font-semibold tabular-nums" style={{ color: 'var(--sf-pos)' }}>
+              현재 가용 {formatKw(currentAvailable)}
+            </div>
+            <div
+              className="sf-mono tabular-nums"
+              style={{ color: minAvailable < 0 ? 'var(--sf-neg)' : 'var(--sf-ink-3)', fontWeight: minAvailable < 0 ? 600 : 400 }}
+            >
               6개월 최저 {formatKw(minAvailable)}
             </div>
           </div>
@@ -93,14 +97,14 @@ function ProductForecastBlock({
                 {product.months.map((m) => (
                   <TableRow key={m.month}>
                     <TableCell className="font-medium whitespace-nowrap">{m.month}</TableCell>
-                    <TableCell className="text-right">{formatKw(m.opening_kw)}</TableCell>
-                    <TableCell className="text-right">{formatKw(m.incoming_kw)}</TableCell>
-                    <TableCell className="text-right">{formatKw(m.outgoing_sale_kw)}</TableCell>
-                    <TableCell className="text-right">{formatKw(m.outgoing_construction_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.opening_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.incoming_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.outgoing_sale_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.outgoing_construction_kw)}</TableCell>
                     <ForecastCell value={m.closing_kw} insufficient={m.insufficient} />
-                    <TableCell className="text-right">{formatKw(m.reserved_kw)}</TableCell>
-                    <TableCell className="text-right">{formatKw(m.allocated_kw)}</TableCell>
-                    <TableCell className="text-right font-medium text-green-600">{formatKw(m.available_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.reserved_kw)}</TableCell>
+                    <TableCell className="text-right tabular-nums">{formatKw(m.allocated_kw)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums" style={{ color: 'var(--sf-pos)' }}>{formatKw(m.available_kw)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -108,22 +112,38 @@ function ProductForecastBlock({
           </div>
 
           {hasUnscheduled && (
-            <Card className="border-dashed">
-              <CardHeader className="pb-1 pt-3">
-                <CardTitle className="text-xs text-muted-foreground">미배정 물량 (날짜 미정)</CardTitle>
-              </CardHeader>
-              <CardContent className="pb-3 text-xs space-y-0.5">
+            <div
+              className="rounded-md p-3"
+              style={{ background: 'var(--sf-bg-2)', border: '1px dashed var(--sf-line-2)' }}
+            >
+              <div className="sf-eyebrow mb-2">미배정 물량 · 날짜 미정</div>
+              <div className="grid grid-cols-3 gap-3 text-xs">
                 {product.unscheduled.incoming_kw > 0 && (
-                  <p>입고 미배정: <span className="font-medium">{formatKw(product.unscheduled.incoming_kw)}</span></p>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="sf-eyebrow" style={{ color: 'var(--sf-info)' }}>입고</span>
+                    <span className="sf-mono font-semibold tabular-nums" style={{ color: 'var(--sf-ink)' }}>
+                      {formatKw(product.unscheduled.incoming_kw)}
+                    </span>
+                  </div>
                 )}
                 {product.unscheduled.sale_kw > 0 && (
-                  <p>판매 미배정: <span className="font-medium">{formatKw(product.unscheduled.sale_kw)}</span></p>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="sf-eyebrow" style={{ color: 'var(--sf-warn)' }}>판매</span>
+                    <span className="sf-mono font-semibold tabular-nums" style={{ color: 'var(--sf-ink)' }}>
+                      {formatKw(product.unscheduled.sale_kw)}
+                    </span>
+                  </div>
                 )}
                 {product.unscheduled.construction_kw > 0 && (
-                  <p>공사 미배정: <span className="font-medium">{formatKw(product.unscheduled.construction_kw)}</span></p>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="sf-eyebrow" style={{ color: 'var(--sf-pos)' }}>공사</span>
+                    <span className="sf-mono font-semibold tabular-nums" style={{ color: 'var(--sf-ink)' }}>
+                      {formatKw(product.unscheduled.construction_kw)}
+                    </span>
+                  </div>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           )}
         </>
       )}

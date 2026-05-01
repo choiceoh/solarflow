@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui/badge';
 import EmptyState from '@/components/common/EmptyState';
 import SortableTH, { SortIcon } from '@/components/common/SortableTH';
 import { moduleLabel } from '@/lib/utils';
@@ -16,10 +15,8 @@ function fmw(kw: number): string {
 }
 
 function LongTermBadge({ status }: { status: string }) {
-  if (status === 'warning')
-    return <Badge variant="outline" className="border-yellow-500 text-yellow-600 text-[10px]">장기(6M+)</Badge>;
-  if (status === 'critical')
-    return <Badge variant="destructive" className="text-[10px]">초장기(12M+)</Badge>;
+  if (status === 'warning') return <span className="sf-pill warn">장기 6M+</span>;
+  if (status === 'critical') return <span className="sf-pill neg">초장기 12M+</span>;
   return null;
 }
 
