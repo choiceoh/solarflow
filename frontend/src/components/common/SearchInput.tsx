@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Search } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 
 interface SearchInputProps {
@@ -27,13 +27,29 @@ export default function SearchInput({ placeholder = '검색...', onChange }: Sea
 
   return (
     <div className="relative w-64">
-      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+      <Search
+        className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2"
+        style={{ color: 'var(--sf-ink-4)' }}
+      />
       <Input
         placeholder={placeholder}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        className="pl-8"
+        className="pl-8 pr-8"
       />
+      {value && (
+        <button
+          type="button"
+          aria-label="검색어 지우기"
+          onClick={() => setValue('')}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
+          style={{ color: 'var(--sf-ink-4)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--sf-ink)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--sf-ink-4)'; }}
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      )}
     </div>
   );
 }
