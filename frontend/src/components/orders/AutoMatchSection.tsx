@@ -56,8 +56,9 @@ export default function AutoMatchSection() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // /api/v1/assistant/match/receipts/auto: AI 통합 네임스페이스 (기존 /api/v1/receipt-matches/auto alias).
   const callAuto = async (dryRun: boolean): Promise<AutoMatchResponse> => {
-    return fetchWithAuth<AutoMatchResponse>('/api/v1/receipt-matches/auto', {
+    return fetchWithAuth<AutoMatchResponse>('/api/v1/assistant/match/receipts/auto', {
       method: 'POST',
       body: JSON.stringify({ company_id: selectedCompanyId, dry_run: dryRun }),
     });
