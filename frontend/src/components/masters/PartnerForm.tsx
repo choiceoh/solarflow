@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormRegister, type FieldErrors, type UseFormWatch, type UseFormSetValue } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -23,68 +23,108 @@ const schema = z.object({
   contact_phone: z.string().optional(),
   contact_email: z.string().optional(),
 });
-type FormData = z.infer<typeof schema>;
+export type PartnerFormData = z.infer<typeof schema>;
+
+function buildDefaults(editData?: Partner | null): PartnerFormData {
+  return editData
+    ? {
+      partner_name: editData.partner_name,
+      partner_type: editData.partner_type,
+      erp_code: editData.erp_code ?? '',
+      payment_terms: editData.payment_terms ?? '',
+      contact_name: editData.contact_name ?? '',
+      contact_phone: editData.contact_phone ?? '',
+      contact_email: editData.contact_email ?? '',
+    }
+    : { partner_name: '', partner_type: '', erp_code: '', payment_terms: '', contact_name: '', contact_phone: '', contact_email: '' };
+}
+
+interface FieldsProps {
+  register: UseFormRegister<PartnerFormData>;
+  errors: FieldErrors<PartnerFormData>;
+  watch: UseFormWatch<PartnerFormData>;
+  setValue: UseFormSetValue<PartnerFormData>;
+}
+
+function PartnerFields({ register, errors, watch, setValue }: FieldsProps) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label>거래처명 *</Label>
+        <Input {...register('partner_name')} />
+        {errors.partner_name && <p className="text-xs text-destructive">{errors.partner_name.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>유형 *</Label>
+        {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
+        <Select value={watch('partner_type') ?? ''} onValueChange={(v) => setValue('partner_type', v ?? '')}>
+          <SelectTrigger><Txt text={PARTNER_TYPE_LABEL[watch('partner_type') ?? ''] ?? ''} /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="supplier">공급사</SelectItem>
+            <SelectItem value="customer">고객사</SelectItem>
+            <SelectItem value="both">공급+고객</SelectItem>
+          </SelectContent>
+        </Select>
+        {errors.partner_type && <p className="text-xs text-destructive">{errors.partner_type.message}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5"><Label>ERP코드</Label><Input {...register('erp_code')} /></div>
+        <div className="space-y-1.5"><Label>결제조건</Label><Input {...register('payment_terms')} /></div>
+      </div>
+      <div className="space-y-1.5"><Label>담당자</Label><Input {...register('contact_name')} /></div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5"><Label>연락처</Label><Input {...register('contact_phone')} /></div>
+        <div className="space-y-1.5"><Label>이메일</Label><Input {...register('contact_email')} /></div>
+      </div>
+    </>
+  );
+}
+
+interface FormBodyProps {
+  formId: string;
+  editData?: Partner | null;
+  onSubmit: (data: PartnerFormData) => Promise<void>;
+}
+
+export function PartnerFormBody({ formId, editData, onSubmit }: FormBodyProps) {
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<PartnerFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: buildDefaults(editData),
+  });
+
+  useEffect(() => { reset(buildDefaults(editData)); }, [editData, reset]);
+
+  return (
+    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-3">
+      <PartnerFields register={register} errors={errors} watch={watch} setValue={setValue} />
+    </form>
+  );
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: PartnerFormData) => Promise<void>;
   editData?: Partner | null;
 }
 
 export default function PartnerForm({ open, onOpenChange, onSubmit, editData }: Props) {
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<PartnerFormData>({
     resolver: zodResolver(schema),
   });
 
   useEffect(() => {
-    if (open) {
-      reset(editData ? {
-        partner_name: editData.partner_name,
-        partner_type: editData.partner_type,
-        erp_code: editData.erp_code ?? '',
-        payment_terms: editData.payment_terms ?? '',
-        contact_name: editData.contact_name ?? '',
-        contact_phone: editData.contact_phone ?? '',
-        contact_email: editData.contact_email ?? '',
-      } : { partner_name: '', partner_type: '', erp_code: '', payment_terms: '', contact_name: '', contact_phone: '', contact_email: '' });
-    }
+    if (open) reset(buildDefaults(editData));
   }, [open, editData, reset]);
 
-  const handle = async (data: FormData) => { await onSubmit(data); onOpenChange(false); };
+  const handle = async (data: PartnerFormData) => { await onSubmit(data); onOpenChange(false); };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader><DialogTitle>{editData ? '거래처 수정' : '거래처 등록'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
-          <div className="space-y-1.5">
-            <Label>거래처명 *</Label>
-            <Input {...register('partner_name')} />
-            {errors.partner_name && <p className="text-xs text-destructive">{errors.partner_name.message}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label>유형 *</Label>
-            {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
-            <Select value={watch('partner_type') ?? ''} onValueChange={(v) => setValue('partner_type', v ?? '')}>
-              <SelectTrigger><Txt text={PARTNER_TYPE_LABEL[watch('partner_type') ?? ''] ?? ''} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="supplier">공급사</SelectItem>
-                <SelectItem value="customer">고객사</SelectItem>
-                <SelectItem value="both">공급+고객</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.partner_type && <p className="text-xs text-destructive">{errors.partner_type.message}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>ERP코드</Label><Input {...register('erp_code')} /></div>
-            <div className="space-y-1.5"><Label>결제조건</Label><Input {...register('payment_terms')} /></div>
-          </div>
-          <div className="space-y-1.5"><Label>담당자</Label><Input {...register('contact_name')} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5"><Label>연락처</Label><Input {...register('contact_phone')} /></div>
-            <div className="space-y-1.5"><Label>이메일</Label><Input {...register('contact_email')} /></div>
-          </div>
+          <PartnerFields register={register} errors={errors} watch={watch} setValue={setValue} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>

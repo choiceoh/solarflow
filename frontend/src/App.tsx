@@ -31,6 +31,19 @@ const WarehousePage = lazy(() => import('@/pages/masters/WarehousePage'));
 const BankPage = lazy(() => import('@/pages/masters/BankPage'));
 const ConstructionSitesPage = lazy(() => import('@/pages/masters/ConstructionSitesPage'));
 const DataHubPage = lazy(() => import('@/pages/masters/DataHubPage'));
+const DataPage = lazy(() => import('@/pages/DataPage'));
+const CompanyNewPage = lazy(() => import('@/pages/data/CompanyNewPage'));
+const CompanyEditPage = lazy(() => import('@/pages/data/CompanyEditPage'));
+const ManufacturerNewPage = lazy(() => import('@/pages/data/ManufacturerNewPage'));
+const ManufacturerEditPage = lazy(() => import('@/pages/data/ManufacturerEditPage'));
+const ProductNewPage = lazy(() => import('@/pages/data/ProductNewPage'));
+const ProductEditPage = lazy(() => import('@/pages/data/ProductEditPage'));
+const PartnerNewPage = lazy(() => import('@/pages/data/PartnerNewPage'));
+const PartnerEditPage = lazy(() => import('@/pages/data/PartnerEditPage'));
+const WarehouseNewPage = lazy(() => import('@/pages/data/WarehouseNewPage'));
+const WarehouseEditPage = lazy(() => import('@/pages/data/WarehouseEditPage'));
+const BankNewPage = lazy(() => import('@/pages/data/BankNewPage'));
+const BankEditPage = lazy(() => import('@/pages/data/BankEditPage'));
 
 function Fallback() {
   return <LoadingSpinner className="h-screen" />;
@@ -54,7 +67,20 @@ export default function App() {
                 <Route index element={<Navigate to="/inventory" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />
-                <Route path="/data" element={<RoleGuard allowedRoles={['admin', 'operator']}><DataHubPage /></RoleGuard>} />
+                <Route path="/data" element={<RoleGuard allowedRoles={['admin', 'operator']}><DataPage /></RoleGuard>} />
+                <Route path="/data/companies/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><CompanyNewPage /></RoleGuard>} />
+                <Route path="/data/companies/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><CompanyEditPage /></RoleGuard>} />
+                <Route path="/data/manufacturers/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><ManufacturerNewPage /></RoleGuard>} />
+                <Route path="/data/manufacturers/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><ManufacturerEditPage /></RoleGuard>} />
+                <Route path="/data/products/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><ProductNewPage /></RoleGuard>} />
+                <Route path="/data/products/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><ProductEditPage /></RoleGuard>} />
+                <Route path="/data/partners/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><PartnerNewPage /></RoleGuard>} />
+                <Route path="/data/partners/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><PartnerEditPage /></RoleGuard>} />
+                <Route path="/data/warehouses/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><WarehouseNewPage /></RoleGuard>} />
+                <Route path="/data/warehouses/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><WarehouseEditPage /></RoleGuard>} />
+                <Route path="/data/banks/new" element={<RoleGuard allowedRoles={['admin', 'operator']}><BankNewPage /></RoleGuard>} />
+                <Route path="/data/banks/:id/edit" element={<RoleGuard allowedRoles={['admin', 'operator']}><BankEditPage /></RoleGuard>} />
+                <Route path="/data/hub" element={<RoleGuard allowedRoles={['admin', 'operator']}><DataHubPage /></RoleGuard>} />
                 <Route path="/masters/companies" element={<CompanyPage />} />
                 <Route path="/masters/manufacturers" element={<ManufacturerPage />} />
                 <Route path="/masters/products" element={<ProductPage />} />

@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { MasterConsole } from '@/components/command/MasterConsole';
-import { RailBlock, Sparkline } from '@/components/command/MockupPrimitives';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -201,11 +200,6 @@ export default function SettingsPage() {
   const activeUsers = users.filter((user) => user.is_active).length;
   const adminUsers = users.filter((user) => user.role === 'admin').length;
   const operatorUsers = users.filter((user) => user.role === 'operator').length;
-  const roleRows = ROLE_OPTIONS.map((role) => ({
-    role,
-    label: ROLE_LABELS[role],
-    count: users.filter((user) => user.role === role).length,
-  }));
 
   return (
     <>
@@ -227,24 +221,6 @@ export default function SettingsPage() {
           { label: '관리자', value: adminUsers.toLocaleString(), sub: '사용자 관리 권한', tone: adminUsers > 0 ? 'warn' : 'ink' },
           { label: '운영팀', value: operatorUsers.toLocaleString(), sub: '입력 가능 권한', tone: 'info' },
         ]}
-        rail={
-          <>
-            <RailBlock title="역할 분포" accent="var(--solar-3)" count={ROLE_OPTIONS.length}>
-              <div className="space-y-2">
-                {roleRows.map((row) => (
-                  <div key={row.role} className="flex items-center justify-between text-[12px]">
-                    <span className="text-[var(--ink-3)]">{row.label}</span>
-                    <span className="mono font-semibold text-[var(--ink)]">{row.count}</span>
-                  </div>
-                ))}
-              </div>
-            </RailBlock>
-            <RailBlock title="보안 작업" count="confirm">
-              <Sparkline data={[4, 5, 5, 7, 6, 8]} color="var(--warn)" area />
-              <div className="mt-2 text-[11px] leading-5 text-[var(--ink-3)]">사용자 생성과 임시 비밀번호 재설정은 제출 전 확인이 필요한 운영 작업입니다.</div>
-            </RailBlock>
-          </>
-        }
       >
         <div className="mx-auto max-w-4xl space-y-6">
 
