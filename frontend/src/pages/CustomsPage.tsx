@@ -7,7 +7,7 @@ import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useAppStore } from '@/stores/appStore';
 import { useExpenseList } from '@/hooks/useCustoms';
 import { fetchWithAuth } from '@/lib/api';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import SkeletonRows from '@/components/common/SkeletonRows';
 import DeclarationDetailView from '@/components/customs/DeclarationDetailView';
 import DeclarationForm from '@/components/customs/DeclarationForm';
 import ExpenseListTable from '@/components/customs/ExpenseListTable';
@@ -214,7 +214,7 @@ export default function CustomsPage() {
 
         {/* 탭 2: 부대비용 */}
         <TabsContent value="expenses" className="mt-0 space-y-3">
-          {expLoading ? <LoadingSpinner /> : (
+          {expLoading ? <SkeletonRows rows={6} /> : (
             <ExpenseListTable
               items={expenses}
               onEdit={(e) => { setEditExpense(e); setExpFormOpen(true); }}
