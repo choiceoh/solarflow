@@ -14,6 +14,7 @@ import SaleSummaryCards from '@/components/outbound/SaleSummaryCards';
 import PartnerForm from '@/components/masters/PartnerForm';
 import MetaForm from './MetaForm';
 import partnerFormConfig from '@/config/forms/partners';
+import outboundSimpleFormConfig from '@/config/forms/outbound_simple';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 import { useOutboundList, useSaleList } from '@/hooks/useOutbound';
 import {
@@ -190,8 +191,21 @@ const PartnerFormV2: FormComponent = (props) => (
   />
 );
 
+// PoC: 출고 폼 메타 한계선 데모 — 단순 필드 7개만. 실제 출고 등록에 충분치 않음
+// (수량·창고·품번 등은 코드 OutboundForm에 남김). 메타화 가능 영역 입증용
+const OutboundFormSimple: FormComponent = (props) => (
+  <MetaForm
+    config={outboundSimpleFormConfig}
+    open={props.open}
+    onOpenChange={props.onOpenChange}
+    onSubmit={props.onSubmit}
+    editData={props.editData}
+  />
+);
+
 export const formComponents: Record<string, FormComponent> = {
   outbound_form: OutboundForm as unknown as FormComponent,
+  outbound_form_simple: OutboundFormSimple,    // 메타 한계선 데모용
   partner_form: PartnerForm as unknown as FormComponent,
   partner_form_v2: PartnerFormV2,
 };

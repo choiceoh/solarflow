@@ -15,6 +15,7 @@ const ProcurementPage = lazy(() => import('@/pages/ProcurementPage'));
 const LCPage = lazy(() => import('@/pages/LCPage'));
 const OutboundPage = lazy(() => import('@/pages/OutboundPage'));
 const OutboundV2Page = lazy(() => import('@/pages/OutboundV2Page'));
+const OutboundFormMetaDemoPage = lazy(() => import('@/pages/OutboundFormMetaDemoPage'));
 const PartnerV2Page = lazy(() => import('@/pages/PartnerV2Page'));
 const OrdersPage = lazy(() => import('@/pages/OrdersPage'));
 const CustomsPage = lazy(() => import('@/pages/CustomsPage'));
@@ -88,6 +89,7 @@ export default function App() {
                 <Route path="/lc" element={<LCPage />} />
                 <Route path="/outbound" element={<OutboundPage />} />
                 <Route path="/outbound-v2" element={<OutboundV2Page />} />
+                <Route path="/outbound-form-meta-demo" element={<OutboundFormMetaDemoPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customs" element={<CustomsPage />} />
                 <Route path="/sales-analysis" element={<SalesAnalysisPage />} />
