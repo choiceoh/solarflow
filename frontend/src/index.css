@@ -7,9 +7,20 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
-@import "@fontsource-variable/jetbrains-mono";
 @import "../mockups/v3/styles.css" layer(mockups);
 @import "./styles/tokens.css";
+
+/* JetBrains Mono — latin 서브셋만 적용 (sf-mono 사용처는 모두 ASCII/숫자).
+   기본 패키지가 cyrillic/greek/vietnamese/latin-ext 등 5개 추가 @font-face를
+   파싱하지만 한국 B2B 앱에서는 latin 외 트리거 가능성이 거의 없음. */
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 800;
+  src: url('@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 @custom-variant dark (&:is(.dark *));
 
@@ -774,51 +785,6 @@ a:focus-visible,
   line-height: 1;
 }
 
-.sf-dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 256px;
-  gap: 8px;
-}
-
-.sf-dashboard-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 256px;
-  min-height: 100%;
-}
-
-.sf-dashboard-content {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 12px;
-  overflow: auto;
-  padding: 14px;
-}
-
-.sf-dashboard-rail {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 8px;
-  overflow-y: auto;
-  border-left: 1px solid var(--line);
-  background: var(--sf-bg);
-  padding: 14px;
-}
-
-.sf-dashboard-main {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.sf-dashboard-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 8px;
-}
-
 .sf-command-kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1265,8 +1231,8 @@ a:focus-visible,
 .sf-command-surface [data-slot="tabs-trigger"]:not(.sf-tab-panel *):hover {
   color: var(--sf-ink);
 }
-.sf-page [data-slot="tabs-trigger"]:not(.sf-tab-panel *)[data-state="active"],
-.sf-command-surface [data-slot="tabs-trigger"]:not(.sf-tab-panel *)[data-state="active"] {
+.sf-page [data-slot="tabs-trigger"]:not(.sf-tab-panel *)[data-active],
+.sf-command-surface [data-slot="tabs-trigger"]:not(.sf-tab-panel *)[data-active] {
   background: transparent;
   color: var(--sf-ink);
   border-bottom-color: var(--sf-ink);
@@ -1737,9 +1703,6 @@ textarea::placeholder {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .sf-dashboard-grid,
-  .sf-dashboard-shell,
-  .sf-dashboard-row,
   .sf-procurement-layout,
   .sf-inventory-shell,
   .sf-customs-shell {
@@ -1747,15 +1710,9 @@ textarea::placeholder {
   }
 
   .sf-procurement-rail,
-  .sf-dashboard-rail,
   .sf-inventory-rail,
   .sf-customs-rail {
     position: static;
-  }
-
-  .sf-dashboard-rail {
-    border-left: 0;
-    border-top: 1px solid var(--line);
   }
 
   .sf-inventory-rail {
@@ -1836,11 +1793,6 @@ textarea::placeholder {
   }
 
   .sf-customs-shell {
-    padding: 12px;
-  }
-
-  .sf-dashboard-content,
-  .sf-dashboard-rail {
     padding: 12px;
   }
 
@@ -1981,15 +1933,5 @@ textarea::placeholder {
 
   .sf-kpi-card strong {
     font-size: 21px;
-  }
-
-  .sf-dashboard-route {
-    padding: 10px !important;
-  }
-
-  .sf-dashboard-route > .flex.items-center.justify-between {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 6px;
   }
 }
