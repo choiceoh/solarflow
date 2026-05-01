@@ -6,7 +6,7 @@ import { useAppStore } from '@/stores/appStore';
 import { useBLList } from '@/hooks/useInbound';
 import { fetchWithAuth } from '@/lib/api';
 import type { Manufacturer } from '@/types/masters';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import SkeletonRows from '@/components/common/SkeletonRows';
 import BLListTable from '@/components/inbound/BLListTable';
 import BLDetailView from '@/components/inbound/BLDetailView';
 import BLForm from '@/components/inbound/BLForm';
@@ -288,7 +288,7 @@ export default function InboundPage() {
             </div>
           </div>
 
-          {loading ? <LoadingSpinner /> : (
+          {loading ? <SkeletonRows rows={6} /> : (
             <BLListTable
               items={data.map(bl => ({ ...bl, manufacturer_name: bl.manufacturer_name ?? mfgNameMap[bl.manufacturer_id] ?? '—' }))}
               onSelect={(bl) => setSelectedBL(bl.bl_id)}

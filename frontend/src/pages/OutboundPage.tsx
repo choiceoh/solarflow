@@ -6,7 +6,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAppStore } from '@/stores/appStore';
 import { useOutboundList, useSaleList } from '@/hooks/useOutbound';
 import { fetchWithAuth } from '@/lib/api';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import SkeletonRows from '@/components/common/SkeletonRows';
 import OutboundListTable from '@/components/outbound/OutboundListTable';
 import OutboundDetailView from '@/components/outbound/OutboundDetailView';
 import OutboundForm from '@/components/outbound/OutboundForm';
@@ -212,7 +212,7 @@ export default function OutboundPage() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'outbound' | 'sales')}>
 
         <TabsContent value="outbound" className="space-y-4 mt-4">
-          {obLoading ? <LoadingSpinner /> : (
+          {obLoading ? <SkeletonRows rows={6} /> : (
             <OutboundListTable
               items={outbounds}
               onSelect={(ob) => setSelectedOutbound(ob.outbound_id)}
@@ -222,7 +222,7 @@ export default function OutboundPage() {
         </TabsContent>
 
         <TabsContent value="sales" className="space-y-4 mt-4">
-          {saleLoading ? <LoadingSpinner /> : (
+          {saleLoading ? <SkeletonRows rows={6} /> : (
             <>
               <SaleSummaryCards items={sales} />
               <SaleListTable items={sales} />

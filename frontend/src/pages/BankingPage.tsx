@@ -5,7 +5,7 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAppStore } from '@/stores/appStore';
 import { useAllBankLimitGroups, useLCMaturityAlert, useLimitChangeList } from '@/hooks/useBanking';
 import { fetchWithAuth } from '@/lib/api';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import SkeletonRows from '@/components/common/SkeletonRows';
 import BankLimitTable from '@/components/banking/BankLimitTable';
 import LCMaturityTable from '@/components/banking/LCMaturityTable';
 import LimitChangeTable from '@/components/banking/LimitChangeTable';
@@ -111,7 +111,7 @@ export default function BankingPage() {
 
         {/* 탭 1: LC 한도 현황 — 법인별 그룹 */}
         <TabsContent value="limits" className="space-y-6">
-          {groupsLoading ? <LoadingSpinner /> : (
+          {groupsLoading ? <SkeletonRows rows={6} /> : (
             <>
               {/* 법인별 섹션 */}
               {visibleGroups.length === 0 ? (
@@ -145,7 +145,7 @@ export default function BankingPage() {
 
         {/* 탭 2: LC 만기 알림 */}
         <TabsContent value="maturity" className="space-y-4">
-          {matLoading ? <LoadingSpinner /> : matError ? (
+          {matLoading ? <SkeletonRows rows={6} /> : matError ? (
             <p className="text-sm text-red-500 text-center py-6">{matError}</p>
           ) : maturityData ? (
             <LCMaturityTable alertData={maturityData} />
@@ -156,7 +156,7 @@ export default function BankingPage() {
 
         {/* 탭 3: 한도 변경 이력 */}
         <TabsContent value="changes" className="space-y-4">
-          {lcLoading ? <LoadingSpinner /> : (
+          {lcLoading ? <SkeletonRows rows={6} /> : (
             <LimitChangeTable items={limitChanges} />
           )}
         </TabsContent>

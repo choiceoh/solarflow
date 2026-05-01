@@ -1367,6 +1367,37 @@ a:focus-visible,
   transform: translateY(0.5px);
 }
 
+/* 폼 그룹 — Label + Input 묶음 일관 간격. Dialog/페이지 폼 모두 자동 적용 */
+.sf-page [data-slot="dialog-content"] form,
+.sf-command-surface [data-slot="dialog-content"] form,
+[data-slot="dialog-content"] form.sf-form,
+.sf-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sf-form-row {
+  display: grid;
+  gap: 12px;
+}
+.sf-form-row.cols-2 { grid-template-columns: 1fr 1fr; }
+.sf-form-row.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+.sf-form-row.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.sf-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.sf-form-field [data-slot="label"] {
+  margin-bottom: 0;
+}
+.sf-form-helper {
+  font-size: 10.5px;
+  color: var(--sf-ink-3);
+  letter-spacing: 0;
+}
+
 /* shadcn Tabs underline 패턴 — mockup .tabs / .tab.active 와 일치.
    .sf-tab-panel 안의 pill 스타일은 :not()으로 제외 (보존) */
 .sf-page [data-slot="tabs-list"]:not(.sf-tab-panel *),
