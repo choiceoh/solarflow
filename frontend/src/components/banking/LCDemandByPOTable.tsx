@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -9,14 +10,18 @@ interface Props {
 }
 
 function UrgencyBadge({ urgency, date }: { urgency: string; date?: string }) {
-  if (urgency === 'immediate') return <span className="sf-pill neg">즉시</span>;
-  if (urgency === 'soon') return <span className="sf-pill warn">{date ? formatDate(date) : '30일 이내'}</span>;
-  return <span className="sf-pill ghost">{date ? formatDate(date) : '—'}</span>;
+  if (urgency === 'immediate') {
+    return <Badge className="bg-red-100 text-red-700 border-red-300">즉시</Badge>;
+  }
+  if (urgency === 'soon') {
+    return <Badge className="bg-orange-100 text-orange-700 border-orange-300">{date ? formatDate(date) : '30일 이내'}</Badge>;
+  }
+  return <Badge variant="outline" className="text-muted-foreground">{date ? formatDate(date) : '—'}</Badge>;
 }
 
 export default function LCDemandByPOTable({ items }: Props) {
   if (items.length === 0) {
-    return <p className="py-6 text-center text-sm text-[var(--sf-ink-3)]">LC 개설 수요가 없습니다</p>;
+    return <p className="text-sm text-muted-foreground text-center py-6">LC 개설 수요가 없습니다</p>;
   }
 
   return (
@@ -35,12 +40,12 @@ export default function LCDemandByPOTable({ items }: Props) {
       <TableBody>
         {items.map((d) => (
           <TableRow key={d.po_id}>
-            <TableCell className="sf-mono text-sm font-semibold">{d.po_number || d.po_id.slice(0, 8)}</TableCell>
+            <TableCell className="text-sm font-medium">{d.po_number || d.po_id.slice(0, 8)}</TableCell>
             <TableCell className="text-sm">{shortMfgName(d.manufacturer_name)}</TableCell>
-            <TableCell className="text-right text-sm tabular-nums">{formatUSD(d.po_total_usd)}</TableCell>
-            <TableCell className="text-right text-sm tabular-nums">{formatUSD(d.tt_paid_usd)}</TableCell>
-            <TableCell className="text-right text-sm tabular-nums">{formatUSD(d.lc_opened_usd)}</TableCell>
-            <TableCell className="text-right text-sm font-semibold tabular-nums" style={{ color: d.lc_needed_usd > 0 ? 'var(--sf-warn)' : 'var(--sf-ink-3)' }}>
+            <TableCell className="text-sm text-right">{formatUSD(d.po_total_usd)}</TableCell>
+            <TableCell className="text-sm text-right">{formatUSD(d.tt_paid_usd)}</TableCell>
+            <TableCell className="text-sm text-right">{formatUSD(d.lc_opened_usd)}</TableCell>
+            <TableCell className="text-sm text-right font-medium">
               {d.lc_needed_usd > 0 ? formatUSD(d.lc_needed_usd) : '—'}
             </TableCell>
             <TableCell>

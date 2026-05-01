@@ -423,8 +423,8 @@ export default function LCForm({ open, onOpenChange, onSubmit, editData, default
         ) : (
           <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
         )}
-        {submitError && <div className="sf-banner neg"><span className="sf-banner-body">{submitError}</span></div>}
-        <form onSubmit={handleSubmit(handle)} className="sf-form">
+        {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
+        <form onSubmit={handleSubmit(handle)} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5"><Label>LC번호</Label><Input {...register('lc_number')} /></div>
             <div className="space-y-1.5">

@@ -546,8 +546,8 @@ export default function POForm({ open, onOpenChange, onSubmit, editData }: Props
         </DialogHeader>
 
         {submitError && (
-          <div className="sf-banner neg">
-            <span className="sf-banner-body">{submitError}</span>
+          <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
+            {submitError}
           </div>
         )}
 

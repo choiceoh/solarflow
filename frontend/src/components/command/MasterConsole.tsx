@@ -20,7 +20,7 @@ interface MasterConsoleProps {
   actions?: ReactNode;
   metrics: MasterConsoleMetric[];
   toolbar?: ReactNode;
-  rail: ReactNode;
+  rail?: ReactNode;
   children: ReactNode;
 }
 
@@ -36,6 +36,7 @@ export function MasterConsole({
   rail,
   children,
 }: MasterConsoleProps) {
+  const hasRail = rail != null;
   return (
     <div className="sf-page sf-procurement-page">
       <div className="sf-page-header">
@@ -47,7 +48,10 @@ export function MasterConsole({
         {actions ? <div className="flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
       </div>
 
-      <div className="sf-procurement-layout">
+      <div
+        className="sf-procurement-layout"
+        style={hasRail ? undefined : { gridTemplateColumns: 'minmax(0, 1fr)' }}
+      >
         <section className="sf-procurement-main">
           <div className="sf-command-kpis">
             {metrics.map((metric) => (
@@ -73,15 +77,17 @@ export function MasterConsole({
           </CardB>
         </section>
 
-        <aside className="sf-procurement-rail card">
-          {rail}
-          <RailBlock title="운영 규칙" accent="var(--solar-3)" last>
-            <div className="space-y-2 text-[11px] leading-5 text-[var(--ink-3)]">
-              <p>마스터 변경은 즉시 업무 화면의 선택지와 정산 기준에 반영됩니다.</p>
-              <p className="mono text-[10px] text-[var(--ink-4)]">delete · status · edit guarded by ConfirmDialog</p>
-            </div>
-          </RailBlock>
-        </aside>
+        {hasRail ? (
+          <aside className="sf-procurement-rail card">
+            {rail}
+            <RailBlock title="운영 규칙" accent="var(--solar-3)" last>
+              <div className="space-y-2 text-[11px] leading-5 text-[var(--ink-3)]">
+                <p>마스터 변경은 즉시 업무 화면의 선택지와 정산 기준에 반영됩니다.</p>
+                <p className="mono text-[10px] text-[var(--ink-4)]">delete · status · edit guarded by ConfirmDialog</p>
+              </div>
+            </RailBlock>
+          </aside>
+        ) : null}
       </div>
     </div>
   );

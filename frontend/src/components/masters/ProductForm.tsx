@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useForm, type Resolver } from 'react-hook-form';
+import { useForm, type Resolver, type UseFormRegister, type FieldErrors, type UseFormWatch, type UseFormSetValue } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -30,7 +30,165 @@ const schema = z.object({
   series_name: z.string().optional(),
   memo: z.string().optional(),
 });
-type FormData = z.infer<typeof schema>;
+export type ProductFormData = z.infer<typeof schema>;
+
+function buildDefaults(editData?: Product | null): ProductFormData {
+  if (editData) {
+    return {
+      product_code: editData.product_code,
+      product_name: editData.product_name,
+      manufacturer_id: editData.manufacturer_id,
+      spec_wp: editData.spec_wp,
+      wattage_kw: editData.wattage_kw,
+      module_width_mm: editData.module_width_mm,
+      module_height_mm: editData.module_height_mm,
+      module_depth_mm: editData.module_depth_mm ?? '',
+      weight_kg: editData.weight_kg ?? '',
+      wafer_platform: editData.wafer_platform ?? '',
+      cell_config: editData.cell_config ?? '',
+      series_name: editData.series_name ?? '',
+      memo: editData.memo ?? '',
+    };
+  }
+  return {
+    product_code: '', product_name: '', manufacturer_id: '',
+    spec_wp: '' as unknown as number, wattage_kw: '' as unknown as number,
+    module_width_mm: '' as unknown as number, module_height_mm: '' as unknown as number,
+    module_depth_mm: '', weight_kg: '',
+    wafer_platform: '', cell_config: '', series_name: '', memo: '',
+  };
+}
+
+function stripEmpty(data: ProductFormData): Record<string, unknown> {
+  const payload: Record<string, unknown> = { ...data };
+  if (data.module_depth_mm === '' || data.module_depth_mm === undefined) delete payload.module_depth_mm;
+  if (data.weight_kg === '' || data.weight_kg === undefined) delete payload.weight_kg;
+  return payload;
+}
+
+interface FieldsProps {
+  register: UseFormRegister<ProductFormData>;
+  errors: FieldErrors<ProductFormData>;
+  watch: UseFormWatch<ProductFormData>;
+  setValue: UseFormSetValue<ProductFormData>;
+  manufacturers: Manufacturer[];
+}
+
+function ProductFields({ register, errors, watch, setValue, manufacturers }: FieldsProps) {
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>품번코드 *</Label>
+          <Input {...register('product_code')} />
+          {errors.product_code && <p className="text-xs text-destructive">{errors.product_code.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label>품명 *</Label>
+          <Input {...register('product_name')} />
+          {errors.product_name && <p className="text-xs text-destructive">{errors.product_name.message}</p>}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>제조사 *</Label>
+        <Select value={watch('manufacturer_id') ?? ''} onValueChange={(v) => setValue('manufacturer_id', v ?? '')}>
+          {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
+          <SelectTrigger><Txt text={manufacturers.find(m => m.manufacturer_id === watch('manufacturer_id'))?.name_kr ?? ''} /></SelectTrigger>
+          <SelectContent>
+            {manufacturers.map((m) => (
+              <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {errors.manufacturer_id && <p className="text-xs text-destructive">{errors.manufacturer_id.message}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>규격(Wp) *</Label>
+          <Input type="number" {...register('spec_wp')} />
+          {errors.spec_wp && <p className="text-xs text-destructive">{errors.spec_wp.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label>용량(kW) *</Label>
+          <Input type="number" step="0.001" {...register('wattage_kw')} />
+          {errors.wattage_kw && <p className="text-xs text-destructive">{errors.wattage_kw.message}</p>}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>가로(mm) *</Label>
+          <Input type="number" {...register('module_width_mm')} />
+          {errors.module_width_mm && <p className="text-xs text-destructive">{errors.module_width_mm.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label>세로(mm) *</Label>
+          <Input type="number" {...register('module_height_mm')} />
+          {errors.module_height_mm && <p className="text-xs text-destructive">{errors.module_height_mm.message}</p>}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>두께(mm)</Label>
+          <Input type="number" {...register('module_depth_mm')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>무게(kg)</Label>
+          <Input type="number" step="0.1" {...register('weight_kg')} />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>웨이퍼 플랫폼</Label>
+          <Input {...register('wafer_platform')} />
+        </div>
+        <div className="space-y-1.5">
+          <Label>셀 구성</Label>
+          <Input {...register('cell_config')} />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>시리즈명</Label>
+        <Input {...register('series_name')} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>메모</Label>
+        <Textarea {...register('memo')} rows={2} />
+      </div>
+    </>
+  );
+}
+
+function useManufacturers() {
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  useEffect(() => {
+    fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers')
+      .then((list) => setManufacturers(list.filter((m) => m.is_active)))
+      .catch(() => {});
+  }, []);
+  return manufacturers;
+}
+
+interface FormBodyProps {
+  formId: string;
+  editData?: Product | null;
+  onSubmit: (data: Record<string, unknown>) => Promise<void>;
+}
+
+export function ProductFormBody({ formId, editData, onSubmit }: FormBodyProps) {
+  const manufacturers = useManufacturers();
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ProductFormData>({
+    resolver: zodResolver(schema) as unknown as Resolver<ProductFormData>,
+    defaultValues: buildDefaults(editData),
+  });
+
+  useEffect(() => { reset(buildDefaults(editData)); }, [editData, reset]);
+
+  return (
+    <form id={formId} onSubmit={handleSubmit(async (data) => onSubmit(stripEmpty(data)))} className="space-y-3">
+      <ProductFields register={register} errors={errors} watch={watch} setValue={setValue} manufacturers={manufacturers} />
+    </form>
+  );
+}
 
 interface Props {
   open: boolean;
@@ -40,52 +198,17 @@ interface Props {
 }
 
 export default function ProductForm({ open, onOpenChange, onSubmit, editData }: Props) {
-  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema) as unknown as Resolver<FormData>,
+  const manufacturers = useManufacturers();
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<ProductFormData>({
+    resolver: zodResolver(schema) as unknown as Resolver<ProductFormData>,
   });
 
   useEffect(() => {
-    fetchWithAuth<Manufacturer[]>('/api/v1/manufacturers')
-      .then((list) => setManufacturers(list.filter((m) => m.is_active)))
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (open) {
-      if (editData) {
-        reset({
-          product_code: editData.product_code,
-          product_name: editData.product_name,
-          manufacturer_id: editData.manufacturer_id,
-          spec_wp: editData.spec_wp,
-          wattage_kw: editData.wattage_kw,
-          module_width_mm: editData.module_width_mm,
-          module_height_mm: editData.module_height_mm,
-          module_depth_mm: editData.module_depth_mm ?? '',
-          weight_kg: editData.weight_kg ?? '',
-          wafer_platform: editData.wafer_platform ?? '',
-          cell_config: editData.cell_config ?? '',
-          series_name: editData.series_name ?? '',
-          memo: editData.memo ?? '',
-        });
-      } else {
-        reset({
-          product_code: '', product_name: '', manufacturer_id: '',
-          spec_wp: '' as unknown as number, wattage_kw: '' as unknown as number,
-          module_width_mm: '' as unknown as number, module_height_mm: '' as unknown as number,
-          module_depth_mm: '', weight_kg: '',
-          wafer_platform: '', cell_config: '', series_name: '', memo: '',
-        });
-      }
-    }
+    if (open) reset(buildDefaults(editData));
   }, [open, editData, reset]);
 
-  const handle = async (data: FormData) => {
-    const payload: Record<string, unknown> = { ...data };
-    if (data.module_depth_mm === '' || data.module_depth_mm === undefined) delete payload.module_depth_mm;
-    if (data.weight_kg === '' || data.weight_kg === undefined) delete payload.weight_kg;
-    await onSubmit(payload);
+  const handle = async (data: ProductFormData) => {
+    await onSubmit(stripEmpty(data));
     onOpenChange(false);
   };
 
@@ -96,83 +219,7 @@ export default function ProductForm({ open, onOpenChange, onSubmit, editData }: 
           <DialogTitle>{editData ? '품번 수정' : '품번 등록'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>품번코드 *</Label>
-              <Input {...register('product_code')} />
-              {errors.product_code && <p className="text-xs text-destructive">{errors.product_code.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>품명 *</Label>
-              <Input {...register('product_name')} />
-              {errors.product_name && <p className="text-xs text-destructive">{errors.product_name.message}</p>}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>제조사 *</Label>
-            <Select value={watch('manufacturer_id') ?? ''} onValueChange={(v) => setValue('manufacturer_id', v ?? '')}>
-              {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
-              <SelectTrigger><Txt text={manufacturers.find(m => m.manufacturer_id === watch('manufacturer_id'))?.name_kr ?? ''} /></SelectTrigger>
-              <SelectContent>
-                {manufacturers.map((m) => (
-                  <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.manufacturer_id && <p className="text-xs text-destructive">{errors.manufacturer_id.message}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>규격(Wp) *</Label>
-              <Input type="number" {...register('spec_wp')} />
-              {errors.spec_wp && <p className="text-xs text-destructive">{errors.spec_wp.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>용량(kW) *</Label>
-              <Input type="number" step="0.001" {...register('wattage_kw')} />
-              {errors.wattage_kw && <p className="text-xs text-destructive">{errors.wattage_kw.message}</p>}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>가로(mm) *</Label>
-              <Input type="number" {...register('module_width_mm')} />
-              {errors.module_width_mm && <p className="text-xs text-destructive">{errors.module_width_mm.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>세로(mm) *</Label>
-              <Input type="number" {...register('module_height_mm')} />
-              {errors.module_height_mm && <p className="text-xs text-destructive">{errors.module_height_mm.message}</p>}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>두께(mm)</Label>
-              <Input type="number" {...register('module_depth_mm')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>무게(kg)</Label>
-              <Input type="number" step="0.1" {...register('weight_kg')} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>웨이퍼 플랫폼</Label>
-              <Input {...register('wafer_platform')} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>셀 구성</Label>
-              <Input {...register('cell_config')} />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>시리즈명</Label>
-            <Input {...register('series_name')} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>메모</Label>
-            <Textarea {...register('memo')} rows={2} />
-          </div>
+          <ProductFields register={register} errors={errors} watch={watch} setValue={setValue} manufacturers={manufacturers} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>

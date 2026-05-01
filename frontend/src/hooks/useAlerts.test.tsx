@@ -1,7 +1,5 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import { mockFetchWithAuth } from '@/test/mockApi';
 import { useAlerts } from './useAlerts';
 
@@ -14,15 +12,6 @@ function daysFromNow(days: number) {
   date.setHours(0, 0, 0, 0);
   date.setDate(date.getDate() + days);
   return date.toISOString().slice(0, 10);
-}
-
-function makeWrapper() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: 0, gcTime: 0 } },
-  });
-  return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  );
 }
 
 describe('useAlerts', () => {
@@ -89,7 +78,7 @@ describe('useAlerts', () => {
       throw new Error(`Unexpected API call: ${path}`);
     });
 
-    const { result } = renderHook(() => useAlerts('company-1'), { wrapper: makeWrapper() });
+    const { result } = renderHook(() => useAlerts('company-1'));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 

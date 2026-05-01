@@ -14,7 +14,6 @@ import SkeletonRows from '@/components/common/SkeletonRows';
 import OrderListTable from '@/components/orders/OrderListTable';
 import OrderDetailView from '@/components/orders/OrderDetailView';
 import OrderForm, { type OrderPrefillData } from '@/components/orders/OrderForm';
-import QuickReorderCard from '@/components/orders/QuickReorderCard';
 import ReceiptListTable from '@/components/orders/ReceiptListTable';
 import ReceiptForm from '@/components/orders/ReceiptForm';
 import ReceiptMatchingPanel from '@/components/orders/ReceiptMatchingPanel';
@@ -34,7 +33,6 @@ import type { Partner, Manufacturer } from '@/types/masters';
 import type { InventoryResponse } from '@/types/inventory';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 import { CardB, FilterButton, FilterChips, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
-import { PageShell } from '@/components/command/PageShell';
 
 class OrderDetailErrorBoundary extends Component<
   { children: ReactNode; onBack: () => void },
@@ -765,9 +763,11 @@ export default function OrdersPage() {
     ];
 
   const ordersCardControls = (
-    <div className="sf-card-controls" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-start' }}>
+    <div className="sf-card-controls">
+      <FilterChips options={SALES_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
       {activeTab === 'orders' && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '상태',
@@ -796,6 +796,7 @@ export default function OrdersPage() {
       )}
       {activeTab === 'outbound' && !selectedOutbound && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '상태',
@@ -824,6 +825,7 @@ export default function OrdersPage() {
       )}
       {activeTab === 'sales' && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <div className="w-36">
             <PartnerCombobox
               partners={partners}
@@ -856,6 +858,7 @@ export default function OrdersPage() {
       )}
       {activeTab === 'receipts' && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '거래처',
@@ -876,221 +879,216 @@ export default function OrdersPage() {
           </Button>
         </>
       )}
-      <div style={{ flex: 1 }} />
-      <FilterChips options={SALES_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
     </div>
   );
 
-  const rail = (
-    <>
-      {activeTab === 'orders' && (
-        <>
-          <RailBlock title="수주 상태" count={`${activeOrders.length} active`}>
-            {(['received', 'partial', 'completed', 'cancelled'] as OrderStatus[]).map((status, index) => {
-              const count = orders.filter(order => order.status === status).length;
-              return (
-                <div key={status} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
-                  <span className="text-[var(--ink-2)]">{ORDER_STATUS_LABEL[status]}</span>
-                  <span className="mono font-semibold text-[var(--ink-3)]">{count}</span>
-                </div>
-              );
-            })}
-          </RailBlock>
-          <RailBlock title="거래처 TOP" count="kW">
-            {Object.entries(orders.reduce<Record<string, number>>((acc, order) => {
-              const key = order.customer_name || order.customer_id || '미지정';
-              acc[key] = (acc[key] ?? 0) + (order.capacity_kw ?? 0);
-              return acc;
-            }, {}))
-              .sort((a, b) => b[1] - a[1])
-              .slice(0, 5)
-              .map(([customer, kw], index) => (
-                <div key={customer} className={`py-2 ${index ? 'border-t border-[var(--line)]' : ''}`}>
-                  <div className="flex justify-between text-[11.5px]">
-                    <span className="truncate text-[var(--ink-2)]">{customer}</span>
-                    <span className="mono font-semibold text-[var(--ink)]">{Math.round(kw).toLocaleString()}</span>
-                  </div>
-                  <div className="mt-1 h-1 overflow-hidden rounded bg-[var(--line)]">
-                    <div className="h-full bg-[var(--solar-2)]" style={{ width: `${ordersKw ? Math.min(100, (kw / ordersKw) * 100) : 0}%` }} />
-                  </div>
-                </div>
-              ))}
-          </RailBlock>
-          <RailBlock title="단가 흐름" last>
-            <Sparkline data={[395, 398, 400, 402, 403, 405, 406, 407, 408, 409]} w={220} h={42} color="var(--solar-2)" area />
-            <div className="mono mt-2 flex justify-between text-[10.5px] text-[var(--ink-3)]">
-              <span>평균 <span className="font-bold text-[var(--ink)]">{orders.length ? Math.round(orders.reduce((sum, order) => sum + (order.unit_price_wp ?? 0), 0) / orders.length).toLocaleString() : '0'}</span> ₩/Wp</span>
-              <span className="font-bold text-[var(--pos)]">+1.2%</span>
-            </div>
-          </RailBlock>
-        </>
-      )}
-
-      {activeTab === 'outbound' && (
-        <>
-          <RailBlock title="출고 상태" count={`${outboundsWithSales.length} rows`}>
-            {(['active', 'cancel_pending', 'cancelled'] as OutboundStatus[]).map((status, index) => (
-              <div key={status} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
-                <span className="text-[var(--ink-2)]">{OUTBOUND_STATUS_LABEL[status]}</span>
-                <span className="mono font-semibold text-[var(--ink-3)]">{outboundsWithSales.filter(outbound => outbound.status === status).length}</span>
-              </div>
-            ))}
-          </RailBlock>
-          <RailBlock title="출고 용도" count="건">
-            {Object.entries(outboundsWithSales.reduce<Record<string, number>>((acc, outbound) => {
-              const key = USAGE_CATEGORY_LABEL[outbound.usage_category] ?? outbound.usage_category;
-              acc[key] = (acc[key] ?? 0) + 1;
-              return acc;
-            }, {})).slice(0, 5).map(([label, count], index) => (
-              <div key={label} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
-                <span className="text-[var(--ink-2)]">{label}</span>
-                <span className="mono font-semibold text-[var(--ink-3)]">{count}</span>
-              </div>
-            ))}
-          </RailBlock>
-          <RailBlock title="주간 출고" last>
-            <div className="sf-mini-bars">
-              {[3.2, 4.8, 6.1, 4.2].map((value, index) => <span key={index} style={{ height: `${(value / 6.5) * 100}%` }} />)}
-            </div>
-            <div className="mono mt-2 text-center text-[10.5px] text-[var(--ink-3)]">합계 18.3 MW · 다음 4주</div>
-          </RailBlock>
-        </>
-      )}
-
-      {(activeTab === 'sales' || activeTab === 'receipts' || activeTab === 'matching') && (
-        <>
-          <RailBlock title="채권 요약" count={`${receipts.length} receipts`}>
-            <div className="bignum text-[26px] text-[var(--solar-3)]">{fmtEok(receiptRemaining)} <span className="mono text-xs text-[var(--ink-3)]">억</span></div>
-            <div className="mono mt-1 text-[10.5px] text-[var(--ink-3)]">미정산 · 입금 합계 {fmtEok(receiptTotal)}억</div>
-          </RailBlock>
-          <RailBlock title="계산서 상태">
-            <div className="space-y-2 text-[11.5px] text-[var(--ink-2)]">
-              <div className="flex justify-between"><span>발행 완료</span><span className="mono">{sales.length - invoicePending}</span></div>
-              <div className="flex justify-between"><span>미발행</span><span className="mono text-[var(--warn)]">{invoicePending}</span></div>
-              <div className="flex justify-between"><span>매출 합계</span><span className="mono">{fmtEok(saleTotal)}억</span></div>
-            </div>
-          </RailBlock>
-          <RailBlock title="회수율" last>
-            <Sparkline data={[78, 80, 81, 82, 84, 86, 88, receiptTotal > 0 ? ((receiptTotal - receiptRemaining) / receiptTotal) * 100 : 0]} w={220} h={42} color="var(--solar-2)" area />
-            <div className="mono mt-2 flex justify-between text-[10.5px] text-[var(--ink-3)]">
-              <span>현재 <span className="font-bold text-[var(--ink)]">{receiptTotal > 0 ? (((receiptTotal - receiptRemaining) / receiptTotal) * 100).toFixed(1) : '0.0'}</span>%</span>
-              <span className="font-bold text-[var(--pos)]">matching</span>
-            </div>
-          </RailBlock>
-        </>
-      )}
-    </>
-  );
-
   return (
-    <PageShell rail={rail} className="sf-sales-page">
-      <div className="sf-command-kpis">
-        {metrics.map((metric) => (
-          <TileB
-            key={metric.lbl}
-            lbl={metric.lbl}
-            v={metric.v}
-            u={metric.u}
-            sub={metric.sub}
-            tone={metric.tone}
-            delta={metric.delta}
-            spark={metric.spark}
-          />
-        ))}
-      </div>
-
-      <CardB
-        title={pageTitle}
-        sub={pageSub}
-        right={ordersCardControls}
-      >
-        <div className="sf-command-tab-body">
-          <Tabs value={activeTab} onValueChange={handleTabChange}>
-            {/* 탭 1: 수주 관리 */}
-            <TabsContent value="orders" className="space-y-4 mt-4">
-              {/* BARO Phase 1: 빠른 재발주 — BARO 전용 엔드포인트로 탑솔라 토큰은 403 silent skip → 카드 자체가 null 반환 */}
-              <QuickReorderCard
-                partnerId={orderCustomerFilter}
-                partnerName={partners.find((p) => p.partner_id === orderCustomerFilter)?.partner_name}
-                onCloned={() => { reloadOrders(); }}
+    <div className="sf-page sf-sales-page">
+      <div className="sf-procurement-layout">
+        <section className="sf-procurement-main">
+          <div className="sf-command-kpis">
+            {metrics.map((metric) => (
+              <TileB
+                key={metric.lbl}
+                lbl={metric.lbl}
+                v={metric.v}
+                u={metric.u}
+                sub={metric.sub}
+                tone={metric.tone}
+                delta={metric.delta}
+                spark={metric.spark}
               />
-              {ordersLoading ? <SkeletonRows rows={8} /> : (
-                <OrderListTable
-                  items={orders}
-                  onSelect={(o) => setSelectedOrder(o.order_id)}
-                  onNew={() => setOrderFormOpen(true)}
-                  onEdit={(o) => {
-                    setOrderActionError('');
-                    setEditingOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
-                  }}
-                  onDelete={(o) => { setOrderActionError(''); setDeletingOrder(o); }}
-                  onCreateOutbound={(o) => {
-                    setOrderActionError('');
-                    setOutboundOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
-                    setObFormOpen(true);
-                  }}
-                  onCancelToReservation={handleCancelOrderToReservation}
-                  sourceOverrides={orderSourceHints}
+            ))}
+          </div>
+
+          <CardB
+            title={pageTitle}
+            sub={pageSub}
+            right={ordersCardControls}
+          >
+            <div className="sf-command-tab-body">
+              <Tabs value={activeTab} onValueChange={handleTabChange}>
+
+        {/* 탭 1: 수주 관리 */}
+        <TabsContent value="orders" className="space-y-4 mt-4">
+          {ordersLoading ? <SkeletonRows rows={8} /> : (
+            <OrderListTable
+              items={orders}
+              onSelect={(o) => setSelectedOrder(o.order_id)}
+              onNew={() => setOrderFormOpen(true)}
+              onEdit={(o) => {
+                setOrderActionError('');
+                setEditingOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
+              }}
+              onDelete={(o) => { setOrderActionError(''); setDeletingOrder(o); }}
+              onCreateOutbound={(o) => {
+                setOrderActionError('');
+                setOutboundOrder({ ...o, fulfillment_source: orderSourceHints[o.order_id] ?? o.fulfillment_source });
+                setObFormOpen(true);
+              }}
+              onCancelToReservation={handleCancelOrderToReservation}
+              sourceOverrides={orderSourceHints}
+            />
+          )}
+          {orderActionError && (
+            <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {orderActionError}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* 탭 2: 출고 관리 */}
+        <TabsContent value="outbound" className="space-y-4 mt-4">
+          {selectedOutbound ? (
+            <OutboundDetailView
+              outboundId={selectedOutbound}
+              onBack={() => { setSelectedOutbound(null); reloadOutbounds(); reloadSales(); }}
+            />
+          ) : (
+            <>
+              {obLoading ? <SkeletonRows rows={8} /> : (
+                <OutboundListTable
+                  items={outboundsWithSales}
+                  onSelect={(ob) => setSelectedOutbound(ob.outbound_id)}
+                  onNew={() => setObFormOpen(true)}
+                  onInvoice={(ob) => setInvoiceOutbound({ ...ob, sale: ob.sale ?? salesByOutboundId.get(ob.outbound_id) })}
                 />
               )}
-              {orderActionError && (
-                <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                  {orderActionError}
+            </>
+          )}
+        </TabsContent>
+
+        {/* 탭 3: 판매 관리 */}
+        <TabsContent value="sales" className="space-y-4 mt-4">
+          {saleLoading ? <SkeletonRows rows={8} /> : (
+            <>
+              <SaleSummaryCards items={sales} />
+              <SaleListTable items={sales} onInvoice={handleOpenSaleInvoice} />
+            </>
+          )}
+        </TabsContent>
+
+        {/* 탭 4: 수금 관리 */}
+        <TabsContent value="receipts" className="space-y-4 mt-4">
+          {receiptsLoading ? <SkeletonRows rows={8} /> : (
+            <ReceiptListTable
+              items={receipts}
+              onNew={() => setReceiptFormOpen(true)}
+              onEdit={(r) => { setEditingReceipt(r); setReceiptFormOpen(true); }}
+              onDelete={(r) => { setDeleteError(''); setDeletingReceipt(r); }}
+            />
+          )}
+          {deleteError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{deleteError}</div>}
+        </TabsContent>
+
+        {/* 탭 3: 수금 매칭 */}
+        <TabsContent value="matching" className="mt-4">
+          <ReceiptMatchingPanel />
+        </TabsContent>
+              </Tabs>
+            </div>
+          </CardB>
+        </section>
+
+        <aside className="sf-procurement-rail card">
+          {activeTab === 'orders' && (
+            <>
+              <RailBlock title="수주 상태" count={`${activeOrders.length} active`}>
+                {(['received', 'partial', 'completed', 'cancelled'] as OrderStatus[]).map((status, index) => {
+                  const count = orders.filter(order => order.status === status).length;
+                  return (
+                    <div key={status} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
+                      <span className="text-[var(--ink-2)]">{ORDER_STATUS_LABEL[status]}</span>
+                      <span className="mono font-semibold text-[var(--ink-3)]">{count}</span>
+                    </div>
+                  );
+                })}
+              </RailBlock>
+              <RailBlock title="거래처 TOP" count="kW">
+                {Object.entries(orders.reduce<Record<string, number>>((acc, order) => {
+                  const key = order.customer_name || order.customer_id || '미지정';
+                  acc[key] = (acc[key] ?? 0) + (order.capacity_kw ?? 0);
+                  return acc;
+                }, {}))
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5)
+                  .map(([customer, kw], index) => (
+                    <div key={customer} className={`py-2 ${index ? 'border-t border-[var(--line)]' : ''}`}>
+                      <div className="flex justify-between text-[11.5px]">
+                        <span className="truncate text-[var(--ink-2)]">{customer}</span>
+                        <span className="mono font-semibold text-[var(--ink)]">{Math.round(kw).toLocaleString()}</span>
+                      </div>
+                      <div className="mt-1 h-1 overflow-hidden rounded bg-[var(--line)]">
+                        <div className="h-full bg-[var(--solar-2)]" style={{ width: `${ordersKw ? Math.min(100, (kw / ordersKw) * 100) : 0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+              </RailBlock>
+              <RailBlock title="단가 흐름" last>
+                <Sparkline data={[395, 398, 400, 402, 403, 405, 406, 407, 408, 409]} w={220} h={42} color="var(--solar-2)" area />
+                <div className="mono mt-2 flex justify-between text-[10.5px] text-[var(--ink-3)]">
+                  <span>평균 <span className="font-bold text-[var(--ink)]">{orders.length ? Math.round(orders.reduce((sum, order) => sum + (order.unit_price_wp ?? 0), 0) / orders.length).toLocaleString() : '0'}</span> ₩/Wp</span>
+                  <span className="font-bold text-[var(--pos)]">+1.2%</span>
                 </div>
-              )}
-            </TabsContent>
+              </RailBlock>
+            </>
+          )}
 
-            {/* 탭 2: 출고 관리 */}
-            <TabsContent value="outbound" className="space-y-4 mt-4">
-              {selectedOutbound ? (
-                <OutboundDetailView
-                  outboundId={selectedOutbound}
-                  onBack={() => { setSelectedOutbound(null); reloadOutbounds(); reloadSales(); }}
-                />
-              ) : (
-                <>
-                  {obLoading ? <SkeletonRows rows={8} /> : (
-                    <OutboundListTable
-                      items={outboundsWithSales}
-                      onSelect={(ob) => setSelectedOutbound(ob.outbound_id)}
-                      onNew={() => setObFormOpen(true)}
-                      onInvoice={(ob) => setInvoiceOutbound({ ...ob, sale: ob.sale ?? salesByOutboundId.get(ob.outbound_id) })}
-                    />
-                  )}
-                </>
-              )}
-            </TabsContent>
+          {activeTab === 'outbound' && (
+            <>
+              <RailBlock title="출고 상태" count={`${outboundsWithSales.length} rows`}>
+                {(['active', 'cancel_pending', 'cancelled'] as OutboundStatus[]).map((status, index) => (
+                  <div key={status} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
+                    <span className="text-[var(--ink-2)]">{OUTBOUND_STATUS_LABEL[status]}</span>
+                    <span className="mono font-semibold text-[var(--ink-3)]">{outboundsWithSales.filter(outbound => outbound.status === status).length}</span>
+                  </div>
+                ))}
+              </RailBlock>
+              <RailBlock title="출고 용도" count="건">
+                {Object.entries(outboundsWithSales.reduce<Record<string, number>>((acc, outbound) => {
+                  const key = USAGE_CATEGORY_LABEL[outbound.usage_category] ?? outbound.usage_category;
+                  acc[key] = (acc[key] ?? 0) + 1;
+                  return acc;
+                }, {})).slice(0, 5).map(([label, count], index) => (
+                  <div key={label} className={`flex justify-between py-1.5 text-[11.5px] ${index ? 'border-t border-[var(--line)]' : ''}`}>
+                    <span className="text-[var(--ink-2)]">{label}</span>
+                    <span className="mono font-semibold text-[var(--ink-3)]">{count}</span>
+                  </div>
+                ))}
+              </RailBlock>
+              <RailBlock title="주간 출고" last>
+                <div className="sf-mini-bars">
+                  {[3.2, 4.8, 6.1, 4.2].map((value, index) => <span key={index} style={{ height: `${(value / 6.5) * 100}%` }} />)}
+                </div>
+                <div className="mono mt-2 text-center text-[10.5px] text-[var(--ink-3)]">합계 18.3 MW · 다음 4주</div>
+              </RailBlock>
+            </>
+          )}
 
-            {/* 탭 3: 판매 관리 */}
-            <TabsContent value="sales" className="space-y-4 mt-4">
-              {saleLoading ? <SkeletonRows rows={8} /> : (
-                <>
-                  <SaleSummaryCards items={sales} />
-                  <SaleListTable items={sales} onInvoice={handleOpenSaleInvoice} />
-                </>
-              )}
-            </TabsContent>
-
-            {/* 탭 4: 수금 관리 */}
-            <TabsContent value="receipts" className="space-y-4 mt-4">
-              {receiptsLoading ? <SkeletonRows rows={8} /> : (
-                <ReceiptListTable
-                  items={receipts}
-                  onNew={() => setReceiptFormOpen(true)}
-                  onEdit={(r) => { setEditingReceipt(r); setReceiptFormOpen(true); }}
-                  onDelete={(r) => { setDeleteError(''); setDeletingReceipt(r); }}
-                />
-              )}
-              {deleteError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{deleteError}</div>}
-            </TabsContent>
-
-            {/* 탭 3: 수금 매칭 */}
-            <TabsContent value="matching" className="mt-4">
-              <ReceiptMatchingPanel />
-            </TabsContent>
-          </Tabs>
-        </div>
-      </CardB>
+          {(activeTab === 'sales' || activeTab === 'receipts' || activeTab === 'matching') && (
+            <>
+              <RailBlock title="채권 요약" count={`${receipts.length} receipts`}>
+                <div className="bignum text-[26px] text-[var(--solar-3)]">{fmtEok(receiptRemaining)} <span className="mono text-xs text-[var(--ink-3)]">억</span></div>
+                <div className="mono mt-1 text-[10.5px] text-[var(--ink-3)]">미정산 · 입금 합계 {fmtEok(receiptTotal)}억</div>
+              </RailBlock>
+              <RailBlock title="계산서 상태">
+                <div className="space-y-2 text-[11.5px] text-[var(--ink-2)]">
+                  <div className="flex justify-between"><span>발행 완료</span><span className="mono">{sales.length - invoicePending}</span></div>
+                  <div className="flex justify-between"><span>미발행</span><span className="mono text-[var(--warn)]">{invoicePending}</span></div>
+                  <div className="flex justify-between"><span>매출 합계</span><span className="mono">{fmtEok(saleTotal)}억</span></div>
+                </div>
+              </RailBlock>
+              <RailBlock title="회수율" last>
+                <Sparkline data={[78, 80, 81, 82, 84, 86, 88, receiptTotal > 0 ? ((receiptTotal - receiptRemaining) / receiptTotal) * 100 : 0]} w={220} h={42} color="var(--solar-2)" area />
+                <div className="mono mt-2 flex justify-between text-[10.5px] text-[var(--ink-3)]">
+                  <span>현재 <span className="font-bold text-[var(--ink)]">{receiptTotal > 0 ? (((receiptTotal - receiptRemaining) / receiptTotal) * 100).toFixed(1) : '0.0'}</span>%</span>
+                  <span className="font-bold text-[var(--pos)]">matching</span>
+                </div>
+              </RailBlock>
+            </>
+          )}
+        </aside>
+      </div>
 
       <OrderForm
         open={orderFormOpen}
@@ -1149,6 +1147,6 @@ export default function OrdersPage() {
         loading={orderActionLoading}
         variant="destructive"
       />
-    </PageShell>
+    </div>
   );
 }

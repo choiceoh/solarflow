@@ -113,13 +113,12 @@ export function CardB({
   return (
     <div className="card" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, flex: flex ? 1 : undefined }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderBottom: '1px solid var(--line)', flexShrink: 0, minHeight: 44 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0, flexShrink: 0 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
           <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.005em', color: 'var(--ink)' }}>{title}</div>
           {sub ? <div className="mono" style={{ fontSize: 10, color: 'var(--ink-3)', marginTop: 2 }}>{sub}</div> : null}
         </div>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-          {right}
-        </div>
+        <div style={{ flex: 1 }} />
+        {right}
       </div>
       <div style={{ padding: padded ? 14 : 0, minHeight: 0, flex: 1, overflow: 'auto' }}>
         {children}
@@ -162,38 +161,20 @@ export function FilterChips({
   onChange?: (value: string) => void;
 }) {
   return (
-    <div style={{ display: 'inline-flex', borderBottom: '1px solid var(--line)' }}>
+    <div className="tabs" style={{ border: 'none' }}>
       {options.map((o) => {
         const active = value === o.key;
         return (
           <button
             key={o.key}
+            className={`tab${active ? ' active' : ''}`}
             onClick={() => onChange?.(o.key)}
+            style={{ padding: '5px 10px' }}
             type="button"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              borderBottom: `2px solid ${active ? 'var(--ink)' : 'transparent'}`,
-              borderRadius: 0,
-              marginBottom: -1,
-              padding: '7px 12px',
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              fontSize: 12,
-              fontWeight: active ? 600 : 500,
-              color: active ? 'var(--ink)' : 'var(--ink-3)',
-              letterSpacing: '-0.005em',
-              display: 'inline-flex',
-              alignItems: 'baseline',
-              gap: 6,
-              transition: 'color 160ms cubic-bezier(0.22, 1, 0.36, 1), border-color 160ms cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-            onMouseEnter={(e) => { if (!active) e.currentTarget.style.color = 'var(--ink)'; }}
-            onMouseLeave={(e) => { if (!active) e.currentTarget.style.color = 'var(--ink-3)'; }}
           >
             {o.label}
             {o.count != null ? (
-              <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)' }}>{o.count}</span>
+              <span className="mono" style={{ fontSize: 10, color: 'var(--ink-4)', marginLeft: 5 }}>{o.count}</span>
             ) : null}
           </button>
         );
@@ -234,16 +215,17 @@ export function FilterButton({ items }: { items: FilterItem[] }) {
         onClick={() => setOpen((v) => !v)}
         type="button"
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          height: 28, padding: '0 10px',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          height: 24, padding: '0 8px',
           background: activeCount > 0 ? 'var(--bg-2)' : 'var(--surface)',
           border: `1px solid ${open ? 'var(--solar-3)' : 'var(--line)'}`,
-          borderRadius: 4,
+          borderRadius: 6,
           fontFamily: 'inherit',
-          fontSize: 11.5, fontWeight: 600,
+          fontSize: 12, fontWeight: 500,
           color: 'var(--ink)',
           cursor: 'pointer',
           letterSpacing: '-0.005em',
+          boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
         }}
       >
         <svg width="12" height="12" viewBox="0 0 14 14" style={{ color: 'var(--ink-3)' }}>

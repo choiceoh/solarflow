@@ -17,7 +17,6 @@ import type { SaleListItem } from '@/types/outbound';
 import type { CustomerAnalysis, CustomerItem } from '@/hooks/useDashboard';
 import type { Partner } from '@/types/masters';
 import { CardB, FilterChips, RailBlock, TileB } from '@/components/command/MockupPrimitives';
-import { PageShell } from '@/components/command/PageShell';
 
 interface MarginItem {
   manufacturer_name: string;
@@ -356,81 +355,50 @@ export default function SalesAnalysisPage() {
   ];
   const topCustomer = customers.items[0];
 
-  const rail = (
-    <>
-      <RailBlock title="목표 달성률" count={period === 'all' ? '전체' : period}>
-        <div className="bignum text-[30px] text-[var(--solar-3)]">{margin.summary.overall_margin_rate.toFixed(1)}<span className="mono text-sm text-[var(--ink-3)]">%</span></div>
-        <div className="mono mt-1 text-[10.5px] text-[var(--ink-3)]">총이익 {formatKRW(margin.summary.total_margin_krw)} · 매출 {formatKRW(salesSummary.supply)}</div>
-        <div className="mt-3 h-2 overflow-hidden rounded bg-[var(--bg-2)]">
-          <div className="h-full bg-[var(--solar-2)]" style={{ width: `${Math.min(100, margin.summary.overall_margin_rate * 5)}%` }} />
-        </div>
-      </RailBlock>
-      <RailBlock title="상위 거래처" count="매출">
-        {customers.items.slice(0, 5).map((item, index) => (
-          <div key={item.customer_id} className={`py-2 ${index ? 'border-t border-[var(--line)]' : ''}`}>
-            <div className="flex justify-between gap-2 text-[11.5px]">
-              <span className="truncate text-[var(--ink-2)]">{item.customer_name}</span>
-              <span className="mono font-semibold text-[var(--ink)]">{formatKRW(item.total_sales_krw)}</span>
-            </div>
-            <div className="mt-1 h-1 overflow-hidden rounded bg-[var(--line)]">
-              <div className="h-full bg-[var(--solar-2)]" style={{ width: `${customers.summary.total_sales_krw ? Math.min(100, (item.total_sales_krw / customers.summary.total_sales_krw) * 100) : 0}%` }} />
-            </div>
-          </div>
-        ))}
-      </RailBlock>
-      <RailBlock title="수금 상태" last>
-        <div className="space-y-2 text-[11.5px] text-[var(--ink-2)]">
-          <div className="flex justify-between"><span>수금액</span><span className="mono">{formatKRW(customers.summary.total_collected_krw)}</span></div>
-          <div className="flex justify-between"><span>미수금</span><span className="mono text-[var(--warn)]">{formatKRW(customers.summary.total_outstanding_krw)}</span></div>
-          <div className="flex justify-between"><span>원가 연결</span><span className="mono">{coveredCostCount}/{margin.items.length}</span></div>
-        </div>
-        {topCustomer ? <div className="mono mt-3 text-[10.5px] text-[var(--ink-3)]">TOP · {topCustomer.customer_name}</div> : null}
-      </RailBlock>
-    </>
-  );
-
   return (
-    <PageShell rail={rail}>
-      <CardB
-        title="매출/이익 분석"
-        sub="판매, 세금계산서, 수금, B/L 원가 연결"
-        right={<button type="button" className="btn xs" onClick={load}>새로고침</button>}
-        padded
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterChips options={periodOptions} value={period} onChange={(value) => setPeriod(value as PeriodFilter)} />
-          {period === 'custom' && (
-            <>
-              <DateInput value={customFrom} onChange={setCustomFrom} className="h-8 w-36 text-xs" placeholder="시작일" />
-              <DateInput value={customTo} onChange={setCustomTo} className="h-8 w-36 text-xs" placeholder="종료일" />
-            </>
-          )}
-          <div className="w-44">
-            <PartnerCombobox
-              partners={partners}
-              value={customerFilter}
-              onChange={setCustomerFilter}
-              placeholder="전체 거래처"
-              includeAllOption
-              allLabel="전체 거래처"
-            />
-          </div>
-          <Select value={manufacturerFilter || 'all'} onValueChange={(v) => setManufacturerFilter(v === 'all' ? '' : (v ?? ''))}>
-            <SelectTrigger className="h-8 w-36 text-xs">
-              <span className="truncate">{manufacturerLabel}</span>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">전체 제조사</SelectItem>
-              {manufacturers.map((m) => (
-                <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.short_name || m.name_kr}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="ml-auto text-[10px] text-muted-foreground">
-            제조사 필터는 매출 집계와 품목별 이익에 적용됩니다.
-          </div>
-        </div>
-      </CardB>
+    <div className="sf-page">
+      <div className="sf-procurement-layout">
+        <section className="sf-procurement-main">
+          <CardB
+            title="매출/이익 분석"
+            sub="판매, 세금계산서, 수금, B/L 원가 연결"
+            right={<button type="button" className="btn xs" onClick={load}>새로고침</button>}
+            padded
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <FilterChips options={periodOptions} value={period} onChange={(value) => setPeriod(value as PeriodFilter)} />
+              {period === 'custom' && (
+                <>
+                  <DateInput value={customFrom} onChange={setCustomFrom} className="h-8 w-36 text-xs" placeholder="시작일" />
+                  <DateInput value={customTo} onChange={setCustomTo} className="h-8 w-36 text-xs" placeholder="종료일" />
+                </>
+              )}
+              <div className="w-44">
+                <PartnerCombobox
+                  partners={partners}
+                  value={customerFilter}
+                  onChange={setCustomerFilter}
+                  placeholder="전체 거래처"
+                  includeAllOption
+                  allLabel="전체 거래처"
+                />
+              </div>
+              <Select value={manufacturerFilter || 'all'} onValueChange={(v) => setManufacturerFilter(v === 'all' ? '' : (v ?? ''))}>
+                <SelectTrigger className="h-8 w-36 text-xs">
+                  <span className="truncate">{manufacturerLabel}</span>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">전체 제조사</SelectItem>
+                  {manufacturers.map((m) => (
+                    <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.short_name || m.name_kr}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="ml-auto text-[10px] text-muted-foreground">
+                제조사 필터는 매출 집계와 품목별 이익에 적용됩니다.
+              </div>
+            </div>
+          </CardB>
 
       {state.error && (
         <div className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -447,69 +415,69 @@ export default function SalesAnalysisPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
         <CardB title="월별 매출" sub="공급가 · 부가세 포함" padded>
-          {monthly.length === 0 ? (
-            <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">매출 데이터가 없습니다</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={monthly}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${Math.round(v / 100000000)}억`} />
-                <Tooltip formatter={(value, name) => [formatKRW(Number(value)), name === 'revenue' ? '공급가' : '부가세 포함']} />
-                <Bar dataKey="revenue" fill="#2563eb" name="공급가" />
-                <Bar dataKey="total" fill="#16a34a" name="부가세 포함" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+            {monthly.length === 0 ? (
+              <div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">매출 데이터가 없습니다</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={monthly}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                  <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => `${Math.round(v / 100000000)}억`} />
+                  <Tooltip formatter={(value, name) => [formatKRW(Number(value)), name === 'revenue' ? '공급가' : '부가세 포함']} />
+                  <Bar dataKey="revenue" fill="#2563eb" name="공급가" />
+                  <Bar dataKey="total" fill="#16a34a" name="부가세 포함" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
         </CardB>
 
         <CardB title="거래처별 청구/미수" sub="상위 8개 거래처" padded>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>거래처</TableHead>
-                <TableHead className="text-right">청구액</TableHead>
-                <TableHead className="text-right">미수</TableHead>
-                <TableHead className="text-right">이익률</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {customers.items.slice(0, 8).map((item) => (
-                <TableRow key={item.customer_id}>
-                  <TableCell className="text-xs font-medium">{item.customer_name}</TableCell>
-                  <TableCell className="text-right text-xs">{formatKRW(item.total_sales_krw)}</TableCell>
-                  <TableCell className="text-right text-xs">{formatKRW(item.outstanding_krw)}</TableCell>
-                  <TableCell className="text-right text-xs">{item.avg_margin_rate != null ? `${item.avg_margin_rate.toFixed(1)}%` : '—'}</TableCell>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>거래처</TableHead>
+                  <TableHead className="text-right">청구액</TableHead>
+                  <TableHead className="text-right">미수</TableHead>
+                  <TableHead className="text-right">이익률</TableHead>
                 </TableRow>
-              ))}
-              {customers.items.length === 0 && (
-                <TableRow><TableCell colSpan={4} className="py-8 text-center text-xs text-muted-foreground">거래처 분석 데이터가 없습니다</TableCell></TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {customers.items.slice(0, 8).map((item) => (
+                  <TableRow key={item.customer_id}>
+                    <TableCell className="text-xs font-medium">{item.customer_name}</TableCell>
+                    <TableCell className="text-right text-xs">{formatKRW(item.total_sales_krw)}</TableCell>
+                    <TableCell className="text-right text-xs">{formatKRW(item.outstanding_krw)}</TableCell>
+                    <TableCell className="text-right text-xs">{item.avg_margin_rate != null ? `${item.avg_margin_rate.toFixed(1)}%` : '—'}</TableCell>
+                  </TableRow>
+                ))}
+                {customers.items.length === 0 && (
+                  <TableRow><TableCell colSpan={4} className="py-8 text-center text-xs text-muted-foreground">거래처 분석 데이터가 없습니다</TableCell></TableRow>
+                )}
+              </TableBody>
+            </Table>
         </CardB>
       </div>
 
       <CardB title="품목별 이익 분석" sub="판매가 · 원가 · 이익/Wp">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>모듈</TableHead>
-              <TableHead>품번 / 품명</TableHead>
-              <TableHead className="text-right">수량</TableHead>
-              <TableHead className="text-right">판매가</TableHead>
-              <TableHead>원가상태</TableHead>
-              <TableHead className="text-right">원가</TableHead>
-              <TableHead className="text-right">이익/Wp</TableHead>
-              <TableHead className="text-right">이익률</TableHead>
-              <TableHead className="text-right">매출</TableHead>
-              <TableHead className="text-right">이익</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {margin.items.map((item) => {
-              const costCovered = item.avg_cost_wp != null && item.total_cost_krw != null;
-              return (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>모듈</TableHead>
+                <TableHead>품번 / 품명</TableHead>
+                <TableHead className="text-right">수량</TableHead>
+                <TableHead className="text-right">판매가</TableHead>
+                <TableHead>원가상태</TableHead>
+                <TableHead className="text-right">원가</TableHead>
+                <TableHead className="text-right">이익/Wp</TableHead>
+                <TableHead className="text-right">이익률</TableHead>
+                <TableHead className="text-right">매출</TableHead>
+                <TableHead className="text-right">이익</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {margin.items.map((item) => {
+                const costCovered = item.avg_cost_wp != null && item.total_cost_krw != null;
+                return (
                 <TableRow key={`${item.manufacturer_name}-${item.product_code}-${item.spec_wp}`} className={!costCovered ? 'bg-yellow-50/40' : undefined}>
                   <TableCell className="text-xs font-medium">{moduleLabel(item.manufacturer_name, item.spec_wp)}</TableCell>
                   <TableCell className="text-xs">
@@ -531,14 +499,47 @@ export default function SalesAnalysisPage() {
                   <TableCell className="text-right text-xs">{formatKRW(item.total_revenue_krw)}</TableCell>
                   <TableCell className="text-right text-xs font-medium">{item.total_margin_krw != null ? formatKRW(item.total_margin_krw) : '—'}</TableCell>
                 </TableRow>
-              );
-            })}
-            {margin.items.length === 0 && (
-              <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">이익 분석 데이터가 없습니다</TableCell></TableRow>
-            )}
-          </TableBody>
-        </Table>
+                );
+              })}
+              {margin.items.length === 0 && (
+                <TableRow><TableCell colSpan={10} className="py-8 text-center text-xs text-muted-foreground">이익 분석 데이터가 없습니다</TableCell></TableRow>
+              )}
+            </TableBody>
+          </Table>
       </CardB>
-    </PageShell>
+        </section>
+
+        <aside className="sf-procurement-rail card">
+          <RailBlock title="목표 달성률" count={period === 'all' ? '전체' : period}>
+            <div className="bignum text-[30px] text-[var(--solar-3)]">{margin.summary.overall_margin_rate.toFixed(1)}<span className="mono text-sm text-[var(--ink-3)]">%</span></div>
+            <div className="mono mt-1 text-[10.5px] text-[var(--ink-3)]">총이익 {formatKRW(margin.summary.total_margin_krw)} · 매출 {formatKRW(salesSummary.supply)}</div>
+            <div className="mt-3 h-2 overflow-hidden rounded bg-[var(--bg-2)]">
+              <div className="h-full bg-[var(--solar-2)]" style={{ width: `${Math.min(100, margin.summary.overall_margin_rate * 5)}%` }} />
+            </div>
+          </RailBlock>
+          <RailBlock title="상위 거래처" count="매출">
+            {customers.items.slice(0, 5).map((item, index) => (
+              <div key={item.customer_id} className={`py-2 ${index ? 'border-t border-[var(--line)]' : ''}`}>
+                <div className="flex justify-between gap-2 text-[11.5px]">
+                  <span className="truncate text-[var(--ink-2)]">{item.customer_name}</span>
+                  <span className="mono font-semibold text-[var(--ink)]">{formatKRW(item.total_sales_krw)}</span>
+                </div>
+                <div className="mt-1 h-1 overflow-hidden rounded bg-[var(--line)]">
+                  <div className="h-full bg-[var(--solar-2)]" style={{ width: `${customers.summary.total_sales_krw ? Math.min(100, (item.total_sales_krw / customers.summary.total_sales_krw) * 100) : 0}%` }} />
+                </div>
+              </div>
+            ))}
+          </RailBlock>
+          <RailBlock title="수금 상태" last>
+            <div className="space-y-2 text-[11.5px] text-[var(--ink-2)]">
+              <div className="flex justify-between"><span>수금액</span><span className="mono">{formatKRW(customers.summary.total_collected_krw)}</span></div>
+              <div className="flex justify-between"><span>미수금</span><span className="mono text-[var(--warn)]">{formatKRW(customers.summary.total_outstanding_krw)}</span></div>
+              <div className="flex justify-between"><span>원가 연결</span><span className="mono">{coveredCostCount}/{margin.items.length}</span></div>
+            </div>
+            {topCustomer ? <div className="mono mt-3 text-[10.5px] text-[var(--ink-3)]">TOP · {topCustomer.customer_name}</div> : null}
+          </RailBlock>
+        </aside>
+      </div>
+    </div>
   );
 }

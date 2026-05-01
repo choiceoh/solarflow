@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormRegister, type FieldErrors, type UseFormWatch, type UseFormSetValue } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -22,35 +22,117 @@ const schema = z.object({
   country: z.string().min(1, '국가는 필수입니다'),
   domestic_foreign: z.string().min(1, '국내/해외 구분은 필수입니다'),
 });
-type FormData = z.infer<typeof schema>;
+export type ManufacturerFormData = z.infer<typeof schema>;
+
+function buildDefaults(editData?: Manufacturer | null): ManufacturerFormData {
+  return editData
+    ? {
+      name_kr: editData.name_kr,
+      name_en: editData.name_en ?? '',
+      short_name: editData.short_name ?? '',
+      tier: editData.tier ?? 3,
+      priority_rank: editData.priority_rank ?? 999,
+      country: editData.country,
+      domestic_foreign: editData.domestic_foreign,
+    }
+    : { name_kr: '', name_en: '', short_name: '', tier: 3, priority_rank: 999, country: '', domestic_foreign: '' };
+}
+
+interface FieldsProps {
+  register: UseFormRegister<ManufacturerFormData>;
+  errors: FieldErrors<ManufacturerFormData>;
+  watch: UseFormWatch<ManufacturerFormData>;
+  setValue: UseFormSetValue<ManufacturerFormData>;
+}
+
+function ManufacturerFields({ register, errors, watch, setValue }: FieldsProps) {
+  return (
+    <>
+      <div className="space-y-1.5">
+        <Label>제조사명(한) *</Label>
+        <Input {...register('name_kr')} />
+        {errors.name_kr && <p className="text-xs text-destructive">{errors.name_kr.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>제조사명(영)</Label>
+        <Input {...register('name_en')} />
+      </div>
+      <div className="space-y-1.5">
+        <Label>약칭 <span className="text-muted-foreground font-normal text-xs">(화면 표시용 · 예: 진코, 론지, 트리나)</span></Label>
+        <Input {...register('short_name')} placeholder="예: 진코" maxLength={20} />
+        {errors.short_name && <p className="text-xs text-destructive">{errors.short_name.message}</p>}
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label>Tier *</Label>
+          <Input type="number" min={1} max={9} {...register('tier', { valueAsNumber: true })} />
+          {errors.tier && <p className="text-xs text-destructive">{errors.tier.message}</p>}
+        </div>
+        <div className="space-y-1.5">
+          <Label>표시순위 *</Label>
+          <Input type="number" min={1} {...register('priority_rank', { valueAsNumber: true })} placeholder="예: 10" />
+          {errors.priority_rank && <p className="text-xs text-destructive">{errors.priority_rank.message}</p>}
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Label>국가 *</Label>
+        <Input {...register('country')} />
+        {errors.country && <p className="text-xs text-destructive">{errors.country.message}</p>}
+      </div>
+      <div className="space-y-1.5">
+        <Label>국내/해외 *</Label>
+        {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
+        <Select value={watch('domestic_foreign') ?? ''} onValueChange={(v) => setValue('domestic_foreign', v ?? '')}>
+          <SelectTrigger><Txt text={watch('domestic_foreign') ?? ''} /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="국내">국내</SelectItem>
+            <SelectItem value="해외">해외</SelectItem>
+          </SelectContent>
+        </Select>
+        {errors.domestic_foreign && <p className="text-xs text-destructive">{errors.domestic_foreign.message}</p>}
+      </div>
+    </>
+  );
+}
+
+interface FormBodyProps {
+  formId: string;
+  editData?: Manufacturer | null;
+  onSubmit: (data: ManufacturerFormData) => Promise<void>;
+}
+
+export function ManufacturerFormBody({ formId, editData, onSubmit }: FormBodyProps) {
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<ManufacturerFormData>({
+    resolver: zodResolver(schema),
+    defaultValues: buildDefaults(editData),
+  });
+
+  useEffect(() => { reset(buildDefaults(editData)); }, [editData, reset]);
+
+  return (
+    <form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <ManufacturerFields register={register} errors={errors} watch={watch} setValue={setValue} />
+    </form>
+  );
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: FormData) => Promise<void>;
+  onSubmit: (data: ManufacturerFormData) => Promise<void>;
   editData?: Manufacturer | null;
 }
 
 export default function ManufacturerForm({ open, onOpenChange, onSubmit, editData }: Props) {
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting } } = useForm<ManufacturerFormData>({
     resolver: zodResolver(schema),
   });
 
   useEffect(() => {
-    if (open) {
-      reset(editData ? {
-        name_kr: editData.name_kr,
-        name_en: editData.name_en ?? '',
-        short_name: editData.short_name ?? '',
-        tier: editData.tier ?? 3,
-        priority_rank: editData.priority_rank ?? 999,
-        country: editData.country,
-        domestic_foreign: editData.domestic_foreign,
-      } : { name_kr: '', name_en: '', short_name: '', tier: 3, priority_rank: 999, country: '', domestic_foreign: '' });
-    }
+    if (open) reset(buildDefaults(editData));
   }, [open, editData, reset]);
 
-  const handle = async (data: FormData) => {
+  const handle = async (data: ManufacturerFormData) => {
     await onSubmit(data);
     onOpenChange(false);
   };
@@ -62,49 +144,7 @@ export default function ManufacturerForm({ open, onOpenChange, onSubmit, editDat
           <DialogTitle>{editData ? '제조사 수정' : '제조사 등록'}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(handle)} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label>제조사명(한) *</Label>
-            <Input {...register('name_kr')} />
-            {errors.name_kr && <p className="text-xs text-destructive">{errors.name_kr.message}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label>제조사명(영)</Label>
-            <Input {...register('name_en')} />
-          </div>
-          <div className="space-y-1.5">
-            <Label>약칭 <span className="text-muted-foreground font-normal text-xs">(화면 표시용 · 예: 진코, 론지, 트리나)</span></Label>
-            <Input {...register('short_name')} placeholder="예: 진코" maxLength={20} />
-            {errors.short_name && <p className="text-xs text-destructive">{errors.short_name.message}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Tier *</Label>
-              <Input type="number" min={1} max={9} {...register('tier', { valueAsNumber: true })} />
-              {errors.tier && <p className="text-xs text-destructive">{errors.tier.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label>표시순위 *</Label>
-              <Input type="number" min={1} {...register('priority_rank', { valueAsNumber: true })} placeholder="예: 10" />
-              {errors.priority_rank && <p className="text-xs text-destructive">{errors.priority_rank.message}</p>}
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label>국가 *</Label>
-            <Input {...register('country')} />
-            {errors.country && <p className="text-xs text-destructive">{errors.country.message}</p>}
-          </div>
-          <div className="space-y-1.5">
-            <Label>국내/해외 *</Label>
-            {/* eslint-disable-next-line react-hooks/incompatible-library -- react-hook-form watch() — 컴파일러 메모이제이션 불가 */}
-            <Select value={watch('domestic_foreign') ?? ''} onValueChange={(v) => setValue('domestic_foreign', v ?? '')}>
-              <SelectTrigger><Txt text={watch('domestic_foreign') ?? ''} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="국내">국내</SelectItem>
-                <SelectItem value="해외">해외</SelectItem>
-              </SelectContent>
-            </Select>
-            {errors.domestic_foreign && <p className="text-xs text-destructive">{errors.domestic_foreign.message}</p>}
-          </div>
+          <ManufacturerFields register={register} errors={errors} watch={watch} setValue={setValue} />
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
             <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>

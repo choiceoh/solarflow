@@ -603,9 +603,11 @@ export default function ProcurementPage() {
     ];
 
   const procurementCardControls = (
-    <div className="sf-card-controls" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-start' }}>
+    <div className="sf-card-controls">
+      <FilterChips options={PROC_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
       {activeTab === 'po' && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '상태',
@@ -632,6 +634,7 @@ export default function ProcurementPage() {
       )}
       {activeTab === 'lc' && !lcFormOpen && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '상태',
@@ -657,6 +660,7 @@ export default function ProcurementPage() {
       )}
       {activeTab === 'bl' && !blFormOpen && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '입고 구분',
@@ -683,6 +687,7 @@ export default function ProcurementPage() {
       )}
       {activeTab === 'price' && (
         <>
+          <div className="vr" style={{ height: 16 }} />
           <FilterButton items={[
             {
               label: '제조사',
@@ -698,8 +703,6 @@ export default function ProcurementPage() {
           <Button size="xs" onClick={() => { setEditPH(null); setPhFormOpen(true); }}><Plus className="mr-1 h-3 w-3" />새로 등록</Button>
         </>
       )}
-      <div style={{ flex: 1 }} />
-      <FilterChips options={PROC_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
     </div>
   );
 
@@ -878,14 +881,14 @@ export default function ProcurementPage() {
                     <ScanText className="h-6 w-6" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="text-base font-semibold text-[var(--sf-ink)]">
+                    <div className="text-base font-semibold" style={{ color: 'var(--sf-ink)' }}>
                       여기에 면장 PDF/사진을 끌어다 놓으세요
                     </div>
                     <div className="mt-1 text-sm sf-dropzone-sub">
                       {blOCRDropActive ? '지금 놓으면 해외직수입 입고등록으로 이동합니다' : '놓으면 입고등록 창과 OCR 입력값 확인창이 자동으로 열립니다'}
                     </div>
                     {blOCRDropError && (
-                      <div className="mt-2 text-xs font-medium text-[var(--sf-neg)]">{blOCRDropError}</div>
+                      <div className="mt-2 text-xs font-medium" style={{ color: 'var(--sf-neg)' }}>{blOCRDropError}</div>
                     )}
                   </div>
                   <span className="sf-pill ghost">PDF · JPG · PNG</span>

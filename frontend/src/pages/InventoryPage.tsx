@@ -488,7 +488,18 @@ export default function InventoryPage() {
   const incomingAvailable = metricParts(inventoryStats?.incomingAvailableKw ?? 0);
   const pendingKw = metricParts(allocationStats.pendingKw);
   const inventoryCardControls = (
-    <div className="sf-card-controls" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-start' }}>
+    <div className="sf-card-controls">
+      <FilterChips
+        value={activeTab}
+        onChange={handleTabChange}
+        options={[
+          { key: 'avail', label: '가용', count: invData?.items.length ?? 0 },
+          { key: 'physical', label: '실재고', count: invData?.items.length ?? 0 },
+          { key: 'incoming', label: '미착', count: incomingRailItems.length },
+          { key: 'forecast', label: '수급 전망' },
+        ]}
+      />
+      <div className="vr" style={{ height: 16 }} />
       <FilterButton items={[
         {
           label: '제조사',
@@ -504,17 +515,6 @@ export default function InventoryPage() {
           disabled: !mfgFilter,
         },
       ]} />
-      <div style={{ flex: 1 }} />
-      <FilterChips
-        value={activeTab}
-        onChange={handleTabChange}
-        options={[
-          { key: 'avail', label: '가용', count: invData?.items.length ?? 0 },
-          { key: 'physical', label: '실재고', count: invData?.items.length ?? 0 },
-          { key: 'incoming', label: '미착', count: incomingRailItems.length },
-          { key: 'forecast', label: '수급 전망' },
-        ]}
-      />
     </div>
   );
 

@@ -106,7 +106,16 @@ export default function OutboundPage() {
   const recentOutbounds = outbounds.slice(0, 4);
 
   const outboundCardControls = (
-    <div className="sf-card-controls" style={{ flex: 1, minWidth: 0, justifyContent: 'flex-start' }}>
+    <div className="sf-card-controls">
+      <FilterChips
+        options={[
+          { key: 'outbound', label: '출고 관리', count: outbounds.length },
+          { key: 'sales', label: '매출 현황', count: sales.length },
+        ]}
+        value={activeTab}
+        onChange={(value) => setActiveTab(value as 'outbound' | 'sales')}
+      />
+      <div className="vr" style={{ height: 16 }} />
       {activeTab === 'outbound' ? (
         <>
           <FilterButton items={[
@@ -162,15 +171,6 @@ export default function OutboundPage() {
           <ExcelToolbar type="sale" />
         </>
       )}
-      <div style={{ flex: 1 }} />
-      <FilterChips
-        options={[
-          { key: 'outbound', label: '출고 관리', count: outbounds.length },
-          { key: 'sales', label: '매출 현황', count: sales.length },
-        ]}
-        value={activeTab}
-        onChange={(value) => setActiveTab(value as 'outbound' | 'sales')}
-      />
     </div>
   );
 

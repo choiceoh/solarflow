@@ -715,33 +715,6 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
     if (matched) setValue('customer_id', matched.partner_id, { shouldValidate: true, shouldDirty: true });
   }, [prefillData?.alloc_id, prefillData?.customer_hint, partners, open, editData, getValues, setValue]);
 
-  // 거래처+품번 선택 시 partner_price_book에서 단가 자동 prefill (BARO 전용 엔드포인트 — 탑솔라는 403 silent skip).
-  // 신규 등록 시에만, 사용자가 단가를 이미 입력했으면 덮어쓰지 않는다.
-  const watchedCustomerId = watch('customer_id');
-  useEffect(() => {
-    if (!open || editData) return;
-    if (!watchedCustomerId || !selectedProductId) return;
-    const current = getValues('unit_price_wp');
-    if (current && Number(current) > 0) return;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const today = new Date().toISOString().slice(0, 10);
-        const price = await fetchWithAuth<{ unit_price_wp: number }>(
-          `/api/v1/partner-prices/lookup?partner_id=${watchedCustomerId}&product_id=${selectedProductId}&on=${today}`,
-        );
-        if (cancelled) return;
-        if (price?.unit_price_wp && price.unit_price_wp > 0) {
-          setValue('unit_price_wp', price.unit_price_wp, { shouldValidate: true, shouldDirty: true });
-        }
-      } catch {
-        // 단가 미등록(404) 또는 비BARO 테넌트(403) — 무시
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [open, editData, watchedCustomerId, selectedProductId, getValues, setValue]);
-
   const handle = async (data: FormData) => {
     setSubmitError('');
     if (!effectiveCompanyId || effectiveCompanyId === 'all') {
@@ -853,7 +826,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
               </div>
             </div>
           )}
-          {submitError && <div className="sf-banner neg"><span className="sf-banner-body">{submitError}</span></div>}
+          {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
           {!isPrefill && (
             <div className="space-y-3 rounded-md border bg-slate-50/70 p-3">
               <div>

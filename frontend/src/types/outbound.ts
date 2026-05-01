@@ -107,9 +107,9 @@ export const OUTBOUND_STATUS_LABEL: Record<OutboundStatus, string> = {
 };
 
 export const OUTBOUND_STATUS_COLOR: Record<OutboundStatus, string> = {
-  active:         'sf-pill pos',
-  cancel_pending: 'sf-pill warn',
-  cancelled:      'sf-pill neg',
+  active: 'bg-green-100 text-green-700',
+  cancel_pending: 'bg-orange-100 text-orange-700',
+  cancelled: 'bg-red-100 text-red-700',
 };
 
 export const USAGE_CATEGORY_LABEL: Record<UsageCategory, string> = {

@@ -2008,8 +2008,8 @@ export default function BLForm({ open, onOpenChange, onSubmit, editData, presetP
         )}
 
         {submitError && (
-          <div className="sf-banner neg">
-            <span className="sf-banner-body">{submitError}</span>
+          <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">
+            {submitError}
           </div>
         )}
 

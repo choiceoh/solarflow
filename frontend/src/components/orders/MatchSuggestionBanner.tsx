@@ -1,4 +1,4 @@
-import { CheckCircle2, Sparkles } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { formatNumber } from '@/lib/utils';
 import type { MatchSuggestion } from '@/types/orders';
 
@@ -15,16 +15,14 @@ const MESSAGE: Record<MatchSuggestion['match_type'], string> = {
 export default function MatchSuggestionBanner({ suggestion }: Props) {
   const isExact = suggestion.match_type === 'exact';
   return (
-    <div className={`sf-banner ${isExact ? 'pos' : 'info'}`}>
-      {isExact
-        ? <CheckCircle2 className="sf-banner-icon h-3.5 w-3.5" />
-        : <Sparkles className="sf-banner-icon h-3.5 w-3.5" />}
-      <div className="sf-banner-body">
-        <div className="font-semibold">{MESSAGE[suggestion.match_type]}</div>
-        {suggestion.difference !== 0 && (
-          <div className="sf-mono mt-0.5 text-[11px] tabular-nums">차액 {formatNumber(Math.abs(suggestion.difference))}원</div>
-        )}
-      </div>
+    <div className={cn(
+      'rounded-md border p-3 text-xs',
+      isExact ? 'border-green-300 bg-green-50 text-green-800' : 'border-blue-300 bg-blue-50 text-blue-800'
+    )}>
+      <p className="font-medium">{MESSAGE[suggestion.match_type]}</p>
+      {suggestion.difference !== 0 && (
+        <p className="mt-0.5">차액: {formatNumber(Math.abs(suggestion.difference))}원</p>
+      )}
     </div>
   );
 }
