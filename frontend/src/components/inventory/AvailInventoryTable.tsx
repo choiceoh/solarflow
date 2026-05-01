@@ -245,11 +245,11 @@ export default function AvailInventoryTable({
   }
 
   return (
-    <div className="rounded-md border overflow-hidden">
+    <div className="rounded-md border overflow-hidden sf-avail-table">
       <table className="w-full">
         <thead className="bg-muted/50">
           <tr>
-            <th className="w-8" />
+            <th className="w-10" />
             <th className="text-left">품목</th>
             <th className="text-right">실재고</th>
             <th className="text-right">미착품</th>
@@ -329,7 +329,7 @@ export default function AvailInventoryTable({
                   {/* 가용재고 — 단일 강조 */}
                   <td className="text-right tabular-nums">
                     <span
-                      className="font-bold text-[15px]"
+                      className="font-bold text-[17px]"
                       style={{
                         color: item.total_secured_kw > 0 ? 'var(--sf-pos)' : 'var(--sf-ink-4)',
                       }}

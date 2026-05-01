@@ -988,6 +988,41 @@ a:focus-visible,
   min-height: 100%;
 }
 
+/* 가용재고 테이블 — InventoryPage가 .sf-page 밖이라 글로벌 table CSS가 안 닿음.
+   직접 td/th 패딩·폰트를 정의해서 행 높이를 충분히 확보. */
+.sf-avail-table {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.sf-avail-table table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.sf-avail-table thead th {
+  padding: 12px 14px;
+  background: var(--sf-bg-2);
+  border-bottom: 1px solid var(--sf-line-2);
+  color: var(--sf-ink-3);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-align: left;
+}
+.sf-avail-table thead th.text-right { text-align: right; }
+.sf-avail-table thead th.text-center { text-align: center; }
+.sf-avail-table tbody td {
+  padding: 14px 14px;
+  border-top: 1px solid var(--sf-line);
+  color: var(--sf-ink-2);
+  vertical-align: middle;
+}
+.sf-avail-table tbody tr:hover td {
+  background: var(--sf-solar-tint);
+}
+
 .sf-inventory-main {
   min-width: 0;
   padding: 16px;
