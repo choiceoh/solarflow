@@ -93,12 +93,12 @@ export const BL_STATUS_LABEL: Record<BLStatus, string> = {
 };
 
 export const BL_STATUS_COLOR: Record<BLStatus, string> = {
-  scheduled: 'bg-gray-100 text-gray-700',
-  shipping: 'bg-blue-100 text-blue-700',
-  arrived: 'bg-yellow-100 text-yellow-700',
-  customs: 'bg-orange-100 text-orange-700',
-  completed: 'bg-green-100 text-green-700',
-  erp_done: 'bg-purple-100 text-purple-700',
+  scheduled: 'sf-pill ghost',
+  shipping:  'sf-pill info',
+  arrived:   'sf-pill warn',
+  customs:   'sf-pill warn',
+  completed: 'sf-pill pos',
+  erp_done:  'sf-pill solar',
 };
 
 export const USAGE_CATEGORIES: Record<string, string> = {
