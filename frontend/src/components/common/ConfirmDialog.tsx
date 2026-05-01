@@ -1,3 +1,4 @@
+import { AlertTriangle, HelpCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -29,12 +30,28 @@ export default function ConfirmDialog({
   confirmLabel,
   variant = 'default',
 }: ConfirmDialogProps) {
+  const isDestructive = variant === 'destructive';
+  const Icon = isDestructive ? AlertTriangle : HelpCircle;
+  const iconBg = isDestructive ? 'var(--sf-neg-bg)' : 'var(--sf-info-bg)';
+  const iconColor = isDestructive ? 'var(--sf-neg)' : 'var(--sf-info)';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <div className="flex items-start gap-3">
+            <div
+              className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+              style={{ background: iconBg, color: iconColor }}
+              aria-hidden
+            >
+              <Icon className="h-4 w-4" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <DialogTitle>{title}</DialogTitle>
+              <DialogDescription className="mt-1">{description}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
