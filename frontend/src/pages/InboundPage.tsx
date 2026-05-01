@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback, type DragEvent as ReactDragE
 import { useLocation } from 'react-router-dom';
 import { Plus, CheckCircle2, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { useBLList } from '@/hooks/useInbound';
 import { fetchWithAuth } from '@/lib/api';
@@ -12,15 +11,10 @@ import BLListTable from '@/components/inbound/BLListTable';
 import BLDetailView from '@/components/inbound/BLDetailView';
 import BLForm from '@/components/inbound/BLForm';
 import { MasterConsole } from '@/components/command/MasterConsole';
-import { RailBlock, Sparkline } from '@/components/command/MockupPrimitives';
+import { FilterButton, RailBlock, Sparkline } from '@/components/command/MockupPrimitives';
 import { INBOUND_TYPE_LABEL, BL_STATUS_LABEL, type InboundType, type BLStatus } from '@/types/inbound';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 import { saveBLShipmentWithLines } from '@/lib/blShipment';
-
-/* 필터 드롭다운 표시용 헬퍼 — UUID/영문 대신 한글 표시 */
-function FilterText({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
 
 function isCustomsOCRAcceptedFile(file: File) {
   const name = file.name.toLowerCase();
@@ -232,30 +226,20 @@ export default function InboundPage() {
           </>
         }
         toolbar={
-          <div className="flex flex-wrap gap-2">
-            <Select value={typeFilter || 'all'} onValueChange={(v) => setTypeFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-8 w-36 text-xs">
-                <FilterText text={typeFilterLabel} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">입고 구분</SelectItem>
-                {(Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-8 w-28 text-xs">
-                <FilterText text={statusFilterLabel} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">입고 현황</SelectItem>
-                {(Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterButton items={[
+            {
+              label: '입고 구분',
+              value: typeFilter,
+              onChange: setTypeFilter,
+              options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '입고 현황',
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+          ]} />
         }
         metrics={[
           { label: 'B/L 건수', value: data.length.toLocaleString(), sub: statusFilterLabel, tone: 'solar', spark: [12, 14, 13, 18, data.length || 1] },

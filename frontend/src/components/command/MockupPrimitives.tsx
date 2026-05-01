@@ -1,4 +1,3 @@
-import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 type Tone = 'solar' | 'ink' | 'info' | 'warn' | 'pos' | 'neg';
@@ -184,9 +183,18 @@ export function FilterChips({
   );
 }
 
-export function DropFilter({ label, options }: { label: string; options: string[] }) {
+export type FilterItem = {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+  options: { value: string; label: string }[];
+  disabled?: boolean;
+};
+
+const isAllValue = (v: string) => !v || v === 'all';
+
+export function FilterButton({ items }: { items: FilterItem[] }) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -198,91 +206,125 @@ export function DropFilter({ label, options }: { label: string; options: string[
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const isAll = selected === 0;
+  const activeCount = items.filter((it) => !isAllValue(it.value)).length;
+  const reset = () => items.forEach((it) => { if (!it.disabled && !isAllValue(it.value)) it.onChange(''); });
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
         onClick={() => setOpen((v) => !v)}
+        type="button"
         style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          height: 26,
-          padding: '0 9px',
-          background: isAll ? 'var(--surface)' : 'var(--bg-2)',
+          display: 'inline-flex', alignItems: 'center', gap: 6,
+          height: 28, padding: '0 10px',
+          background: activeCount > 0 ? 'var(--bg-2)' : 'var(--surface)',
           border: `1px solid ${open ? 'var(--solar-3)' : 'var(--line)'}`,
           borderRadius: 4,
           fontFamily: 'inherit',
-          fontSize: 11.5,
-          fontWeight: isAll ? 500 : 600,
-          color: isAll ? 'var(--ink-2)' : 'var(--ink)',
+          fontSize: 11.5, fontWeight: 600,
+          color: 'var(--ink)',
           cursor: 'pointer',
-          letterSpacing: 0,
-          whiteSpace: 'nowrap',
+          letterSpacing: '-0.005em',
         }}
-        type="button"
       >
-        <span style={{ color: 'var(--ink-4)', fontSize: 10, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600 }}>{label}</span>
-        <span style={{ color: 'var(--line-2)' }}>·</span>
-        <span>{isAll ? '전체' : options[selected]}</span>
-        <ChevronDown className="h-3 w-3 text-[var(--ink-4)]" />
+        <svg width="12" height="12" viewBox="0 0 14 14" style={{ color: 'var(--ink-3)' }}>
+          <path d="M2 3 H12 L8.5 7.5 V11.5 L5.5 12.5 V7.5 Z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+        <span>필터</span>
+        {activeCount > 0 ? (
+          <span className="mono tnum" style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            minWidth: 16, height: 16, padding: '0 4px',
+            background: 'var(--solar-3)', color: '#fff',
+            borderRadius: 8, fontSize: 9.5, fontWeight: 700,
+          }}>{activeCount}</span>
+        ) : null}
       </button>
       {open ? (
         <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 4px)',
-          right: 0,
-          zIndex: 20,
-          minWidth: 160,
-          background: 'var(--surface)',
-          border: '1px solid var(--line)',
-          borderRadius: 4,
-          boxShadow: '0 8px 24px rgba(28,25,23,0.10), 0 2px 4px rgba(28,25,23,0.06)',
-          padding: 4,
-          maxHeight: 280,
-          overflowY: 'auto',
+          position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 30,
+          width: 280, background: 'var(--surface)',
+          border: '1px solid var(--line)', borderRadius: 6,
+          boxShadow: '0 12px 32px rgba(28,25,23,0.12), 0 2px 6px rgba(28,25,23,0.06)',
         }}>
-          {options.map((o, i) => {
-            const active = i === selected;
-            return (
-              <button
-                key={o}
-                onClick={() => { setSelected(i); setOpen(false); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  width: '100%',
-                  padding: '6px 10px',
-                  background: active ? 'var(--bg-2)' : 'transparent',
-                  border: 'none',
-                  borderRadius: 3,
-                  fontFamily: 'inherit',
-                  fontSize: 12,
-                  fontWeight: active ? 600 : 500,
-                  color: active ? 'var(--ink)' : 'var(--ink-2)',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-                type="button"
-              >
-                <span>{i === 0 ? '전체' : o}</span>
-                {active ? <span style={{ color: 'var(--solar-3)' }}>✓</span> : null}
-              </button>
-            );
-          })}
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '10px 14px', borderBottom: '1px solid var(--line)',
+          }}>
+            <span className="eyebrow" style={{ color: 'var(--ink-2)' }}>필터 · {items.length}</span>
+            <button
+              onClick={reset}
+              type="button"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--ink-3)', fontFamily: 'inherit',
+                fontSize: 11, padding: 0,
+              }}
+            >초기화</button>
+          </div>
+          <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 360, overflowY: 'auto' }}>
+            {items.map((it) => {
+              const allActive = isAllValue(it.value);
+              return (
+                <div key={it.label} style={{ opacity: it.disabled ? 0.5 : 1 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--ink-2)', fontWeight: 600, marginBottom: 6, letterSpacing: '-0.005em' }}>{it.label}</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                    <FilterChip label="전체" active={allActive} disabled={it.disabled} onClick={() => it.onChange('')} />
+                    {it.options.map((o) => (
+                      <FilterChip
+                        key={o.value}
+                        label={o.label}
+                        active={!allActive && it.value === o.value}
+                        disabled={it.disabled}
+                        onClick={() => it.onChange(o.value)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ borderTop: '1px solid var(--line)', padding: '8px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={() => setOpen(false)}
+              type="button"
+              style={{
+                padding: '6px 12px', background: 'var(--ink)', color: '#fff',
+                border: 'none', borderRadius: 3,
+                fontFamily: 'inherit', fontSize: 11.5, fontWeight: 600,
+                cursor: 'pointer', letterSpacing: '-0.005em',
+              }}
+            >닫기</button>
+          </div>
         </div>
       ) : null}
     </div>
   );
 }
 
-export function FilterButton({ items }: { items: { label: string; options: string[] }[] }) {
+function FilterChip({ label, active, disabled, onClick }: {
+  label: string;
+  active: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-      {items.map((item) => (
-        <DropFilter key={item.label} label={item.label} options={item.options} />
-      ))}
-    </div>
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
+      style={{
+        padding: '4px 9px',
+        background: active ? 'var(--ink)' : 'var(--bg-2)',
+        border: `1px solid ${active ? 'var(--ink)' : 'var(--line)'}`,
+        borderRadius: 3,
+        fontFamily: 'inherit',
+        fontSize: 11,
+        fontWeight: active ? 600 : 500,
+        color: active ? '#fff' : 'var(--ink-2)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        letterSpacing: '-0.005em',
+      }}
+    >{label}</button>
   );
 }

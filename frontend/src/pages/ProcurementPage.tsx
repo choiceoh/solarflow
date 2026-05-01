@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, History, ScanText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 
 import { useAppStore } from '@/stores/appStore';
 import { usePOList, useLCList, useTTList, usePriceHistoryList } from '@/hooks/useProcurement';
@@ -22,7 +21,7 @@ import PriceHistoryTable from '@/components/procurement/PriceHistoryTable';
 import PriceHistoryForm from '@/components/procurement/PriceHistoryForm';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 import { PO_STATUS_LABEL, CONTRACT_TYPE_LABEL, CONTRACT_TYPES_ACTIVE, LC_STATUS_LABEL, TT_STATUS_LABEL } from '@/types/procurement';
-import type { PurchaseOrder, POLineItem, LCRecord, TTRemittance, PriceHistory, POStatus, ContractType, LCStatus, TTStatus } from '@/types/procurement';
+import type { PurchaseOrder, POLineItem, LCRecord, TTRemittance, PriceHistory, POStatus, LCStatus, TTStatus } from '@/types/procurement';
 import type { Manufacturer, Bank } from '@/types/masters';
 import { useBLList } from '@/hooks/useInbound';
 import BLListTable from '@/components/inbound/BLListTable';
@@ -30,11 +29,7 @@ import BLDetailView from '@/components/inbound/BLDetailView';
 import BLForm from '@/components/inbound/BLForm';
 import { saveBLShipmentWithLines } from '@/lib/blShipment';
 import { INBOUND_TYPE_LABEL, BL_STATUS_LABEL, type InboundType, type BLStatus } from '@/types/inbound';
-import { CardB, FilterChips, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
-
-function FT({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
+import { CardB, FilterButton, FilterChips, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
 
 const PROCUREMENT_TABS = new Set(['po', 'tt', 'lc', 'bl', 'price']);
 
@@ -537,19 +532,6 @@ export default function ProcurementPage() {
     reloadPH();
   };
 
-  // 필터 라벨 (한글 보장)
-  const poStatusLabel = poStatusFilter ? (PO_STATUS_LABEL[poStatusFilter as POStatus] ?? poStatusFilter) : '전체 상태';
-  const poMfgLabel = poMfgFilter ? (manufacturers.find(m => m.manufacturer_id === poMfgFilter)?.name_kr ?? '') : '전체 제조사';
-  const poTypeLabel = poTypeFilter ? (CONTRACT_TYPE_LABEL[poTypeFilter as ContractType] ?? poTypeFilter) : '전체 유형';
-  const lcStatusLabel = lcStatusFilter ? (LC_STATUS_LABEL[lcStatusFilter as LCStatus] ?? lcStatusFilter) : '전체 상태';
-  const lcBankLabel = lcBankFilter ? (banks.find(b => b.bank_id === lcBankFilter)?.bank_name ?? '') : '전체 은행';
-  const lcMfgLabel = lcMfgFilter ? (manufacturers.find(m => m.manufacturer_id === lcMfgFilter)?.name_kr ?? '') : '전체 제조사';
-  const blMfgLabel = blMfgFilter ? (manufacturers.find(m => m.manufacturer_id === blMfgFilter)?.name_kr ?? '') : '전체 제조사';
-  const depositMfgLabel = depositMfgFilter ? (manufacturers.find(m => m.manufacturer_id === depositMfgFilter)?.name_kr ?? '') : '전체 제조사';
-  const ttStatusLabel = ttStatusFilter ? (TT_STATUS_LABEL[ttStatusFilter as TTStatus] ?? ttStatusFilter) : '전체 상태';
-  const ttPoLabel = ttPoFilter ? (poList.find(p => p.po_id === ttPoFilter)?.po_number ?? '') : '전체 PO';
-  const phMfgLabel = phMfgFilter ? (manufacturers.find(m => m.manufacturer_id === phMfgFilter)?.name_kr ?? '') : '전체 제조사';
-
   const handleBLDropZoneDrag = (event: ReactDragEvent<HTMLDivElement>) => {
     if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
@@ -674,9 +656,26 @@ export default function ProcurementPage() {
 
         <TabsContent value="po">
           <div className="flex flex-wrap items-center gap-2 mb-3">
-            <Select value={poStatusFilter || 'all'} onValueChange={(v) => setPoStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={poStatusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(PO_STATUS_LABEL) as [POStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
-            <Select value={poMfgFilter || 'all'} onValueChange={(v) => setPoMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={poMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
-            <Select value={poTypeFilter || 'all'} onValueChange={(v) => setPoTypeFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={poTypeLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 유형</SelectItem>{CONTRACT_TYPES_ACTIVE.map(({ value, label }) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select>
+            <FilterButton items={[
+              {
+                label: '상태',
+                value: poStatusFilter,
+                onChange: setPoStatusFilter,
+                options: (Object.entries(PO_STATUS_LABEL) as [POStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+              },
+              {
+                label: '제조사',
+                value: poMfgFilter,
+                onChange: setPoMfgFilter,
+                options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+              },
+              {
+                label: '유형',
+                value: poTypeFilter,
+                onChange: setPoTypeFilter,
+                options: CONTRACT_TYPES_ACTIVE.map(({ value, label }) => ({ value, label })),
+              },
+            ]} />
             <div className="flex-1" />
             <Button size="sm" variant="outline" onClick={() => handleTabChange('price')}><History className="mr-1 h-4 w-4" />단가이력</Button>
             <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
@@ -710,9 +709,26 @@ export default function ProcurementPage() {
           ) : (
             <>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Select value={lcStatusFilter || 'all'} onValueChange={(v) => setLcStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={lcStatusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
-                <Select value={lcBankFilter || 'all'} onValueChange={(v) => setLcBankFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={lcBankLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 은행</SelectItem>{banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.bank_name}</SelectItem>)}</SelectContent></Select>
-                <Select value={lcMfgFilter || 'all'} onValueChange={(v) => setLcMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={lcMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
+                <FilterButton items={[
+                  {
+                    label: '상태',
+                    value: lcStatusFilter,
+                    onChange: setLcStatusFilter,
+                    options: (Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+                  },
+                  {
+                    label: '은행',
+                    value: lcBankFilter,
+                    onChange: setLcBankFilter,
+                    options: banks.map((b) => ({ value: b.bank_id, label: b.bank_name })),
+                  },
+                  {
+                    label: '제조사',
+                    value: lcMfgFilter,
+                    onChange: setLcMfgFilter,
+                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+                  },
+                ]} />
                 <div className="flex-1" />
                 <Button size="sm" onClick={() => openLCWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
               </div>
@@ -738,7 +754,14 @@ export default function ProcurementPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-foreground">계약금 현황</h2>
               <div className="flex-1" />
-              <Select value={depositMfgFilter || 'all'} onValueChange={(v) => setDepositMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={depositMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
+              <FilterButton items={[
+                {
+                  label: '제조사',
+                  value: depositMfgFilter,
+                  onChange: setDepositMfgFilter,
+                  options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+                },
+              ]} />
             </div>
             <DepositStatusPanel
               pos={depositMfgFilter ? poList.filter(p => p.manufacturer_id === depositMfgFilter) : poList}
@@ -753,8 +776,20 @@ export default function ProcurementPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-foreground">T/T 송금 이력</h2>
               <div className="flex-1" />
-              <Select value={ttStatusFilter || 'all'} onValueChange={(v) => setTtStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={ttStatusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(TT_STATUS_LABEL) as [TTStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
-              <Select value={ttPoFilter || 'all'} onValueChange={(v) => setTtPoFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-36 text-xs"><FT text={ttPoLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 PO</SelectItem>{poList.map((p) => <SelectItem key={p.po_id} value={p.po_id}>{p.po_number || p.po_id.slice(0, 8)}</SelectItem>)}</SelectContent></Select>
+              <FilterButton items={[
+                {
+                  label: '상태',
+                  value: ttStatusFilter,
+                  onChange: setTtStatusFilter,
+                  options: (Object.entries(TT_STATUS_LABEL) as [TTStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+                },
+                {
+                  label: 'PO',
+                  value: ttPoFilter,
+                  onChange: setTtPoFilter,
+                  options: poList.map((p) => ({ value: p.po_id, label: p.po_number || p.po_id.slice(0, 8) })),
+                },
+              ]} />
               <Button size="sm" onClick={() => { setEditTT(null); setTtFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />수동 등록</Button>
             </div>
             {ttLoading ? <LoadingSpinner /> : <TTListTable items={tts} onEdit={(tt) => { setEditTT(tt); setTtFormOpen(true); }} onNew={() => { setEditTT(null); setTtFormOpen(true); }} onDelete={handleDeleteTT} />}
@@ -806,21 +841,26 @@ export default function ProcurementPage() {
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2 mb-3">
-                <Select value={blTypeFilter || 'all'} onValueChange={(v) => setBlTypeFilter(v === 'all' ? '' : (v ?? ''))}>
-                  <SelectTrigger className="h-8 w-36 text-xs"><FT text={blTypeFilter ? (INBOUND_TYPE_LABEL[blTypeFilter as InboundType] ?? blTypeFilter) : '입고 구분'} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">입고 구분 (전체)</SelectItem>
-                    {(Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={blStatusFilter || 'all'} onValueChange={(v) => setBlStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-                  <SelectTrigger className="h-8 w-28 text-xs"><FT text={blStatusFilter ? (BL_STATUS_LABEL[blStatusFilter as BLStatus] ?? blStatusFilter) : '전체 현황'} /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">전체 현황</SelectItem>
-                    {(Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={blMfgFilter || 'all'} onValueChange={(v) => setBlMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={blMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
+                <FilterButton items={[
+                  {
+                    label: '입고 구분',
+                    value: blTypeFilter,
+                    onChange: setBlTypeFilter,
+                    options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
+                  },
+                  {
+                    label: '입고 현황',
+                    value: blStatusFilter,
+                    onChange: setBlStatusFilter,
+                    options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+                  },
+                  {
+                    label: '제조사',
+                    value: blMfgFilter,
+                    onChange: setBlMfgFilter,
+                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+                  },
+                ]} />
                 <div className="flex-1" />
                 <ExcelToolbar type="inbound" onImportComplete={() => { reloadBL(); setBlsVersion(v => v + 1); }} />
                 <Button size="sm" onClick={() => openBLWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
@@ -835,7 +875,14 @@ export default function ProcurementPage() {
         <TabsContent value="price" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-sm font-semibold text-foreground">단가이력</h2>
-            <Select value={phMfgFilter || 'all'} onValueChange={(v) => setPhMfgFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={phMfgLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 제조사</SelectItem>{manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}</SelectContent></Select>
+            <FilterButton items={[
+              {
+                label: '제조사',
+                value: phMfgFilter,
+                onChange: setPhMfgFilter,
+                options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+              },
+            ]} />
             <div className="flex-1" />
             <Button size="sm" variant="outline" onClick={() => handleTabChange('po')}>PO로 돌아가기</Button>
             <Button size="sm" variant="outline" onClick={handleBackfillPriceHistory} disabled={backfilling}>
