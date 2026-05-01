@@ -11,7 +11,7 @@ interface Props {
 
 export default function LimitChangeTable({ items }: Props) {
   if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-6">한도 변경 이력이 없습니다</p>;
+    return <p className="py-6 text-center text-sm" style={{ color: 'var(--sf-ink-3)' }}>한도 변경 이력이 없습니다</p>;
   }
 
   return (
@@ -36,8 +36,11 @@ export default function LimitChangeTable({ items }: Props) {
               <TableCell className="text-sm">{formatDate(c.change_date)}</TableCell>
               <TableCell className="text-sm text-right">{formatUSD(c.previous_limit)}</TableCell>
               <TableCell className="text-sm text-right">{formatUSD(c.new_limit)}</TableCell>
-              <TableCell className="text-sm text-right">
-                <span className={`inline-flex items-center gap-0.5 ${isIncrease ? 'text-green-600' : 'text-red-600'}`}>
+              <TableCell className="text-right text-sm tabular-nums">
+                <span
+                  className="inline-flex items-center gap-0.5 font-semibold"
+                  style={{ color: isIncrease ? 'var(--sf-pos)' : 'var(--sf-neg)' }}
+                >
                   {isIncrease ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />}
                   {formatUSD(Math.abs(diff))}
                 </span>
