@@ -855,7 +855,7 @@ export default function OrderForm({ open, onOpenChange, onSubmit, onPrefillCance
               </div>
             </div>
           )}
-          {submitError && <div className="rounded-md bg-destructive/10 border border-destructive/30 px-4 py-3 text-sm text-destructive">{submitError}</div>}
+          {submitError && <div className="sf-banner neg"><span className="sf-banner-body">{submitError}</span></div>}
           {!isPrefill && (
             <div className="space-y-3 rounded-md border bg-slate-50/70 p-3">
               <div>
