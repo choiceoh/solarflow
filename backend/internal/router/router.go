@@ -224,6 +224,13 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.With(write).Post("/{id}/clone", orderH.Clone)
 		})
 
+		// BARO Phase 3: 거래처별 미수금/한도 보드 — 바로(주) 사용자 전용
+		creditH := handler.NewCreditBoardHandler(db)
+		r.Route("/baro/credit-board", func(r chi.Router) {
+			r.Use(baroOnly)
+			r.Get("/", creditH.List)
+		})
+
 		// BARO Phase 2: 그룹내 매입 요청 — 바로(BARO)와 탑솔라(TS)가 같은 테이블에 다른 권한으로 접근
 		// - BARO: 등록/내 목록/취소/입고 확인
 		// - TS:   inbox 조회/거부/출고 연결

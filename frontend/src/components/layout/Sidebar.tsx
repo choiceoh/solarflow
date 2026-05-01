@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PackageCheck, ClipboardList, Truck,
   Calculator, Landmark, Database, Search, StickyNote,
   FileSignature, Settings, LogOut,
-  ScrollText, Wallet, Building2, Home, ScanText,
+  ScrollText, Wallet, Building2, Home, ScanText, Tags, PackagePlus, Inbox, ShieldAlert,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -55,6 +55,8 @@ const analysisItems: MenuItem[] = [
   { icon: LayoutDashboard, label: '대시보드',       path: '/dashboard' },                                 // 전체 공개 (내용은 권한별 분기)
   { icon: Landmark,        label: 'LC 한도/만기',   path: '/banking', roles: ['admin', 'operator', 'executive'], tenants: ['topsolar'] },
   { icon: Calculator,      label: '매출/이익 분석', path: '/sales-analysis', roles: ['admin', 'operator', 'executive'], tenants: ['topsolar'] },
+  // BARO Phase 3: 거래처별 미수금/한도 보드 (BARO 전용)
+  { icon: ShieldAlert,     label: '미수금/한도 보드', path: '/baro/credit-board', roles: ['admin', 'operator', 'executive'], tenants: ['baro'] },
 ];
 
 const dataItem: MenuItem = {
