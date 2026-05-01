@@ -16,6 +16,7 @@ import OrderForm, { type OrderPrefillData } from '@/components/orders/OrderForm'
 import ReceiptListTable from '@/components/orders/ReceiptListTable';
 import ReceiptForm from '@/components/orders/ReceiptForm';
 import ReceiptMatchingPanel from '@/components/orders/ReceiptMatchingPanel';
+import AutoMatchSection from '@/components/orders/AutoMatchSection';
 import OutboundListTable from '@/components/outbound/OutboundListTable';
 import OutboundDetailView from '@/components/outbound/OutboundDetailView';
 import OutboundForm from '@/components/outbound/OutboundForm';
@@ -970,7 +971,8 @@ export default function OrdersPage() {
         </TabsContent>
 
         {/* 탭 3: 수금 매칭 */}
-        <TabsContent value="matching" className="mt-4">
+        <TabsContent value="matching" className="mt-4 space-y-4">
+          <AutoMatchSection />
           <ReceiptMatchingPanel />
         </TabsContent>
               </Tabs>
