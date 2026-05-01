@@ -13,7 +13,6 @@ export interface Manufacturer {
   name_kr: string;
   name_en?: string;
   short_name?: string;   // 약칭 (예: 진코, 론지, 트리나) — 화면 표시용
-  tier: number;
   priority_rank: number;
   country: string;
   domestic_foreign: string;

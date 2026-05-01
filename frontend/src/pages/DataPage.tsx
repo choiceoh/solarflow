@@ -128,7 +128,6 @@ function useManufacturerConfig(): MasterSectionConfig<Manufacturer> {
     getLabel: (r) => r.name_kr,
     columns: [
       { key: 'priority_rank', label: '순위', sortable: true },
-      { key: 'tier', label: 'Tier', sortable: true, render: (r) => `Tier${r.tier ?? 3}` },
       { key: 'name_kr', label: '제조사명(한)', sortable: true },
       { key: 'name_en', label: '제조사명(영)', sortable: true },
       { key: 'country', label: '국가', sortable: true },
