@@ -205,6 +205,164 @@ func (h *AssistantHandler) ConfirmProposal(w http.ResponseWriter, r *http.Reques
 			"data": json.RawMessage(data),
 		})
 
+	case "update_note":
+		var args updateNoteToolInput
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		// 소유권 재확인
+		owner, ok, err := fetchNoteOwner(h.db, args.NoteID)
+		if err != nil {
+			log.Printf("[assistant write/confirm] note owner 조회 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "메모 소유 확인 실패")
+			return
+		}
+		if !ok {
+			response.RespondError(w, http.StatusNotFound, "메모를 찾을 수 없습니다")
+			return
+		}
+		if owner != userID {
+			response.RespondError(w, http.StatusForbidden, "본인이 작성한 메모만 수정할 수 있습니다")
+			return
+		}
+		req := model.UpdateNoteRequest{Content: args.Content, LinkedTable: args.LinkedTable, LinkedID: args.LinkedID}
+		if msg := req.Validate(); msg != "" {
+			response.RespondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		data, _, err := h.db.From("notes").Update(req, "", "").Eq("note_id", args.NoteID).Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] notes update 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "메모 수정에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
+	case "delete_note":
+		var args deleteNoteToolInput
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		owner, ok, err := fetchNoteOwner(h.db, args.NoteID)
+		if err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "메모 소유 확인 실패")
+			return
+		}
+		if !ok {
+			response.RespondError(w, http.StatusNotFound, "메모를 찾을 수 없습니다")
+			return
+		}
+		if owner != userID {
+			response.RespondError(w, http.StatusForbidden, "본인이 작성한 메모만 삭제할 수 있습니다")
+			return
+		}
+		_, _, err = h.db.From("notes").Delete("", "").Eq("note_id", args.NoteID).Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] notes delete 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "메모 삭제에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "deleted": args.NoteID})
+
+	case "update_partner":
+		var args updatePartnerToolInput
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		if msg := args.UpdatePartnerRequest.Validate(); msg != "" {
+			response.RespondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		data, _, err := h.db.From("partners").Update(args.UpdatePartnerRequest, "", "").Eq("partner_id", args.PartnerID).Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] partners update 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "거래처 수정에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
+	case "create_order":
+		var args model.CreateOrderRequest
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		if msg := args.Validate(); msg != "" {
+			response.RespondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		data, _, err := h.db.From("orders").Insert(args, false, "", "", "").Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] orders insert 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "수주 등록에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
+	case "create_outbound":
+		var args createOutboundToolInput
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		req := model.CreateOutboundRequest{
+			OutboundDate:    args.OutboundDate,
+			CompanyID:       args.CompanyID,
+			ProductID:       args.ProductID,
+			Quantity:        args.Quantity,
+			CapacityKw:      args.CapacityKw,
+			WarehouseID:     args.WarehouseID,
+			UsageCategory:   args.UsageCategory,
+			OrderID:         args.OrderID,
+			SiteName:        args.SiteName,
+			SiteAddress:     args.SiteAddress,
+			SpareQty:        args.SpareQty,
+			GroupTrade:      args.GroupTrade,
+			TargetCompanyID: args.TargetCompanyID,
+			ErpOutboundNo:   args.ErpOutboundNo,
+			Status:          args.Status,
+			Memo:            args.Memo,
+			BLID:            args.BLID,
+		}
+		if msg := req.Validate(); msg != "" {
+			response.RespondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		data, _, err := h.db.From("outbounds").Insert(req, false, "", "", "").Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] outbounds insert 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "출고 등록에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
+	case "create_receipt":
+		var args model.CreateReceiptRequest
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		if msg := args.Validate(); msg != "" {
+			response.RespondError(w, http.StatusBadRequest, msg)
+			return
+		}
+		data, _, err := h.db.From("receipts").Insert(args, false, "", "", "").Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] receipts insert 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "수금 등록에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
+		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
 	default:
 		response.RespondError(w, http.StatusBadRequest, "지원하지 않는 제안 종류: "+p.Kind)
 	}

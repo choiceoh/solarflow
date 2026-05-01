@@ -47,7 +47,13 @@ interface AssistantChatResponse {
 
 const PROPOSAL_KIND_LABEL: Record<string, string> = {
   create_note: '메모 작성',
+  update_note: '메모 수정',
+  delete_note: '메모 삭제',
   create_partner: '거래처 등록',
+  update_partner: '거래처 수정',
+  create_order: '수주 등록',
+  create_outbound: '출고 등록',
+  create_receipt: '수금 입력',
 };
 
 export default function AssistantPage() {
