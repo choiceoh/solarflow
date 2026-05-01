@@ -46,20 +46,19 @@ function summarizeLines(lines: POLineItem[]): LineSummary {
 }
 
 /* ─────────────────────────────────────────────
-   진행률 바
+   진행률 바 — mockup 톤별 색상 (완료 pos, 70%+ info, else warn)
    ───────────────────────────────────────────── */
 function ProgressBar({ pct, done }: { pct: number; done: boolean }) {
+  const tone = done ? 'var(--sf-pos)' : pct >= 70 ? 'var(--sf-info)' : 'var(--sf-warn)';
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
+      <div className="h-2 w-20 overflow-hidden rounded-full" style={{ background: 'var(--sf-line)' }}>
         <div
-          className={`h-full rounded-full transition-all ${done ? 'bg-green-500' : 'bg-blue-500'}`}
-          style={{ width: `${Math.min(100, pct).toFixed(0)}%` }}
+          className="h-full rounded-full transition-all"
+          style={{ width: `${Math.min(100, pct).toFixed(0)}%`, background: tone }}
         />
       </div>
-      <span className={`text-[10px] tabular-nums font-medium ${
-        done ? 'text-green-600' : pct >= 70 ? 'text-blue-600' : 'text-orange-500'
-      }`}>
+      <span className="sf-mono text-[10px] font-semibold tabular-nums" style={{ color: tone }}>
         {pct.toFixed(0)}%
       </span>
     </div>
@@ -90,11 +89,7 @@ function TTRow({
         {tt.remit_date ? formatDate(tt.remit_date) : '날짜 미정'}
       </td>
       <td className="px-3 py-2 text-center">
-        <span className={`text-[10px] rounded px-1.5 py-0.5 whitespace-nowrap ${
-          isDone ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
-        }`}>
-          {isDone ? '완료' : '예정'}
-        </span>
+        <span className={isDone ? 'sf-pill pos' : 'sf-pill warn'}>{isDone ? '완료' : '예정'}</span>
       </td>
       <td className="px-3 py-2 text-center">
         {onEdit && (
@@ -360,9 +355,7 @@ export default function DepositStatusPanel({ pos, tts, onPaymentCreated, onEditT
                           <Plus className="h-3 w-3 mr-0.5" />지급 등록
                         </Button>
                       ) : (
-                        <span className="text-[10px] bg-green-50 text-green-700 rounded px-1.5 py-0.5">
-                          납부완료
-                        </span>
+                        <span className="sf-pill pos">납부완료</span>
                       )}
                     </td>
                   </tr>
@@ -391,12 +384,8 @@ export default function DepositStatusPanel({ pos, tts, onPaymentCreated, onEditT
                               return (
                                 <div key={chainPo.po_id}>
                                   {/* 섹션 헤더 */}
-                                  <div className="flex items-center gap-2 mb-1.5">
-                                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
-                                      isLeaf
-                                        ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-slate-100 text-slate-600'
-                                    }`}>
+                                  <div className="mb-1.5 flex items-center gap-2">
+                                    <span className={isLeaf ? 'sf-pill info' : 'sf-pill ghost'}>
                                       {isLeaf
                                         ? `현재 계약 — ${chainPo.po_number ?? chainPo.po_id.slice(0, 8)}`
                                         : `원계약 승계 — ${chainPo.po_number ?? chainPo.po_id.slice(0, 8)}`}
