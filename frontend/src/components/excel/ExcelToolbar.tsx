@@ -49,8 +49,8 @@ export default function ExcelToolbar({ type, onImportComplete }: Props) {
 
           {/* 아마란스 내보내기 버튼 */}
           {amaranthType && (
-            <Button variant="outline" size="sm" onClick={() => setAmaranthOpen(true)}>
-              <FileOutput className="mr-1.5 h-4 w-4" />
+            <Button variant="outline" size="xs" onClick={() => setAmaranthOpen(true)}>
+              <FileOutput className="mr-1 h-3 w-3" />
               아마란스 {type === 'inbound' ? '입고' : '출고'}
             </Button>
           )}
@@ -58,8 +58,8 @@ export default function ExcelToolbar({ type, onImportComplete }: Props) {
           {type === 'sale' && (
             <TooltipProvider>
               <Tooltip>
-                <TooltipTrigger render={<Button variant="outline" size="sm" disabled />}>
-                  <FileOutput className="mr-1.5 h-4 w-4" />
+                <TooltipTrigger render={<Button variant="outline" size="xs" disabled />}>
+                  <FileOutput className="mr-1 h-3 w-3" />
                   아마란스 매출
                 </TooltipTrigger>
                 <TooltipContent>실물 양식 확인 후 구현</TooltipContent>

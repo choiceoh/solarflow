@@ -215,16 +215,17 @@ export function FilterButton({ items }: { items: FilterItem[] }) {
         onClick={() => setOpen((v) => !v)}
         type="button"
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-          height: 28, padding: '0 10px',
+          display: 'inline-flex', alignItems: 'center', gap: 4,
+          height: 24, padding: '0 8px',
           background: activeCount > 0 ? 'var(--bg-2)' : 'var(--surface)',
           border: `1px solid ${open ? 'var(--solar-3)' : 'var(--line)'}`,
-          borderRadius: 4,
+          borderRadius: 6,
           fontFamily: 'inherit',
-          fontSize: 11.5, fontWeight: 600,
+          fontSize: 12, fontWeight: 500,
           color: 'var(--ink)',
           cursor: 'pointer',
           letterSpacing: '-0.005em',
+          boxShadow: '0 1px 2px 0 rgba(0,0,0,0.05)',
         }}
       >
         <svg width="12" height="12" viewBox="0 0 14 14" style={{ color: 'var(--ink-3)' }}>

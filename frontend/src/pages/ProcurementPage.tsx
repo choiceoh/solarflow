@@ -628,8 +628,8 @@ export default function ProcurementPage() {
               options: CONTRACT_TYPES_ACTIVE.map(({ value, label }) => ({ value, label })),
             },
           ]} />
-          <Button size="sm" variant="outline" onClick={() => handleTabChange('price')}><History className="mr-1 h-4 w-4" />단가이력</Button>
-          <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+          <Button size="xs" variant="outline" onClick={() => handleTabChange('price')}><History className="mr-1 h-3 w-3" />단가이력</Button>
+          <Button size="xs" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-3 w-3" />새로 등록</Button>
         </>
       )}
       {activeTab === 'lc' && !lcFormOpen && (
@@ -655,7 +655,7 @@ export default function ProcurementPage() {
               options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
             },
           ]} />
-          <Button size="sm" onClick={() => openLCWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+          <Button size="xs" onClick={() => openLCWork()}><Plus className="mr-1 h-3 w-3" />새로 등록</Button>
         </>
       )}
       {activeTab === 'bl' && !blFormOpen && (
@@ -682,7 +682,7 @@ export default function ProcurementPage() {
             },
           ]} />
           <ExcelToolbar type="inbound" onImportComplete={() => { reloadBL(); setBlsVersion(v => v + 1); }} />
-          <Button size="sm" onClick={() => openBLWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+          <Button size="xs" onClick={() => openBLWork()}><Plus className="mr-1 h-3 w-3" />새로 등록</Button>
         </>
       )}
       {activeTab === 'price' && (
@@ -696,11 +696,11 @@ export default function ProcurementPage() {
               options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
             },
           ]} />
-          <Button size="sm" variant="outline" onClick={() => handleTabChange('po')}>PO로 돌아가기</Button>
-          <Button size="sm" variant="outline" onClick={handleBackfillPriceHistory} disabled={backfilling}>
+          <Button size="xs" variant="outline" onClick={() => handleTabChange('po')}>PO로 돌아가기</Button>
+          <Button size="xs" variant="outline" onClick={handleBackfillPriceHistory} disabled={backfilling}>
             {backfilling ? '생성 중…' : '기존 PO에서 일괄 생성'}
           </Button>
-          <Button size="sm" onClick={() => { setEditPH(null); setPhFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+          <Button size="xs" onClick={() => { setEditPH(null); setPhFormOpen(true); }}><Plus className="mr-1 h-3 w-3" />새로 등록</Button>
         </>
       )}
     </div>
@@ -847,7 +847,7 @@ export default function ProcurementPage() {
                   options: poList.map((p) => ({ value: p.po_id, label: p.po_number || p.po_id.slice(0, 8) })),
                 },
               ]} />
-              <Button size="sm" onClick={() => { setEditTT(null); setTtFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />수동 등록</Button>
+              <Button size="xs" onClick={() => { setEditTT(null); setTtFormOpen(true); }}><Plus className="mr-1 h-3 w-3" />수동 등록</Button>
             </div>
             {ttLoading ? <LoadingSpinner /> : <TTListTable items={tts} onEdit={(tt) => { setEditTT(tt); setTtFormOpen(true); }} onNew={() => { setEditTT(null); setTtFormOpen(true); }} onDelete={handleDeleteTT} />}
             <TTForm open={ttFormOpen} onOpenChange={setTtFormOpen} onSubmit={editTT ? handleUpdateTT : handleCreateTT} editData={editTT} />

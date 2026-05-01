@@ -233,8 +233,8 @@ export default function InboundPage() {
               },
             ]} />
             <ExcelToolbar type="inbound" />
-            <Button size="sm" onClick={() => setFormOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />새로 등록
+            <Button size="xs" onClick={() => setFormOpen(true)}>
+              <Plus className="mr-1 h-3 w-3" />새로 등록
             </Button>
           </div>
         }
