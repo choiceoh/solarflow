@@ -105,6 +105,75 @@ export default function OutboundPage() {
   const pendingInvoiceCount = sales.filter((sale) => !(sale.tax_invoice_date ?? sale.sale?.tax_invoice_date)).length;
   const recentOutbounds = outbounds.slice(0, 4);
 
+  const outboundCardControls = (
+    <div className="sf-card-controls">
+      <FilterChips
+        options={[
+          { key: 'outbound', label: '출고 관리', count: outbounds.length },
+          { key: 'sales', label: '매출 현황', count: sales.length },
+        ]}
+        value={activeTab}
+        onChange={(value) => setActiveTab(value as 'outbound' | 'sales')}
+      />
+      <div className="vr" style={{ height: 16 }} />
+      {activeTab === 'outbound' ? (
+        <>
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '용도',
+              value: usageFilter,
+              onChange: setUsageFilter,
+              options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '제조사',
+              value: mfgFilter,
+              onChange: setMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
+          <ExcelToolbar type="outbound" />
+          <Button size="sm" onClick={() => setFormOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          </Button>
+        </>
+      ) : (
+        <>
+          <FilterButton items={[
+            {
+              label: '거래처',
+              value: customerFilter,
+              onChange: setCustomerFilter,
+              options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+            },
+            {
+              label: '기간',
+              value: monthFilter,
+              onChange: setMonthFilter,
+              options: months.map((m) => ({ value: m, label: m })),
+            },
+            {
+              label: '계산서',
+              value: invoiceFilter,
+              onChange: setInvoiceFilter,
+              options: [
+                { value: 'issued', label: '발행' },
+                { value: 'pending', label: '미발행' },
+              ],
+            },
+          ]} />
+          <ExcelToolbar type="sale" />
+        </>
+      )}
+    </div>
+  );
+
   return (
     <>
       <MasterConsole
@@ -113,26 +182,7 @@ export default function OutboundPage() {
         description="출고 진행과 매출·계산서 상태를 같은 운영 화면에서 확인합니다."
         tableTitle={activeTab === 'outbound' ? '출고 관리' : '매출 현황'}
         tableSub={activeTab === 'outbound' ? `${outbounds.length.toLocaleString()}건 · ${statusLabel}` : `${sales.length.toLocaleString()}건 · ${invoiceLabel}`}
-        actions={
-          <>
-            {activeTab === 'outbound' ? <ExcelToolbar type="outbound" /> : <ExcelToolbar type="sale" />}
-            {activeTab === 'outbound' ? (
-              <Button size="sm" onClick={() => setFormOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />새로 등록
-              </Button>
-            ) : null}
-          </>
-        }
-        toolbar={
-          <FilterChips
-            options={[
-              { key: 'outbound', label: '출고 관리', count: outbounds.length },
-              { key: 'sales', label: '매출 현황', count: sales.length },
-            ]}
-            value={activeTab}
-            onChange={(value) => setActiveTab(value as 'outbound' | 'sales')}
-          />
-        }
+        toolbar={outboundCardControls}
         metrics={[
           { label: '출고 건수', value: outbounds.length.toLocaleString(), sub: statusLabel, tone: 'solar', spark: [14, 18, 16, 23, outbounds.length || 1] },
           { label: '정상 출고', value: activeCount.toLocaleString(), sub: usageLabel, tone: 'pos' },
@@ -162,27 +212,6 @@ export default function OutboundPage() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'outbound' | 'sales')}>
 
         <TabsContent value="outbound" className="space-y-4 mt-4">
-          <FilterButton items={[
-            {
-              label: '상태',
-              value: statusFilter,
-              onChange: setStatusFilter,
-              options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-            },
-            {
-              label: '용도',
-              value: usageFilter,
-              onChange: setUsageFilter,
-              options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
-            },
-            {
-              label: '제조사',
-              value: mfgFilter,
-              onChange: setMfgFilter,
-              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-            },
-          ]} />
-
           {obLoading ? <LoadingSpinner /> : (
             <OutboundListTable
               items={outbounds}
@@ -193,33 +222,6 @@ export default function OutboundPage() {
         </TabsContent>
 
         <TabsContent value="sales" className="space-y-4 mt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <FilterButton items={[
-              {
-                label: '거래처',
-                value: customerFilter,
-                onChange: setCustomerFilter,
-                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
-              },
-              {
-                label: '기간',
-                value: monthFilter,
-                onChange: setMonthFilter,
-                options: months.map((m) => ({ value: m, label: m })),
-              },
-              {
-                label: '계산서',
-                value: invoiceFilter,
-                onChange: setInvoiceFilter,
-                options: [
-                  { value: 'issued', label: '발행' },
-                  { value: 'pending', label: '미발행' },
-                ],
-              },
-            ]} />
-            <ExcelToolbar type="sale" />
-          </div>
-
           {saleLoading ? <LoadingSpinner /> : (
             <>
               <SaleSummaryCards items={sales} />
