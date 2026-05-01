@@ -19,3 +19,4 @@ rpa/amaranth-uploader/runtime/
 
 # graphify 산출물 (로컬 분석 결과, 커밋하지 않음)
 graphify-out/
+.webhook.env

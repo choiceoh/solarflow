@@ -277,11 +277,13 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.With(write).Delete("/{id}", receiptH.Delete)
 		})
 
-		matchH := handler.NewReceiptMatchHandler(db)
+		matchH := handler.NewReceiptMatchHandler(db, engineClient...)
 		r.Route("/receipt-matches", func(r chi.Router) {
 			r.Get("/", matchH.List)
 			r.With(write).Post("/", matchH.Create)
 			r.With(write).Delete("/{id}", matchH.Delete)
+			// 미매칭 수금 일괄 자동 매칭 (exact + remainder=0만 INSERT, 그 외는 검토 후보로 반환)
+			r.With(write).Post("/auto", matchH.AutoMatch)
 		})
 
 		outboundH := handler.NewOutboundHandler(db, engineClient...)
@@ -407,14 +409,23 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/receipts", importH.Receipts)
 		})
 
-		// 업무 도우미 — 인증 사용자용 라우트 (권한별 DB 조회·작성 도구 활성).
-		// 목업/익명용 bare LLM 패스스루는 /api/v1/public/assistant/chat 그대로 유지.
+		// AI 통합 입구 — /api/v1/assistant/* 한 네임스페이스로 chat·제안·OCR·자동매칭을 모음.
+		// Anthropic 분기는 권한별 읽기 전용 DB 조회 도구(tool use)를 노출.
 		// 쓰기는 항상 "제안 → 사용자 확인" 2단계: Chat이 제안만 만들고,
 		// /proposals/{id}/{confirm|reject} 에서 실제 DB 반영 또는 폐기.
+		// 목업/익명용 bare LLM 패스스루는 /api/v1/public/assistant/chat 그대로 유지.
+		// OCR / 자동매칭 라우트는 /api/v1/ocr/*, /api/v1/receipt-matches/auto의 alias — 같은 핸들러.
 		assistantH := handler.NewAssistantHandler(db)
-		r.Post("/assistant/chat", assistantH.Chat)
-		r.Post("/assistant/proposals/{id}/confirm", assistantH.ConfirmProposal)
-		r.Post("/assistant/proposals/{id}/reject", assistantH.RejectProposal)
+		r.Route("/assistant", func(r chi.Router) {
+			r.Post("/chat", assistantH.Chat)
+			r.Post("/proposals/{id}/confirm", assistantH.ConfirmProposal)
+			r.Post("/proposals/{id}/reject", assistantH.RejectProposal)
+			// OCR (alias of /api/v1/ocr/*)
+			r.Get("/ocr/health", ocrH.Health)
+			r.Post("/ocr/extract", ocrH.Extract)
+			// 수금 일괄 자동 매칭 (alias of /api/v1/receipt-matches/auto)
+			r.With(write).Post("/match/receipts/auto", matchH.AutoMatch)
+		})
 
 		// 비유: "내 인사카드 보기" — 로그인한 사용자의 프로필 조회
 		userH := handler.NewUserHandler(db)
@@ -424,6 +435,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Use(adminOnly)
 			r.Get("/", userH.ListUsers)
 			r.Post("/", userH.CreateUser)
+			r.Put("/{id}", userH.UpdateProfile)
 			r.Put("/{id}/role", userH.UpdateRole)
 			r.Put("/{id}/active", userH.UpdateActive)
 			r.Put("/{id}/password", userH.ResetPassword)
