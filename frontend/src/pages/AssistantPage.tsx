@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, Send, Trash2, User, X } from 'lucide-react';
+import { Bot, Check, Inbox, Send, Trash2, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -67,7 +67,15 @@ export default function AssistantPage() {
   const [model, setModel] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const scrollToMessage = (idx: number) => {
+    const el = document.getElementById(`assistant-msg-${idx}`);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedIdx(idx);
+    window.setTimeout(() => setHighlightedIdx((v) => (v === idx ? null : v)), 1500);
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -177,7 +185,8 @@ export default function AssistantPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
+    <div className="flex h-full min-h-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-3 p-4">
       <header className="flex flex-wrap items-center gap-3 border-b pb-3">
         <div className="flex items-center gap-2">
           <Bot className="h-6 w-6 text-[var(--sf-solar)]" />
@@ -212,7 +221,14 @@ export default function AssistantPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => (
-              <div key={i} className="flex flex-col gap-2">
+              <div
+                key={i}
+                id={`assistant-msg-${i}`}
+                className={cn(
+                  'flex flex-col gap-2 rounded-md transition-colors',
+                  highlightedIdx === i && 'bg-[var(--sf-solar)]/10 ring-2 ring-[var(--sf-solar)]/40',
+                )}
+              >
                 <Bubble role={m.role} content={m.content} />
                 {m.proposals?.map((p) => (
                   <ProposalCard
@@ -249,6 +265,14 @@ export default function AssistantPage() {
           <Send className="mr-1.5 h-5 w-5" />전송
         </Button>
       </div>
+      </div>
+
+      <PendingPanel
+        messages={messages}
+        onConfirm={onConfirm}
+        onReject={onReject}
+        onSelect={scrollToMessage}
+      />
     </div>
   );
 }
@@ -327,6 +351,96 @@ function ProposalCard({
           오류: {proposal.errorMessage ?? '알 수 없음'}
         </div>
       )}
+    </div>
+  );
+}
+
+function PendingPanel({
+  messages,
+  onConfirm,
+  onReject,
+  onSelect,
+}: {
+  messages: ChatMessage[];
+  onConfirm: (msgIdx: number, prop: ProposalState) => void;
+  onReject: (msgIdx: number, prop: ProposalState) => void;
+  onSelect: (msgIdx: number) => void;
+}) {
+  const pending = messages.flatMap((m, mi) =>
+    (m.proposals ?? [])
+      .filter((p) => p.status === 'pending')
+      .map((p) => ({ proposal: p, msgIdx: mi })),
+  );
+
+  return (
+    <aside className="hidden w-[340px] shrink-0 flex-col border-l bg-muted/10 lg:flex">
+      <header className="flex items-center gap-2 border-b px-4 py-3">
+        <Inbox className="h-4 w-4 text-[var(--sf-solar)]" />
+        <h3 className="text-sm font-semibold">승인 대기</h3>
+        <span className="ml-auto rounded-full bg-[var(--sf-solar)]/15 px-2 py-0.5 text-xs font-medium text-[var(--sf-solar)]">
+          {pending.length}건
+        </span>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-3">
+        {pending.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+            <Inbox className="h-7 w-7 opacity-30" />
+            <div>대기 중인 작업이 없습니다.</div>
+            <div className="text-xs opacity-70">AI 제안이 생기면 여기에 모입니다.</div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {pending.map(({ proposal, msgIdx }) => (
+              <PendingItem
+                key={proposal.id}
+                proposal={proposal}
+                onSelect={() => onSelect(msgIdx)}
+                onConfirm={() => onConfirm(msgIdx, proposal)}
+                onReject={() => onReject(msgIdx, proposal)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </aside>
+  );
+}
+
+function PendingItem({
+  proposal,
+  onSelect,
+  onConfirm,
+  onReject,
+}: {
+  proposal: ProposalState;
+  onSelect: () => void;
+  onConfirm: () => void;
+  onReject: () => void;
+}) {
+  const label = PROPOSAL_KIND_LABEL[proposal.kind] ?? proposal.kind;
+
+  return (
+    <div className="rounded-lg border border-amber-300/60 bg-amber-50/60 p-3 shadow-sm dark:border-amber-700/40 dark:bg-amber-900/20">
+      <button
+        type="button"
+        onClick={onSelect}
+        className="block w-full text-left"
+        title="채팅에서 보기"
+      >
+        <div className="text-xs font-medium text-amber-900 dark:text-amber-200">{label}</div>
+        <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm text-foreground/90">
+          {proposal.summary}
+        </div>
+      </button>
+      <div className="mt-2.5 flex gap-2">
+        <Button size="sm" className="h-8 flex-1 text-sm" onClick={onConfirm}>
+          <Check className="mr-1 h-4 w-4" />저장
+        </Button>
+        <Button size="sm" variant="outline" className="h-8 flex-1 text-sm" onClick={onReject}>
+          <X className="mr-1 h-4 w-4" />거부
+        </Button>
+      </div>
     </div>
   );
 }
