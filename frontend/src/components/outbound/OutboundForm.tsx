@@ -311,7 +311,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
   const warehouseLabel = warehouses.find(w => w.warehouse_id === warehouseId)?.warehouse_name ?? '';
   const usageCatLabel = (USAGE_CATEGORY_LABEL as Record<string, string>)[usageCat] ?? '';
   const orderLabel = selectedOrder
-    ? `${selectedOrder.order_number ?? selectedOrder.order_id.slice(0, 8)} · 잔량 ${orderRemainingQty(selectedOrder).toLocaleString('ko-KR')}EA`
+    ? `${selectedOrder.order_number ?? selectedOrder.order_id?.slice(0, 8) ?? '—'} · 잔량 ${orderRemainingQty(selectedOrder).toLocaleString('ko-KR')}EA`
     : (selectedOrderId ? '' : '');
   const targetLabel = companies.find(c => c.company_id === targetCompanyId)?.company_name ?? '';
 
@@ -332,7 +332,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
           <div className="rounded-md border bg-slate-50 px-3 py-2 text-xs text-slate-700">
             <div className="font-medium">수주에서 출고 등록</div>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
-              <span>수주 <b>{order.order_number ?? order.order_id.slice(0, 8)}</b></span>
+              <span>수주 <b>{order.order_number ?? order.order_id?.slice(0, 8) ?? '—'}</b></span>
               <span>거래처 <b>{order.customer_name ?? '—'}</b></span>
               <span>잔량 <b>{fmtInt(orderRemainingQty(order))} EA</b></span>
             </div>
@@ -517,7 +517,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
             {order && !editData ? (
               <div className="flex h-9 items-center gap-2 rounded-md border border-input bg-muted/30 px-3 text-sm">
                 <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                <span className="flex-1 truncate">{orderLabel || order.order_number || order.order_id.slice(0, 8)}</span>
+                <span className="flex-1 truncate">{orderLabel || order.order_number || order.order_id?.slice(0, 8) || '—'}</span>
               </div>
             ) : (
               <Select value={selectedOrderId ?? ''} onValueChange={(v) => setValue('order_id', v === '_none' ? '' : (v ?? ''))}>
@@ -526,7 +526,7 @@ export default function OutboundForm({ open, onOpenChange, onSubmit, editData, o
                   <SelectItem value="_none">연결 안함</SelectItem>
                   {orders.map((o) => (
                     <SelectItem key={o.order_id} value={o.order_id}>
-                      {o.order_number ?? o.order_id.slice(0, 8)} · {o.product_name ?? o.product_code ?? ''} · 잔량 {orderRemainingQty(o).toLocaleString('ko-KR')}EA
+                      {o.order_number ?? o.order_id?.slice(0, 8) ?? '—'} · {o.product_name ?? o.product_code ?? ''} · 잔량 {orderRemainingQty(o).toLocaleString('ko-KR')}EA
                     </SelectItem>
                   ))}
                 </SelectContent>
