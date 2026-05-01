@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/stores/appStore';
 import { fetchWithAuth } from '@/lib/api';
 import { formatNumber, formatDate } from '@/lib/utils';
-import LoadingSpinner from '@/components/common/LoadingSpinner';
+import SkeletonRows from '@/components/common/SkeletonRows';
 import OutstandingTable from './OutstandingTable';
 import MatchSuggestionBanner from './MatchSuggestionBanner';
 import MatchDifferenceDisplay from './MatchDifferenceDisplay';
@@ -177,7 +177,7 @@ export default function ReceiptMatchingPanel() {
             <CardContent className="pb-4 space-y-3">
               {suggestion && <MatchSuggestionBanner suggestion={suggestion} />}
 
-              {outstandingLoading ? <LoadingSpinner /> : (
+              {outstandingLoading ? <SkeletonRows rows={5} /> : (
                 <OutstandingTable
                   items={outstandingItems}
                   selectedIds={selectedIds}
@@ -208,17 +208,17 @@ export default function ReceiptMatchingPanel() {
           )}
 
           {successMsg && (
-            <div className="rounded-md border border-green-300 bg-green-50 p-3 text-xs text-green-800">
-              {successMsg}
+            <div className="sf-banner pos">
+              <Check className="sf-banner-icon h-3.5 w-3.5" />
+              <span className="sf-banner-body">{successMsg}</span>
             </div>
           )}
 
           <Separator />
 
-          {/* 매칭 이력 */}
           <div>
-            <h3 className="text-sm font-semibold mb-2">매칭 이력</h3>
-            {historyLoading ? <LoadingSpinner /> : (
+            <div className="sf-eyebrow mb-2">매칭 이력</div>
+            {historyLoading ? <SkeletonRows rows={4} /> : (
               <MatchHistoryTable items={matchHistory} receiptAmount={receiptAmount} />
             )}
           </div>
