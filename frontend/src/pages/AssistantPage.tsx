@@ -9,8 +9,9 @@ import {
   SelectTrigger,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { fetchWithAuth } from '@/lib/api';
 import { cn } from '@/lib/utils';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '';
 
 type Role = 'user' | 'assistant';
 type Provider = 'anthropic' | 'openai';
@@ -54,8 +55,10 @@ export default function AssistantPage() {
     setBusy(true);
 
     try {
-      const res = await fetchWithAuth<AssistantChatResponse>('/api/v1/assistant/chat', {
+      // 인증 불필요 public 라우트 — 목업/실제 모드 공통 사용 (mockFetchWithAuth 우회)
+      const res = await fetch(`${API_BASE_URL}/api/v1/public/assistant/chat`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: next,
           provider,
@@ -63,7 +66,12 @@ export default function AssistantPage() {
           system: SYSTEM_PROMPT,
         }),
       });
-      setMessages([...next, { role: 'assistant', content: res.content }]);
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`${res.status}: ${errBody.slice(0, 200)}`);
+      }
+      const data = (await res.json()) as AssistantChatResponse;
+      setMessages([...next, { role: 'assistant', content: data.content }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : '요청 실패');
     } finally {

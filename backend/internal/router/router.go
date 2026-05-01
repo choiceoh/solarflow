@@ -31,12 +31,16 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 		publicEngine = engineClient[0]
 	}
 	publicH := handler.NewPublicHandler(db, publicEngine)
+	publicAssistantH := handler.NewAssistantHandler()
 	r.Route("/api/v1/public", func(r chi.Router) {
 		r.Get("/login-stats", publicH.LoginStats)
 		r.Get("/fx/usdkrw", publicH.FXUsdKrw)
 		r.Get("/metals/{symbol}", publicH.MetalPrice)
 		r.Get("/polysilicon", publicH.Polysilicon)
 		r.Get("/scfi", publicH.SCFI)
+		// 업무 도우미 — 목업/실제 모드 공통 사용을 위해 public.
+		// CORS로 module/baro/localhost만 허용. Z.ai 쿼터 남용 시 IP 레이트리밋 추가 검토.
+		r.Post("/assistant/chat", publicAssistantH.Chat)
 	})
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -401,9 +405,7 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Post("/receipts", importH.Receipts)
 		})
 
-		// 비유: 업무 도우미 — Anthropic/OpenAI 호환 API 프록시 (provider/모델은 env)
-		assistantH := handler.NewAssistantHandler()
-		r.Post("/assistant/chat", assistantH.Chat)
+		// 업무 도우미는 /api/v1/public/assistant/chat로 이동 (목업 모드 호환)
 
 		// 비유: "내 인사카드 보기" — 로그인한 사용자의 프로필 조회
 		userH := handler.NewUserHandler(db)
