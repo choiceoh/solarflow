@@ -212,8 +212,8 @@ export default function CommandDashboard({
                       <th>품목</th>
                       <th className="text-right">실재고</th>
                       <th className="text-right">미착</th>
-                      <th className="text-right">가용</th>
                       <th className="text-right">확보</th>
+                      <th className="text-right">가용재고</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -225,8 +225,8 @@ export default function CommandDashboard({
                         </td>
                         <td className="sf-mono text-right">{kwToMw(item.physical_kw)}</td>
                         <td className="sf-mono text-right">{kwToMw(item.incoming_kw)}</td>
-                        <td className="sf-mono text-right text-[var(--sf-pos)]">{kwToMw(item.available_kw + item.available_incoming_kw)}</td>
-                        <td className="sf-mono text-right font-bold text-[var(--sf-ink)]">{kwToMw(item.total_secured_kw)}</td>
+                        <td className="sf-mono text-right">{kwToMw(item.total_secured_kw)}</td>
+                        <td className="sf-mono text-right font-bold text-[var(--sf-pos)]">{kwToMw(item.available_kw + item.available_incoming_kw)}</td>
                       </tr>
                     ))}
                     {topInventory.length === 0 ? (
