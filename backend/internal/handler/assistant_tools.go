@@ -45,8 +45,94 @@ func assistantToolCatalog() []assistantTool {
 		toolSearchOutbound(),
 		toolSearchReceipts(),
 		toolCreateNote(),
+		toolUpdateNote(),
+		toolDeleteNote(),
 		toolCreatePartner(),
+		toolUpdatePartner(),
+		toolCreateOrder(),
+		toolCreateOutbound(),
+		toolCreateReceipt(),
 	}
+}
+
+// fetchNoteOwner — notes 테이블에서 user_id를 꺼내 owner 검증용.
+// 존재하지 않으면 ("", false, err==nil) — 호출 측이 not found 처리.
+func fetchNoteOwner(db *supa.Client, noteID string) (string, bool, error) {
+	type row struct {
+		UserID string `json:"user_id"`
+	}
+	data, _, err := db.From("notes").
+		Select("user_id", "exact", false).
+		Eq("note_id", noteID).
+		Execute()
+	if err != nil {
+		return "", false, err
+	}
+	var rows []row
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return "", false, err
+	}
+	if len(rows) == 0 {
+		return "", false, nil
+	}
+	return rows[0].UserID, true, nil
+}
+
+// fetchNoteContentSnippet — 삭제/수정 제안 카드에 보여줄 본문 일부(80자).
+func fetchNoteContentSnippet(db *supa.Client, noteID string) (string, bool, error) {
+	type row struct {
+		Content string `json:"content"`
+	}
+	data, _, err := db.From("notes").
+		Select("content", "exact", false).
+		Eq("note_id", noteID).
+		Execute()
+	if err != nil {
+		return "", false, err
+	}
+	var rows []row
+	if err := json.Unmarshal(data, &rows); err != nil {
+		return "", false, err
+	}
+	if len(rows) == 0 {
+		return "", false, nil
+	}
+	c := rows[0].Content
+	r := []rune(c)
+	if len(r) > 80 {
+		c = string(r[:80]) + "…"
+	}
+	return c, true, nil
+}
+
+// proposeWrite — 공통 제안 등록 헬퍼. 페이로드 직렬화 + store put + collector add + 로그.
+func proposeWrite(ctx context.Context, kind, summary string, args interface{}) (string, error) {
+	userID := middleware.GetUserID(ctx)
+	if userID == "" {
+		return "", fmt.Errorf("인증 정보 없음")
+	}
+	payload, err := json.Marshal(args)
+	if err != nil {
+		return "", fmt.Errorf("페이로드 직렬화 실패: %w", err)
+	}
+	id := uuid.NewString()
+	now := time.Now()
+	p := &assistantProposal{
+		ID:        id,
+		UserID:    userID,
+		Kind:      kind,
+		Summary:   summary,
+		Payload:   payload,
+		CreatedAt: now,
+		ExpiresAt: now.Add(proposalTTL),
+	}
+	globalProposalStore.put(p)
+	if c := proposalCollectorFrom(ctx); c != nil {
+		c.add(proposalSummary{ID: id, Kind: kind, Summary: summary, Payload: payload})
+	}
+	log.Printf("[assistant write/propose] role=%s user=%s kind=%s id=%s",
+		middleware.GetUserRole(ctx), userID, kind, id)
+	return id, nil
 }
 
 func availableAssistantTools(ctx context.Context) []assistantTool {
@@ -529,4 +615,365 @@ func buildCreateNoteSummary(req model.CreateNoteRequest) string {
 		return fmt.Sprintf("메모 작성: %q (연결: %s/%s)", body, *req.LinkedTable, *req.LinkedID)
 	}
 	return fmt.Sprintf("메모 작성: %q", body)
+}
+
+// --- update_note (write — 본인 메모만) ---
+
+type updateNoteToolInput struct {
+	NoteID      string  `json:"note_id"`
+	Content     *string `json:"content,omitempty"`
+	LinkedTable *string `json:"linked_table,omitempty"`
+	LinkedID    *string `json:"linked_id,omitempty"`
+}
+
+func toolUpdateNote() assistantTool {
+	return assistantTool{
+		name:        "update_note",
+		description: "기존 메모 수정. 본인이 작성한 메모만 가능. content / linked_table+linked_id 중 변경할 필드만 지정.",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"note_id": {"type": "string", "description": "수정할 메모의 note_id (필수)"},
+				"content": {"type": "string", "description": "새 본문(2000자 이내)"},
+				"linked_table": {"type": "string", "description": "연결 대상 테이블 변경 (purchase_orders / bl_shipments / outbounds / orders / declarations)"},
+				"linked_id": {"type": "string", "description": "연결 대상 행 id 변경 (linked_table 지정 시 필수)"}
+			},
+			"required": ["note_id"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, db *supa.Client, input json.RawMessage) (string, error) {
+			userID := middleware.GetUserID(ctx)
+			if userID == "" {
+				return "", fmt.Errorf("인증 정보 없음")
+			}
+			var args updateNoteToolInput
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			if strings.TrimSpace(args.NoteID) == "" {
+				return "", fmt.Errorf("note_id는 필수입니다")
+			}
+			owner, ok, err := fetchNoteOwner(db, args.NoteID)
+			if err != nil {
+				return "", fmt.Errorf("메모 조회 실패: %w", err)
+			}
+			if !ok {
+				return "", fmt.Errorf("note_id=%s 메모를 찾을 수 없습니다", args.NoteID)
+			}
+			if owner != userID {
+				return "", fmt.Errorf("본인이 작성한 메모만 수정할 수 있습니다")
+			}
+
+			// model의 UpdateNoteRequest 검증 재사용
+			req := model.UpdateNoteRequest{
+				Content:     args.Content,
+				LinkedTable: args.LinkedTable,
+				LinkedID:    args.LinkedID,
+			}
+			if msg := req.Validate(); msg != "" {
+				return "", fmt.Errorf("검증 실패: %s", msg)
+			}
+
+			snippet, _, _ := fetchNoteContentSnippet(db, args.NoteID)
+			summary := fmt.Sprintf("메모 수정: id=%s (현재: %q)", args.NoteID, snippet)
+
+			id, err := proposeWrite(ctx, "update_note", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("메모 수정 제안 생성됨(id=%s). 사용자가 [저장]을 눌러야 반영됩니다.", id), nil
+		},
+	}
+}
+
+// --- delete_note (write — 본인 메모만) ---
+
+type deleteNoteToolInput struct {
+	NoteID string `json:"note_id"`
+}
+
+func toolDeleteNote() assistantTool {
+	return assistantTool{
+		name:        "delete_note",
+		description: "메모 삭제. 본인이 작성한 메모만 가능.",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"note_id": {"type": "string", "description": "삭제할 메모의 note_id"}
+			},
+			"required": ["note_id"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, db *supa.Client, input json.RawMessage) (string, error) {
+			userID := middleware.GetUserID(ctx)
+			if userID == "" {
+				return "", fmt.Errorf("인증 정보 없음")
+			}
+			var args deleteNoteToolInput
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			if strings.TrimSpace(args.NoteID) == "" {
+				return "", fmt.Errorf("note_id는 필수입니다")
+			}
+			owner, ok, err := fetchNoteOwner(db, args.NoteID)
+			if err != nil {
+				return "", fmt.Errorf("메모 조회 실패: %w", err)
+			}
+			if !ok {
+				return "", fmt.Errorf("note_id=%s 메모를 찾을 수 없습니다", args.NoteID)
+			}
+			if owner != userID {
+				return "", fmt.Errorf("본인이 작성한 메모만 삭제할 수 있습니다")
+			}
+
+			snippet, _, _ := fetchNoteContentSnippet(db, args.NoteID)
+			summary := fmt.Sprintf("메모 삭제: id=%s (%q)", args.NoteID, snippet)
+
+			id, err := proposeWrite(ctx, "delete_note", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("메모 삭제 제안 생성됨(id=%s). 사용자가 [저장]을 눌러야 실제로 삭제됩니다.", id), nil
+		},
+	}
+}
+
+// --- update_partner (write) ---
+
+type updatePartnerToolInput struct {
+	PartnerID string `json:"partner_id"`
+	model.UpdatePartnerRequest
+}
+
+func toolUpdatePartner() assistantTool {
+	return assistantTool{
+		name:        "update_partner",
+		description: "거래처 정보 수정. partner_id 필수. 변경할 필드만 지정.",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"partner_id": {"type": "string"},
+				"partner_name": {"type": "string", "description": "100자 이내"},
+				"partner_type": {"type": "string", "description": "supplier / customer / both 중 하나"},
+				"erp_code": {"type": "string"},
+				"payment_terms": {"type": "string"},
+				"contact_name": {"type": "string"},
+				"contact_phone": {"type": "string"},
+				"contact_email": {"type": "string"},
+				"credit_limit_krw": {"type": "number"},
+				"credit_payment_days": {"type": "integer"}
+			},
+			"required": ["partner_id"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, _ *supa.Client, input json.RawMessage) (string, error) {
+			var args updatePartnerToolInput
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			if strings.TrimSpace(args.PartnerID) == "" {
+				return "", fmt.Errorf("partner_id는 필수입니다")
+			}
+			if msg := args.UpdatePartnerRequest.Validate(); msg != "" {
+				return "", fmt.Errorf("검증 실패: %s", msg)
+			}
+			summary := fmt.Sprintf("거래처 수정: partner_id=%s", args.PartnerID)
+			if args.PartnerName != nil {
+				summary += fmt.Sprintf(", 이름→%s", *args.PartnerName)
+			}
+			id, err := proposeWrite(ctx, "update_partner", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("거래처 수정 제안 생성됨(id=%s). [저장] 클릭 시 반영.", id), nil
+		},
+	}
+}
+
+// --- create_order (수주 등록) ---
+
+func toolCreateOrder() assistantTool {
+	return assistantTool{
+		name:        "create_order",
+		description: "수주(orders) 신규 등록. 필수: company_id, customer_id, order_date, receipt_method, product_id, quantity, unit_price_wp, status. receipt_method∈{purchase_order,phone,email,other}, status∈{received,partial,completed,cancelled}.",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"order_number": {"type": "string"},
+				"company_id": {"type": "string"},
+				"customer_id": {"type": "string"},
+				"order_date": {"type": "string", "description": "YYYY-MM-DD"},
+				"receipt_method": {"type": "string"},
+				"product_id": {"type": "string"},
+				"quantity": {"type": "integer"},
+				"capacity_kw": {"type": "number"},
+				"unit_price_wp": {"type": "number"},
+				"site_id": {"type": "string"},
+				"site_name": {"type": "string"},
+				"site_address": {"type": "string"},
+				"site_contact": {"type": "string"},
+				"site_phone": {"type": "string"},
+				"payment_terms": {"type": "string"},
+				"deposit_rate": {"type": "number"},
+				"delivery_due": {"type": "string"},
+				"status": {"type": "string"},
+				"management_category": {"type": "string"},
+				"fulfillment_source": {"type": "string"},
+				"spare_qty": {"type": "integer"},
+				"memo": {"type": "string"},
+				"bl_id": {"type": "string"}
+			},
+			"required": ["company_id", "customer_id", "order_date", "receipt_method", "product_id", "quantity", "unit_price_wp", "status"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, _ *supa.Client, input json.RawMessage) (string, error) {
+			var args model.CreateOrderRequest
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			if msg := args.Validate(); msg != "" {
+				return "", fmt.Errorf("검증 실패: %s", msg)
+			}
+			summary := fmt.Sprintf(
+				"수주 등록: customer=%s, product=%s, qty=%d, unit_price_wp=%.2f, date=%s, status=%s",
+				args.CustomerID, args.ProductID, args.Quantity, args.UnitPriceWp, args.OrderDate, args.Status,
+			)
+			id, err := proposeWrite(ctx, "create_order", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("수주 등록 제안 생성됨(id=%s). 사용자가 회사/고객/품목/수량/단가를 한 번 더 확인 후 [저장] 클릭 시 반영됩니다.", id), nil
+		},
+	}
+}
+
+// --- create_outbound (출고 등록) ---
+// BLItems(B/L 라인 할당)는 v1에서 미지원 — 단순 출고 1건만.
+
+type createOutboundToolInput struct {
+	OutboundDate    string   `json:"outbound_date"`
+	CompanyID       string   `json:"company_id"`
+	ProductID       string   `json:"product_id"`
+	Quantity        int      `json:"quantity"`
+	CapacityKw      *float64 `json:"capacity_kw,omitempty"`
+	WarehouseID     string   `json:"warehouse_id"`
+	UsageCategory   string   `json:"usage_category"`
+	OrderID         *string  `json:"order_id,omitempty"`
+	SiteName        *string  `json:"site_name,omitempty"`
+	SiteAddress     *string  `json:"site_address,omitempty"`
+	SpareQty        *int     `json:"spare_qty,omitempty"`
+	GroupTrade      *bool    `json:"group_trade,omitempty"`
+	TargetCompanyID *string  `json:"target_company_id,omitempty"`
+	ErpOutboundNo   *string  `json:"erp_outbound_no,omitempty"`
+	Status          string   `json:"status,omitempty"`
+	Memo            *string  `json:"memo,omitempty"`
+	BLID            *string  `json:"bl_id,omitempty"`
+}
+
+func toolCreateOutbound() assistantTool {
+	return assistantTool{
+		name:        "create_outbound",
+		description: "출고/판매 1건 등록. B/L 라인 할당(bl_items)은 미지원 — 필요 시 출고 메뉴에서 직접 입력 안내. 필수: outbound_date, company_id, product_id, quantity, warehouse_id, usage_category. usage_category∈{sale,sale_spare,construction,construction_damage,repowering,maintenance,disposal,transfer,adjustment,other}.",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"outbound_date": {"type": "string"},
+				"company_id": {"type": "string"},
+				"product_id": {"type": "string"},
+				"quantity": {"type": "integer"},
+				"capacity_kw": {"type": "number"},
+				"warehouse_id": {"type": "string"},
+				"usage_category": {"type": "string"},
+				"order_id": {"type": "string"},
+				"site_name": {"type": "string"},
+				"site_address": {"type": "string"},
+				"spare_qty": {"type": "integer"},
+				"group_trade": {"type": "boolean"},
+				"target_company_id": {"type": "string"},
+				"erp_outbound_no": {"type": "string"},
+				"status": {"type": "string"},
+				"memo": {"type": "string"},
+				"bl_id": {"type": "string"}
+			},
+			"required": ["outbound_date", "company_id", "product_id", "quantity", "warehouse_id", "usage_category"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, _ *supa.Client, input json.RawMessage) (string, error) {
+			var args createOutboundToolInput
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			req := model.CreateOutboundRequest{
+				OutboundDate:    args.OutboundDate,
+				CompanyID:       args.CompanyID,
+				ProductID:       args.ProductID,
+				Quantity:        args.Quantity,
+				CapacityKw:      args.CapacityKw,
+				WarehouseID:     args.WarehouseID,
+				UsageCategory:   args.UsageCategory,
+				OrderID:         args.OrderID,
+				SiteName:        args.SiteName,
+				SiteAddress:     args.SiteAddress,
+				SpareQty:        args.SpareQty,
+				GroupTrade:      args.GroupTrade,
+				TargetCompanyID: args.TargetCompanyID,
+				ErpOutboundNo:   args.ErpOutboundNo,
+				Status:          args.Status,
+				Memo:            args.Memo,
+				BLID:            args.BLID,
+			}
+			if msg := req.Validate(); msg != "" {
+				return "", fmt.Errorf("검증 실패: %s", msg)
+			}
+			summary := fmt.Sprintf(
+				"출고 등록: date=%s, product=%s, qty=%d, warehouse=%s, usage=%s",
+				args.OutboundDate, args.ProductID, args.Quantity, args.WarehouseID, args.UsageCategory,
+			)
+			id, err := proposeWrite(ctx, "create_outbound", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("출고 등록 제안 생성됨(id=%s). 재고에 영향이 있으니 품목·수량·창고를 한 번 더 확인 후 [저장] 클릭 바랍니다.", id), nil
+		},
+	}
+}
+
+// --- create_receipt (수금 입력) ---
+
+func toolCreateReceipt() assistantTool {
+	return assistantTool{
+		name:        "create_receipt",
+		description: "수금(receipts) 입력. 필수: customer_id, receipt_date, amount(>0).",
+		inputSchema: json.RawMessage(`{
+			"type": "object",
+			"properties": {
+				"customer_id": {"type": "string"},
+				"receipt_date": {"type": "string", "description": "YYYY-MM-DD"},
+				"amount": {"type": "number", "description": "양수, KRW"},
+				"bank_account": {"type": "string"},
+				"memo": {"type": "string"}
+			},
+			"required": ["customer_id", "receipt_date", "amount"]
+		}`),
+		allow: func(ctx context.Context) bool { return roleIn(ctx, "admin", "operator") },
+		execute: func(ctx context.Context, _ *supa.Client, input json.RawMessage) (string, error) {
+			var args model.CreateReceiptRequest
+			if err := json.Unmarshal(input, &args); err != nil {
+				return "", fmt.Errorf("입력 파싱 실패: %w", err)
+			}
+			if msg := args.Validate(); msg != "" {
+				return "", fmt.Errorf("검증 실패: %s", msg)
+			}
+			summary := fmt.Sprintf(
+				"수금 등록: customer=%s, date=%s, amount=%.0f KRW",
+				args.CustomerID, args.ReceiptDate, args.Amount,
+			)
+			id, err := proposeWrite(ctx, "create_receipt", summary, args)
+			if err != nil {
+				return "", err
+			}
+			return fmt.Sprintf("수금 등록 제안 생성됨(id=%s). 거래처·금액·일자 확인 후 [저장] 클릭.", id), nil
+		},
+	}
 }
