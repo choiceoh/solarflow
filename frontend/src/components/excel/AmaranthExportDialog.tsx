@@ -2,7 +2,7 @@
 // 비유: 기간 선택 → 아마란스 양식 .xlsx 다운로드
 
 import { useState } from 'react';
-import { Download, UploadCloud } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Download, UploadCloud } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -146,8 +146,18 @@ export default function AmaranthExportDialog({ type, open, onClose }: Props) {
               <DateInput id="to" value={to} onChange={setTo} />
             </div>
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
-          {jobMessage && <p className="text-xs text-emerald-700">{jobMessage}</p>}
+          {error && (
+            <div className="sf-banner neg">
+              <AlertTriangle className="sf-banner-icon h-3.5 w-3.5" />
+              <span className="sf-banner-body text-[11px]">{error}</span>
+            </div>
+          )}
+          {jobMessage && (
+            <div className="sf-banner pos">
+              <CheckCircle2 className="sf-banner-icon h-3.5 w-3.5" />
+              <span className="sf-banner-body text-[11px]">{jobMessage}</span>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
