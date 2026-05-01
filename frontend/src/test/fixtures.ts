@@ -9,7 +9,6 @@ export const testManufacturer = {
   manufacturer_id: 'mfg-1',
   name_kr: '진코솔라',
   short_name: '진코',
-  tier: 1,
   priority_rank: 1,
   country: '중국',
   domestic_foreign: '해외',

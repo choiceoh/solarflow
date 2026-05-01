@@ -17,7 +17,6 @@ const schema = z.object({
   name_kr: z.string().min(1, '제조사명(한)은 필수입니다'),
   name_en: z.string().optional(),
   short_name: z.string().max(20, '약칭은 20자 이내').optional(),
-  tier: z.number().int().min(1, 'Tier는 1 이상').max(9, 'Tier는 9 이하'),
   priority_rank: z.number().int().min(1, '표시순위는 1 이상'),
   country: z.string().min(1, '국가는 필수입니다'),
   domestic_foreign: z.string().min(1, '국내/해외 구분은 필수입니다'),
@@ -30,12 +29,11 @@ function buildDefaults(editData?: Manufacturer | null): ManufacturerFormData {
       name_kr: editData.name_kr,
       name_en: editData.name_en ?? '',
       short_name: editData.short_name ?? '',
-      tier: editData.tier ?? 3,
       priority_rank: editData.priority_rank ?? 999,
       country: editData.country,
       domestic_foreign: editData.domestic_foreign,
     }
-    : { name_kr: '', name_en: '', short_name: '', tier: 3, priority_rank: 999, country: '', domestic_foreign: '' };
+    : { name_kr: '', name_en: '', short_name: '', priority_rank: 999, country: '', domestic_foreign: '' };
 }
 
 interface FieldsProps {
@@ -62,17 +60,10 @@ function ManufacturerFields({ register, errors, watch, setValue }: FieldsProps) 
         <Input {...register('short_name')} placeholder="예: 진코" maxLength={20} />
         {errors.short_name && <p className="text-xs text-destructive">{errors.short_name.message}</p>}
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label>Tier *</Label>
-          <Input type="number" min={1} max={9} {...register('tier', { valueAsNumber: true })} />
-          {errors.tier && <p className="text-xs text-destructive">{errors.tier.message}</p>}
-        </div>
-        <div className="space-y-1.5">
-          <Label>표시순위 *</Label>
-          <Input type="number" min={1} {...register('priority_rank', { valueAsNumber: true })} placeholder="예: 10" />
-          {errors.priority_rank && <p className="text-xs text-destructive">{errors.priority_rank.message}</p>}
-        </div>
+      <div className="space-y-1.5">
+        <Label>표시순위 * <span className="text-muted-foreground font-normal text-xs">(낮을수록 드롭다운 위에 표시)</span></Label>
+        <Input type="number" min={1} {...register('priority_rank', { valueAsNumber: true })} placeholder="예: 10" />
+        {errors.priority_rank && <p className="text-xs text-destructive">{errors.priority_rank.message}</p>}
       </div>
       <div className="space-y-1.5">
         <Label>국가 *</Label>

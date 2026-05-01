@@ -11,12 +11,12 @@ const companies = [
 ];
 
 const manufacturers = [
-  { manufacturer_id: 'mfg-jko', name_kr: '진코솔라', name_en: 'JinkoSolar', short_name: 'JKO', tier: 1, priority_rank: 1, country: '중국', domestic_foreign: 'foreign', is_active: true },
-  { manufacturer_id: 'mfg-jas', name_kr: 'JA솔라', name_en: 'JA Solar', short_name: 'JAS', tier: 1, priority_rank: 2, country: '중국', domestic_foreign: 'foreign', is_active: true },
-  { manufacturer_id: 'mfg-trn', name_kr: '트리나솔라', name_en: 'Trina Solar', short_name: 'TRN', tier: 1, priority_rank: 3, country: '중국', domestic_foreign: 'foreign', is_active: true },
-  { manufacturer_id: 'mfg-lon', name_kr: '론지', name_en: 'LONGi', short_name: 'LON', tier: 1, priority_rank: 4, country: '중국', domestic_foreign: 'foreign', is_active: true },
-  { manufacturer_id: 'mfg-csi', name_kr: '캐나디안솔라', name_en: 'Canadian Solar', short_name: 'CSI', tier: 1, priority_rank: 5, country: '중국', domestic_foreign: 'foreign', is_active: true },
-  { manufacturer_id: 'mfg-hnw', name_kr: '한화큐셀', name_en: 'Hanwha Q.Cells', short_name: 'HNW', tier: 1, priority_rank: 6, country: '한국', domestic_foreign: 'domestic', is_active: true },
+  { manufacturer_id: 'mfg-jko', name_kr: '진코솔라', name_en: 'JinkoSolar', short_name: 'JKO', priority_rank: 1, country: '중국', domestic_foreign: 'foreign', is_active: true },
+  { manufacturer_id: 'mfg-jas', name_kr: 'JA솔라', name_en: 'JA Solar', short_name: 'JAS', priority_rank: 2, country: '중국', domestic_foreign: 'foreign', is_active: true },
+  { manufacturer_id: 'mfg-trn', name_kr: '트리나솔라', name_en: 'Trina Solar', short_name: 'TRN', priority_rank: 3, country: '중국', domestic_foreign: 'foreign', is_active: true },
+  { manufacturer_id: 'mfg-lon', name_kr: '론지', name_en: 'LONGi', short_name: 'LON', priority_rank: 4, country: '중국', domestic_foreign: 'foreign', is_active: true },
+  { manufacturer_id: 'mfg-csi', name_kr: '캐나디안솔라', name_en: 'Canadian Solar', short_name: 'CSI', priority_rank: 5, country: '중국', domestic_foreign: 'foreign', is_active: true },
+  { manufacturer_id: 'mfg-hnw', name_kr: '한화큐셀', name_en: 'Hanwha Q.Cells', short_name: 'HNW', priority_rank: 6, country: '한국', domestic_foreign: 'domestic', is_active: true },
 ];
 
 const products = [
