@@ -1130,7 +1130,7 @@ export default function OrdersPage() {
         open={!!deletingOrder}
         onOpenChange={(o) => { if (!o) setDeletingOrder(null); }}
         title="수주 삭제"
-        description={deletingOrder ? `${deletingOrder.order_number ?? deletingOrder.order_id.slice(0, 8)} 수주를 삭제합니다. 연결된 출고가 있으면 삭제가 제한될 수 있습니다.` : ''}
+        description={deletingOrder ? `${deletingOrder.order_number ?? deletingOrder.order_id?.slice(0, 8) ?? '—'} 수주를 삭제합니다. 연결된 출고가 있으면 삭제가 제한될 수 있습니다.` : ''}
         onConfirm={handleDeleteOrder}
         loading={orderActionLoading}
         variant="destructive"

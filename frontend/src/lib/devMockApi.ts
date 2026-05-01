@@ -468,7 +468,9 @@ async function readJsonBody(options?: RequestInit): Promise<MockRow> {
 function collectionRoute<T>(url: URL, body: MockRow, rows: MockRow[], idKey: string, collection: string): T {
   const id = endpointId(url.pathname, collection);
   if (id) {
-    return clone((rows.find((row) => row[idKey] === id) ?? {}) as T);
+    const row = rows.find((row) => row[idKey] === id);
+    if (!row) throw new Error(`목업 ${collection} 항목을 찾을 수 없습니다 (id=${id})`);
+    return clone(row as T);
   }
   return clone(filterRows(rows as CompanyScoped[], url, body) as T);
 }
