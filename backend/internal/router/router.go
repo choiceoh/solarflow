@@ -277,11 +277,13 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.With(write).Delete("/{id}", receiptH.Delete)
 		})
 
-		matchH := handler.NewReceiptMatchHandler(db)
+		matchH := handler.NewReceiptMatchHandler(db, engineClient...)
 		r.Route("/receipt-matches", func(r chi.Router) {
 			r.Get("/", matchH.List)
 			r.With(write).Post("/", matchH.Create)
 			r.With(write).Delete("/{id}", matchH.Delete)
+			// 미매칭 수금 일괄 자동 매칭 (exact + remainder=0만 INSERT, 그 외는 검토 후보로 반환)
+			r.With(write).Post("/auto", matchH.AutoMatch)
 		})
 
 		outboundH := handler.NewOutboundHandler(db, engineClient...)
