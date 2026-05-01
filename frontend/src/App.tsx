@@ -23,6 +23,7 @@ const MemoPage = lazy(() => import('@/pages/MemoPage'));
 const SearchPage = lazy(() => import('@/pages/SearchPage'));
 const OCRPage = lazy(() => import('@/pages/OCRPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
 const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 const CompanyPage = lazy(() => import('@/pages/masters/CompanyPage'));
 const ManufacturerPage = lazy(() => import('@/pages/masters/ManufacturerPage'));
@@ -112,6 +113,7 @@ export default function App() {
                 <Route path="/ocr" element={<RoleGuard allowedRoles={['admin', 'operator']}><OCRPage /></RoleGuard>} />
                 <Route path="/memo" element={<MemoPage />} />
                 <Route path="/approval" element={<ApprovalPage />} />
+                <Route path="/assistant" element={<AssistantPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Route>
             </Route>

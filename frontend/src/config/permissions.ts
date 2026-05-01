@@ -38,6 +38,7 @@ export type MenuKey =
   | 'ocr'           // 문서 OCR
   | 'memo'          // 메모
   | 'approval'      // 결재안
+  | 'assistant'     // AI 업무 도우미
   | 'settings'      // 설정 (admin 전용)
   // BARO 테넌트 전용 메뉴
   | 'baro_group_purchase'   // BARO: 그룹내 매입 요청 등록
@@ -91,7 +92,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
   },
   operator: {
     menus: ['procurement','lc','inbound','inventory','orders','outbound','receipts',
-            'dashboard','banking','customs','masters','search','ocr','memo','approval',
+            'dashboard','banking','customs','masters','search','ocr','memo','approval','assistant',
             'baro_group_purchase','baro_dispatch','baro_credit','baro_price_book','baro_inbox'],
     // 대시보드는 전략 뷰 통일. 운영 업무(알림 처리·수주 잔량 등)는 각 메뉴에서 진행.
     dashboardType: 'strategic',
@@ -109,7 +110,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   executive: {
-    menus: ['inventory','orders','outbound','receipts','dashboard','banking','customs','search',
+    menus: ['inventory','orders','outbound','receipts','dashboard','banking','customs','search','assistant',
             'baro_credit'],
     dashboardType: 'strategic',
     features: {
@@ -126,7 +127,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   manager: {
-    menus: ['inventory','dashboard','search'],
+    menus: ['inventory','dashboard','search','assistant'],
     dashboardType: 'strategic',
     features: {
       canEdit: false,
