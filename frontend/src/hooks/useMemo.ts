@@ -1,30 +1,21 @@
 // 메모 CRUD 훅 (Step 31)
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { fetchWithAuth } from '@/lib/api';
+import { useListQuery } from '@/lib/queryHelpers';
 import type { Note } from '@/types/memo';
 
 export function useNoteList(linkedTable?: string, linkedId?: string) {
-  const [data, setData] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
+  return useListQuery<Note>(
+    ['notes', linkedTable, linkedId],
+    async () => {
       const params = new URLSearchParams();
       if (linkedTable) params.set('linked_table', linkedTable);
       if (linkedId) params.set('linked_id', linkedId);
       const notes = await fetchWithAuth<Note[]>(`/api/v1/notes?${params}`);
-      // 최신순 정렬
       notes.sort((a, b) => b.created_at.localeCompare(a.created_at));
-      setData(notes);
-    } catch { setData([]); }
-    setLoading(false);
-  }, [linkedTable, linkedId]);
-
-  // 초기/의존성 변경 시 데이터 재조회 — load 내부에서 setLoading/setData를 호출하므로 룰 비활성화
-  // eslint-disable-next-line react-hooks/set-state-in-effect
-  useEffect(() => { load(); }, [load]);
-  return { data, loading, reload: load };
+      return notes;
+    },
+  );
 }
 
 export function useNoteActions() {
