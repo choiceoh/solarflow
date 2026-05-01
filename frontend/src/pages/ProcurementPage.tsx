@@ -602,6 +602,110 @@ export default function ProcurementPage() {
       { lbl: '계약 유형', v: String(new Set(poRows.map(po => po.contract_type)).size), u: '종', sub: 'spot/frame 관리', tone: 'pos' as const },
     ];
 
+  const procurementCardControls = (
+    <div className="sf-card-controls">
+      <FilterChips options={PROC_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
+      {activeTab === 'po' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: poStatusFilter,
+              onChange: setPoStatusFilter,
+              options: (Object.entries(PO_STATUS_LABEL) as [POStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '제조사',
+              value: poMfgFilter,
+              onChange: setPoMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+            {
+              label: '유형',
+              value: poTypeFilter,
+              onChange: setPoTypeFilter,
+              options: CONTRACT_TYPES_ACTIVE.map(({ value, label }) => ({ value, label })),
+            },
+          ]} />
+          <Button size="sm" variant="outline" onClick={() => handleTabChange('price')}><History className="mr-1 h-4 w-4" />단가이력</Button>
+          <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+        </>
+      )}
+      {activeTab === 'lc' && !lcFormOpen && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: lcStatusFilter,
+              onChange: setLcStatusFilter,
+              options: (Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '은행',
+              value: lcBankFilter,
+              onChange: setLcBankFilter,
+              options: banks.map((b) => ({ value: b.bank_id, label: b.bank_name })),
+            },
+            {
+              label: '제조사',
+              value: lcMfgFilter,
+              onChange: setLcMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
+          <Button size="sm" onClick={() => openLCWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+        </>
+      )}
+      {activeTab === 'bl' && !blFormOpen && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '입고 구분',
+              value: blTypeFilter,
+              onChange: setBlTypeFilter,
+              options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '입고 현황',
+              value: blStatusFilter,
+              onChange: setBlStatusFilter,
+              options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '제조사',
+              value: blMfgFilter,
+              onChange: setBlMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
+          <ExcelToolbar type="inbound" onImportComplete={() => { reloadBL(); setBlsVersion(v => v + 1); }} />
+          <Button size="sm" onClick={() => openBLWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+        </>
+      )}
+      {activeTab === 'price' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '제조사',
+              value: phMfgFilter,
+              onChange: setPhMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
+          <Button size="sm" variant="outline" onClick={() => handleTabChange('po')}>PO로 돌아가기</Button>
+          <Button size="sm" variant="outline" onClick={handleBackfillPriceHistory} disabled={backfilling}>
+            {backfilling ? '생성 중…' : '기존 PO에서 일괄 생성'}
+          </Button>
+          <Button size="sm" onClick={() => { setEditPH(null); setPhFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div
       className="sf-page sf-procurement-page sf-dropzone-page min-h-[calc(100vh-5rem)] transition-shadow"
@@ -651,37 +755,12 @@ export default function ProcurementPage() {
           <CardB
             title={pageTitle}
             sub={pageSub}
-            right={<FilterChips options={PROC_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />}
+            right={procurementCardControls}
           >
             <div className="sf-command-tab-body">
               <Tabs value={activeTab} onValueChange={handleTabChange}>
 
         <TabsContent value="po">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <FilterButton items={[
-              {
-                label: '상태',
-                value: poStatusFilter,
-                onChange: setPoStatusFilter,
-                options: (Object.entries(PO_STATUS_LABEL) as [POStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-              },
-              {
-                label: '제조사',
-                value: poMfgFilter,
-                onChange: setPoMfgFilter,
-                options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-              },
-              {
-                label: '유형',
-                value: poTypeFilter,
-                onChange: setPoTypeFilter,
-                options: CONTRACT_TYPES_ACTIVE.map(({ value, label }) => ({ value, label })),
-              },
-            ]} />
-            <div className="flex-1" />
-            <Button size="sm" variant="outline" onClick={() => handleTabChange('price')}><History className="mr-1 h-4 w-4" />단가이력</Button>
-            <Button size="sm" onClick={() => setPoFormOpen(true)}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
-          </div>
           {poLoading ? <SkeletonRows rows={8} /> : (
             <POListTable
               items={poRows}
@@ -710,30 +789,6 @@ export default function ProcurementPage() {
             />
           ) : (
             <>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <FilterButton items={[
-                  {
-                    label: '상태',
-                    value: lcStatusFilter,
-                    onChange: setLcStatusFilter,
-                    options: (Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-                  },
-                  {
-                    label: '은행',
-                    value: lcBankFilter,
-                    onChange: setLcBankFilter,
-                    options: banks.map((b) => ({ value: b.bank_id, label: b.bank_name })),
-                  },
-                  {
-                    label: '제조사',
-                    value: lcMfgFilter,
-                    onChange: setLcMfgFilter,
-                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-                  },
-                ]} />
-                <div className="flex-1" />
-                <Button size="sm" onClick={() => openLCWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
-              </div>
               {lcLoading ? <SkeletonRows rows={8} /> : (
                 <LCListTable
                   items={lcRows}
@@ -839,31 +894,6 @@ export default function ProcurementPage() {
                   <span className="sf-pill ghost">PDF · JPG · PNG</span>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <FilterButton items={[
-                  {
-                    label: '입고 구분',
-                    value: blTypeFilter,
-                    onChange: setBlTypeFilter,
-                    options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
-                  },
-                  {
-                    label: '입고 현황',
-                    value: blStatusFilter,
-                    onChange: setBlStatusFilter,
-                    options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-                  },
-                  {
-                    label: '제조사',
-                    value: blMfgFilter,
-                    onChange: setBlMfgFilter,
-                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-                  },
-                ]} />
-                <div className="flex-1" />
-                <ExcelToolbar type="inbound" onImportComplete={() => { reloadBL(); setBlsVersion(v => v + 1); }} />
-                <Button size="sm" onClick={() => openBLWork()}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
-              </div>
               {blLoading ? <SkeletonRows rows={8} /> : (
                 <BLListTable items={blRows} onSelect={(bl) => setSelectedBL(bl.bl_id)} onNew={() => openBLWork()} onDelete={handleDeleteBL} />
               )}
@@ -872,24 +902,6 @@ export default function ProcurementPage() {
         </TabsContent>
 
         <TabsContent value="price" className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-sm font-semibold text-foreground">단가이력</h2>
-            <FilterButton items={[
-              {
-                label: '제조사',
-                value: phMfgFilter,
-                onChange: setPhMfgFilter,
-                options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-              },
-            ]} />
-            <div className="flex-1" />
-            <Button size="sm" variant="outline" onClick={() => handleTabChange('po')}>PO로 돌아가기</Button>
-            <Button size="sm" variant="outline" onClick={handleBackfillPriceHistory} disabled={backfilling}>
-              {backfilling ? '생성 중…' : '기존 PO에서 일괄 생성'}
-            </Button>
-            <Button size="sm" onClick={() => { setEditPH(null); setPhFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />새로 등록</Button>
-          </div>
-
           {/* 일괄 생성 결과 배너 */}
           {backfillResult && (
             <div className={`flex items-center justify-between rounded-md px-4 py-2.5 text-sm border ${backfillResult.created > 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-muted border-muted-foreground/20 text-muted-foreground'}`}>

@@ -216,29 +216,27 @@ export default function InboundPage() {
         description="B/L, 면장 OCR, 입고 상태를 하나의 수입 물류 콘솔에서 관리합니다."
         tableTitle="B/L 목록"
         tableSub={`${data.length.toLocaleString()}건 · ${typeFilterLabel} · ${statusFilterLabel}`}
-        actions={
-          <>
+        toolbar={
+          <div className="sf-card-controls">
+            <FilterButton items={[
+              {
+                label: '입고 구분',
+                value: typeFilter,
+                onChange: setTypeFilter,
+                options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
+              },
+              {
+                label: '입고 현황',
+                value: statusFilter,
+                onChange: setStatusFilter,
+                options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+              },
+            ]} />
             <ExcelToolbar type="inbound" />
             <Button size="sm" onClick={() => setFormOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" />새로 등록
             </Button>
-          </>
-        }
-        toolbar={
-          <FilterButton items={[
-            {
-              label: '입고 구분',
-              value: typeFilter,
-              onChange: setTypeFilter,
-              options: (Object.entries(INBOUND_TYPE_LABEL) as [InboundType, string][]).map(([k, v]) => ({ value: k, label: v })),
-            },
-            {
-              label: '입고 현황',
-              value: statusFilter,
-              onChange: setStatusFilter,
-              options: (Object.entries(BL_STATUS_LABEL) as [BLStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-            },
-          ]} />
+          </div>
         }
         metrics={[
           { label: 'B/L 건수', value: data.length.toLocaleString(), sub: statusFilterLabel, tone: 'solar', spark: [12, 14, 13, 18, data.length || 1] },

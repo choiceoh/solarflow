@@ -76,6 +76,20 @@ export default function BankingPage() {
     activeTab === 'demand' ? 'PO 기반 한도 소요 전망' :
     `${visibleGroups.length}개 법인 · ${allLimitRows.length}개 은행`;
 
+  const bankingCardControls = (
+    <div className="sf-card-controls">
+      <FilterChips options={BANKING_TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />
+      {activeTab === 'changes' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <Button size="sm" onClick={() => setLcFormOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />변경 등록
+          </Button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="sf-page">
       <div className="sf-procurement-layout">
@@ -90,7 +104,7 @@ export default function BankingPage() {
           <CardB
             title={pageTitle}
             sub={pageSub}
-            right={<FilterChips options={BANKING_TAB_OPTIONS} value={activeTab} onChange={setActiveTab} />}
+            right={bankingCardControls}
           >
             <div className="sf-command-tab-body">
               <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -142,11 +156,6 @@ export default function BankingPage() {
 
         {/* 탭 3: 한도 변경 이력 */}
         <TabsContent value="changes" className="space-y-4">
-          <div className="flex items-center justify-end">
-            <Button size="sm" onClick={() => setLcFormOpen(true)}>
-              <Plus className="mr-1.5 h-4 w-4" />변경 등록
-            </Button>
-          </div>
           {lcLoading ? <LoadingSpinner /> : (
             <LimitChangeTable items={limitChanges} />
           )}

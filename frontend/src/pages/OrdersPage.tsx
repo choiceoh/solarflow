@@ -762,6 +762,126 @@ export default function OrdersPage() {
       { lbl: '평균 단가', v: orders.length ? Math.round(orders.reduce((sum, order) => sum + (order.unit_price_wp ?? 0), 0) / orders.length).toLocaleString() : '0', u: '₩/Wp', sub: '수주 기준', tone: 'pos', spark: [398, 401, 403, 404, 407, 408, 408, 409] },
     ];
 
+  const ordersCardControls = (
+    <div className="sf-card-controls">
+      <FilterChips options={SALES_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />
+      {activeTab === 'orders' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: orderStatusFilter,
+              onChange: setOrderStatusFilter,
+              options: (Object.entries(ORDER_STATUS_LABEL) as [OrderStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '거래처',
+              value: orderCustomerFilter,
+              onChange: setOrderCustomerFilter,
+              options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+            },
+            {
+              label: '구분',
+              value: orderCategoryFilter,
+              onChange: setOrderCategoryFilter,
+              options: (Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+          ]} />
+          <ExcelToolbar type="order" />
+          <Button size="sm" onClick={() => setOrderFormOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          </Button>
+        </>
+      )}
+      {activeTab === 'outbound' && !selectedOutbound && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: obStatusFilter,
+              onChange: setObStatusFilter,
+              options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '용도',
+              value: obUsageFilter,
+              onChange: setObUsageFilter,
+              options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '제조사',
+              value: obMfgFilter,
+              onChange: setObMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
+          <ExcelToolbar type="outbound" />
+          <Button size="sm" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}>
+            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          </Button>
+        </>
+      )}
+      {activeTab === 'sales' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <div className="w-36">
+            <PartnerCombobox
+              partners={partners}
+              value={saleCustomerFilter}
+              onChange={setSaleCustomerFilter}
+              placeholder="전체 거래처"
+              includeAllOption
+              allLabel="전체 거래처"
+            />
+          </div>
+          <FilterButton items={[
+            {
+              label: '기간',
+              value: saleMonthFilter,
+              onChange: setSaleMonthFilter,
+              options: months.map((m) => ({ value: m, label: m })),
+            },
+            {
+              label: '계산서',
+              value: saleInvoiceFilter,
+              onChange: setSaleInvoiceFilter,
+              options: [
+                { value: 'issued', label: '발행' },
+                { value: 'pending', label: '미발행' },
+              ],
+            },
+          ]} />
+          <ExcelToolbar type="sale" />
+        </>
+      )}
+      {activeTab === 'receipts' && (
+        <>
+          <div className="vr" style={{ height: 16 }} />
+          <FilterButton items={[
+            {
+              label: '거래처',
+              value: receiptCustomerFilter,
+              onChange: setReceiptCustomerFilter,
+              options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+            },
+            {
+              label: '기간',
+              value: receiptMonthFilter,
+              onChange: setReceiptMonthFilter,
+              options: months.map((m) => ({ value: m, label: m })),
+            },
+          ]} />
+          <ExcelToolbar type="receipt" />
+          <Button size="sm" onClick={() => setReceiptFormOpen(true)}>
+            <Plus className="mr-1.5 h-4 w-4" />새로 등록
+          </Button>
+        </>
+      )}
+    </div>
+  );
+
   return (
     <div className="sf-page sf-sales-page">
       <div className="sf-procurement-layout">
@@ -784,42 +904,13 @@ export default function OrdersPage() {
           <CardB
             title={pageTitle}
             sub={pageSub}
-            right={<FilterChips options={SALES_TAB_OPTIONS} value={activeTab} onChange={handleTabChange} />}
+            right={ordersCardControls}
           >
             <div className="sf-command-tab-body">
               <Tabs value={activeTab} onValueChange={handleTabChange}>
 
         {/* 탭 1: 수주 관리 */}
         <TabsContent value="orders" className="space-y-4 mt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <FilterButton items={[
-              {
-                label: '상태',
-                value: orderStatusFilter,
-                onChange: setOrderStatusFilter,
-                options: (Object.entries(ORDER_STATUS_LABEL) as [OrderStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-              },
-              {
-                label: '거래처',
-                value: orderCustomerFilter,
-                onChange: setOrderCustomerFilter,
-                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
-              },
-              {
-                label: '구분',
-                value: orderCategoryFilter,
-                onChange: setOrderCategoryFilter,
-                options: (Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
-              },
-            ]} />
-            <div className="flex flex-wrap items-start justify-end gap-2">
-              <ExcelToolbar type="order" />
-              <Button size="sm" onClick={() => setOrderFormOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />새로 등록
-              </Button>
-            </div>
-          </div>
-
           {ordersLoading ? <SkeletonRows rows={8} /> : (
             <OrderListTable
               items={orders}
@@ -855,32 +946,6 @@ export default function OrdersPage() {
             />
           ) : (
             <>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <FilterButton items={[
-                  {
-                    label: '상태',
-                    value: obStatusFilter,
-                    onChange: setObStatusFilter,
-                    options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
-                  },
-                  {
-                    label: '용도',
-                    value: obUsageFilter,
-                    onChange: setObUsageFilter,
-                    options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
-                  },
-                  {
-                    label: '제조사',
-                    value: obMfgFilter,
-                    onChange: setObMfgFilter,
-                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
-                  },
-                ]} />
-                <div className="flex flex-wrap items-start justify-end gap-2">
-                  <ExcelToolbar type="outbound" />
-                  <Button size="sm" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}><Plus className="mr-1.5 h-4 w-4" />새로 등록</Button>
-                </div>
-              </div>
               {obLoading ? <SkeletonRows rows={8} /> : (
                 <OutboundListTable
                   items={outboundsWithSales}
@@ -895,38 +960,6 @@ export default function OrdersPage() {
 
         {/* 탭 3: 판매 관리 */}
         <TabsContent value="sales" className="space-y-4 mt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap items-start gap-2">
-              <div className="w-36">
-                <PartnerCombobox
-                  partners={partners}
-                  value={saleCustomerFilter}
-                  onChange={setSaleCustomerFilter}
-                  placeholder="전체 거래처"
-                  includeAllOption
-                  allLabel="전체 거래처"
-                />
-              </div>
-              <FilterButton items={[
-                {
-                  label: '기간',
-                  value: saleMonthFilter,
-                  onChange: setSaleMonthFilter,
-                  options: months.map((m) => ({ value: m, label: m })),
-                },
-                {
-                  label: '계산서',
-                  value: saleInvoiceFilter,
-                  onChange: setSaleInvoiceFilter,
-                  options: [
-                    { value: 'issued', label: '발행' },
-                    { value: 'pending', label: '미발행' },
-                  ],
-                },
-              ]} />
-            </div>
-            <ExcelToolbar type="sale" />
-          </div>
           {saleLoading ? <SkeletonRows rows={8} /> : (
             <>
               <SaleSummaryCards items={sales} />
@@ -937,29 +970,6 @@ export default function OrdersPage() {
 
         {/* 탭 4: 수금 관리 */}
         <TabsContent value="receipts" className="space-y-4 mt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <FilterButton items={[
-              {
-                label: '거래처',
-                value: receiptCustomerFilter,
-                onChange: setReceiptCustomerFilter,
-                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
-              },
-              {
-                label: '기간',
-                value: receiptMonthFilter,
-                onChange: setReceiptMonthFilter,
-                options: months.map((m) => ({ value: m, label: m })),
-              },
-            ]} />
-            <div className="flex flex-wrap items-start justify-end gap-2">
-              <ExcelToolbar type="receipt" />
-              <Button size="sm" onClick={() => setReceiptFormOpen(true)}>
-                <Plus className="mr-1.5 h-4 w-4" />새로 등록
-              </Button>
-            </div>
-          </div>
-
           {receiptsLoading ? <SkeletonRows rows={8} /> : (
             <ReceiptListTable
               items={receipts}
