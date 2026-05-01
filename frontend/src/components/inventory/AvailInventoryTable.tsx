@@ -300,12 +300,12 @@ export default function AvailInventoryTable({
                     }
                   </td>
 
-                  {/* 품목 */}
+                  {/* 품목 — 이름 + 회사칩 + 코드 + 배정 인라인 */}
                   <td>
-                    <div className="font-semibold leading-tight">
-                      {moduleLabel(item.manufacturer_name, item.spec_wp)}
-                    </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold">
+                        {moduleLabel(item.manufacturer_name, item.spec_wp)}
+                      </span>
                       {item.company_name && (
                         <span className="sf-pill ghost">{item.company_name}</span>
                       )}
@@ -320,56 +320,37 @@ export default function AvailInventoryTable({
                     </div>
                   </td>
 
-                  {/* 실재고 — 보조 (semibold, ink) */}
-                  <td className="text-right tabular-nums">
-                    <div className="font-semibold text-foreground">{fmtKw(item.physical_kw)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {kwToEa(item.physical_kw, item.spec_wp).toLocaleString('ko-KR')} EA
-                    </div>
-                  </td>
+                  {/* 실재고 */}
+                  <td className="text-right tabular-nums font-semibold">{fmtKw(item.physical_kw)}</td>
 
-                  {/* 미착품 — 보조 */}
-                  <td className="text-right tabular-nums">
-                    <div className="font-semibold text-foreground">{fmtKw(item.incoming_kw)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {kwToEa(item.incoming_kw, item.spec_wp).toLocaleString('ko-KR')} EA
-                    </div>
-                  </td>
+                  {/* 미착품 */}
+                  <td className="text-right tabular-nums font-semibold">{fmtKw(item.incoming_kw)}</td>
 
-                  {/* 가용재고 — 주요 (단일 강조: pos green token) */}
+                  {/* 가용재고 — 단일 강조 */}
                   <td className="text-right tabular-nums">
-                    <div
-                      className="font-bold text-[15px] leading-tight"
+                    <span
+                      className="font-bold text-[15px]"
                       style={{
                         color: item.total_secured_kw > 0 ? 'var(--sf-pos)' : 'var(--sf-ink-4)',
                       }}
                     >
                       {fmtKw(item.total_secured_kw)}
-                    </div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {kwToEa(item.total_secured_kw, item.spec_wp).toLocaleString('ko-KR')} EA
-                    </div>
+                    </span>
                   </td>
 
-                  {/* 판매배정 — 보조 */}
+                  {/* 판매배정 */}
                   <td className="text-right tabular-nums">
                     {saleAllocs.length > 0 ? (
-                      <>
-                        <div className="font-semibold text-foreground">{fmtKw(saleKw)}</div>
-                        <div className="text-[11px] text-muted-foreground">{allocCountLabel(saleMainCount, saleSpareCount)}</div>
-                      </>
+                      <span className="font-semibold">{fmtKw(saleKw)}</span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
 
-                  {/* 공사배정 — 보조 */}
+                  {/* 공사배정 */}
                   <td className="text-right tabular-nums">
                     {constAllocs.length > 0 ? (
-                      <>
-                        <div className="font-semibold text-foreground">{fmtKw(constKw)}</div>
-                        <div className="text-[11px] text-muted-foreground">{allocCountLabel(constMainCount, constSpareCount)}</div>
-                      </>
+                      <span className="font-semibold">{fmtKw(constKw)}</span>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -393,6 +374,13 @@ export default function AvailInventoryTable({
                   <tr key={`${itemKey}-expand`} className="border-t bg-muted/5">
                     <td colSpan={8} className="px-8 py-3">
                       <div className="space-y-3">
+                        {/* 모듈 장수 (EA) — 펼침 시에만 표시 */}
+                        <div className="flex flex-wrap gap-x-5 gap-y-1 text-[11px] text-muted-foreground">
+                          <span>실재고 <span className="font-mono tabular-nums text-foreground">{kwToEa(item.physical_kw, item.spec_wp).toLocaleString('ko-KR')} EA</span></span>
+                          <span>미착품 <span className="font-mono tabular-nums text-foreground">{kwToEa(item.incoming_kw, item.spec_wp).toLocaleString('ko-KR')} EA</span></span>
+                          <span>가용재고 <span className="font-mono tabular-nums" style={{ color: 'var(--sf-pos)' }}>{kwToEa(item.total_secured_kw, item.spec_wp).toLocaleString('ko-KR')} EA</span></span>
+                        </div>
+
                         {itemAllocs.length === 0 && (
                           <p className="text-xs text-muted-foreground px-2 py-1">등록된 예약 내역이 없습니다.</p>
                         )}
