@@ -10,17 +10,22 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Inbox,
+  PackagePlus,
   ScanText,
   ScrollText,
   Search,
   Settings,
+  ShieldAlert,
   Ship,
   StickyNote,
   Sun,
+  Tags,
   Truck,
   Wallet,
   type LucideIcon,
 } from 'lucide-react';
+import { detectTenantScope, type TenantScope } from '@/lib/tenantScope';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import GlobalSearchBar from '@/components/search/GlobalSearchBar';
@@ -55,6 +60,8 @@ interface CommandNavItem {
   icon: LucideIcon;
   menu: MenuKey;
   count?: number;
+  /** D-108: 표시 허용 테넌트. 미지정이면 모든 테넌트 공통. */
+  tenants?: TenantScope[];
 }
 
 interface CommandNavGroup {
@@ -72,10 +79,15 @@ const NAV_GROUPS: CommandNavGroup[] = [
   {
     label: '구매',
     items: [
-      { key: 'po', label: 'P/O 발주', abbr: 'PO', path: '/procurement', icon: ClipboardList, menu: 'procurement' },
-      { key: 'lc', label: 'L/C 개설', abbr: 'LC', path: '/procurement?tab=lc', icon: Landmark, menu: 'lc' },
-      { key: 'bl', label: 'B/L 입고', abbr: 'BL', path: '/procurement?tab=bl', icon: Ship, menu: 'inbound' },
-      { key: 'customs', label: '면장/원가', abbr: '면장', path: '/customs', icon: Calculator, menu: 'inbound' },
+      // D-108: 탑솔라 수입 흐름 — 바로(주)에는 노출하지 않음
+      { key: 'po', label: 'P/O 발주', abbr: 'PO', path: '/procurement', icon: ClipboardList, menu: 'procurement', tenants: ['topsolar'] },
+      { key: 'lc', label: 'L/C 개설', abbr: 'LC', path: '/procurement?tab=lc', icon: Landmark, menu: 'lc', tenants: ['topsolar'] },
+      { key: 'bl', label: 'B/L 입고', abbr: 'BL', path: '/procurement?tab=bl', icon: Ship, menu: 'inbound', tenants: ['topsolar'] },
+      { key: 'customs', label: '면장/원가', abbr: '면장', path: '/customs', icon: Calculator, menu: 'inbound', tenants: ['topsolar'] },
+      // BARO Phase 2: 탑솔라 측 — 바로(주)가 보낸 매입 요청 처리 inbox
+      { key: 'baro-inbox', label: '바로 매입요청', abbr: '바로', path: '/group-trade/baro-inbox', icon: Inbox, menu: 'baro_inbox', tenants: ['topsolar'] },
+      // BARO Phase 2: 바로(주) 측 — 탑솔라로부터 매입할 모듈을 등록
+      { key: 'baro-purchase', label: '그룹내 매입', abbr: '매입', path: '/baro/group-purchase', icon: PackagePlus, menu: 'baro_group_purchase', tenants: ['baro'] },
     ],
   },
   {
@@ -84,13 +96,18 @@ const NAV_GROUPS: CommandNavGroup[] = [
       { key: 'orders', label: '수주 관리', abbr: '수주', path: '/orders', icon: ScrollText, menu: 'orders' },
       { key: 'outbound', label: '출고/판매', abbr: '출고', path: '/orders?tab=outbound', icon: Truck, menu: 'outbound' },
       { key: 'receipts', label: '수금 관리', abbr: '수금', path: '/orders?tab=receipts', icon: Wallet, menu: 'receipts' },
+      // BARO Phase 4: 배차/일정 보드 (BARO 전용)
+      { key: 'baro-dispatch', label: '배차/일정', abbr: '배차', path: '/baro/dispatch', icon: Truck, menu: 'baro_dispatch', tenants: ['baro'] },
     ],
   },
   {
     label: '현황',
     items: [
-      { key: 'banking', label: 'L/C 한도', abbr: '한도', path: '/banking', icon: Landmark, menu: 'banking' },
-      { key: 'analysis', label: '매출 분석', abbr: '분석', path: '/sales-analysis', icon: BarChart3, menu: 'customs' },
+      // D-108: LC 한도/매출 분석은 탑솔라 전용 (원가 기반)
+      { key: 'banking', label: 'L/C 한도', abbr: '한도', path: '/banking', icon: Landmark, menu: 'banking', tenants: ['topsolar'] },
+      { key: 'analysis', label: '매출 분석', abbr: '분석', path: '/sales-analysis', icon: BarChart3, menu: 'customs', tenants: ['topsolar'] },
+      // BARO Phase 3: 거래처별 미수금/한도 보드 (BARO 전용)
+      { key: 'baro-credit', label: '미수금/한도', abbr: '미수', path: '/baro/credit-board', icon: ShieldAlert, menu: 'baro_credit', tenants: ['baro'] },
     ],
   },
   {
@@ -98,6 +115,8 @@ const NAV_GROUPS: CommandNavGroup[] = [
     items: [
       { key: 'masters', label: '마스터', abbr: '기준', path: '/masters/products', icon: Database, menu: 'masters' },
       { key: 'search', label: '검색', abbr: '검색', path: '/search', icon: Search, menu: 'search' },
+      // BARO Phase 1: 거래처별 단가표 (BARO 전용)
+      { key: 'baro-price-book', label: '거래처 단가표', abbr: '단가', path: '/baro/price-book', icon: Tags, menu: 'baro_price_book', tenants: ['baro'] },
       { key: 'ocr', label: '문서 OCR', abbr: 'OCR', path: '/ocr', icon: ScanText, menu: 'ocr' },
       { key: 'memo', label: '메모', abbr: '메모', path: '/memo', icon: StickyNote, menu: 'memo' },
       { key: 'approval', label: '결재안', abbr: '결재', path: '/approval', icon: FileSignature, menu: 'approval' },
@@ -169,6 +188,8 @@ export default function CommandShell() {
   const { user, role, logout } = useAuth();
   const { roleLabel } = usePermission();
   const r = role as Role | null;
+  // D-108: 호스트네임으로 BARO 모드 결정 — 메뉴 가시성 분기에만 사용 (보안 경계는 백엔드 RequireTenantScope)
+  const currentTenant = detectTenantScope();
   const companies = useAppStore((s) => s.companies);
   const loadCompanies = useAppStore((s) => s.loadCompanies);
   const { selectedCompanyId, setCompanyId } = useAppStore();
@@ -241,7 +262,11 @@ export default function CommandShell() {
 
         <nav className="sf-sidebar-nav" aria-label="주요 메뉴 목록">
           {NAV_GROUPS.map((group) => {
-            const visibleItems = group.items.filter((item) => canAccessMenu(r, item.menu));
+            const visibleItems = group.items.filter(
+              (item) =>
+                canAccessMenu(r, item.menu) &&
+                (!item.tenants || item.tenants.includes(currentTenant)),
+            );
             if (visibleItems.length === 0) return null;
             return (
               <div className="sf-nav-group" key={group.label ?? 'root'}>
