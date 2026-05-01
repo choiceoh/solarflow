@@ -270,19 +270,38 @@ export default function Sidebar() {
       )}
 
       {/* 메뉴 — 가용재고 홈 → 구매 → 판매 섹션 */}
-      <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+      <nav className={cn(
+        'flex-1 overflow-y-auto px-2 py-2',
+        collapsed ? 'space-y-1' : 'space-y-0.5'
+      )}>
         <NavLink {...navLinkBase} {...inventoryItem} />
-        <Separator className="my-2" />
-        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">구매/입고</p>}
+        {!collapsed && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">구매/입고</p>
+          </>
+        )}
         {purchaseItems.filter((m) => canSee(m, role, tenant)).map((m) => <NavLink key={m.label} {...navLinkBase} {...m} />)}
-        <Separator className="my-2" />
-        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">판매/수금</p>}
+        {!collapsed && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">판매/수금</p>
+          </>
+        )}
         {salesItems.filter((m) => canSee(m, role, tenant)).map((m) => <NavLink key={m.label} {...navLinkBase} {...m} />)}
-        <Separator className="my-2" />
-        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">현황/분석</p>}
+        {!collapsed && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">현황/분석</p>
+          </>
+        )}
         {analysisItems.filter((m) => canSee(m, role, tenant)).map((m) => <NavLink key={m.label} {...navLinkBase} {...m} />)}
-        <Separator className="my-2" />
-        {!collapsed && <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">기준정보/도구</p>}
+        {!collapsed && (
+          <>
+            <Separator className="my-2" />
+            <p className="px-3 pt-1 pb-1 text-[10px] font-medium text-muted-foreground/70 uppercase tracking-wider">기준정보/도구</p>
+          </>
+        )}
         {canSee(masterItem, role, tenant) && <NavLink {...navLinkBase} {...masterItem} />}
         {toolItems.filter((m) => canSee(m, role, tenant)).map((m) => <NavLink key={m.label} {...navLinkBase} {...m} />)}
         {canSee(settingsItem, role, tenant) && <NavLink {...navLinkBase} {...settingsItem} />}
