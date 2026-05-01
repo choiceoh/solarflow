@@ -68,11 +68,11 @@ export default function MoverListCard({ kind, items, showDetail }: Props) {
                     )}
                   </td>
                   <td className="py-2 px-2 text-right whitespace-nowrap">
-                    <div className="font-medium">{(p.inventory_kw / 1000).toFixed(2)}MW</div>
+                    <div className="font-medium">{(p.inventory_kw / 1000).toFixed(1)}MW</div>
                     <div className="text-[11px] text-muted-foreground">{p.inventory_ea.toLocaleString()}장</div>
                   </td>
                   <td className="py-2 px-2 text-right whitespace-nowrap">
-                    <div>{(p.outbound_kw / 1000).toFixed(2)}MW</div>
+                    <div>{(p.outbound_kw / 1000).toFixed(1)}MW</div>
                     <div className="text-[11px] text-muted-foreground">{p.outbound_ea.toLocaleString()}장</div>
                   </td>
                   <td className={`py-2 pl-3 text-right whitespace-nowrap font-semibold ${accent}`}>
