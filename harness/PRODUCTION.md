@@ -38,7 +38,7 @@
 - **프론트엔드는 이 박스에서 서빙하지 않는다.** `module.topworks.ltd`는 Cloudflare Pages가 main 브랜치 push 시 자동 빌드/배포. 이 박스의 `frontend/dist/`는 로컬 개발/검증용일 뿐 운영 노출과 무관.
 - 8080은 cloudflared 터널을 통해서만 외부에 보이고, 8081은 같은 박스 안에서 Go가 호출하는 사내 포트.
 
-## systemd user 서비스 (3개)
+## systemd user 서비스 (4개)
 
 전부 user-mode (`systemctl --user`). 부팅 시 자동 시작 (enabled).
 
@@ -47,6 +47,7 @@
 | `solarflow-go.service` | `~/.config/systemd/user/solarflow-go.service` | `backend/` | `backend/.env` | `backend/solarflow-go` |
 | `solarflow-engine.service` | `~/.config/systemd/user/solarflow-engine.service` | `engine/` | `engine/.env` | `engine/target/release/solarflow-engine` |
 | `cloudflared-solarflow.service` | `~/.config/systemd/user/cloudflared-solarflow.service` | - | - | `~/.local/bin/cloudflared --config ~/.cloudflared/solarflow.yml tunnel run solarflow` |
+| `solarflow-webhook.service` | `~/.config/systemd/user/solarflow-webhook.service` | repo root | `.webhook.env` | `python3 scripts/webhook-deploy.py` (포트 9999) |
 
 의존성: `solarflow-go.service`는 `Requires=solarflow-engine.service` — 엔진 먼저 떠야 Go가 뜬다.
 
@@ -57,14 +58,23 @@ systemctl --user restart solarflow-go.service
 journalctl --user -u solarflow-go.service -n 100 -f
 ```
 
-## 자동 git 동기화
+## 자동 git 동기화 + 빌드/재시작
 
-crontab(매 10분):
+**1차 트리거 — GitHub webhook (즉시):**
+
+main 브랜치 push 시 GitHub이 `https://api.topworks.ltd/__webhook/deploy`로 POST → cloudflared가 `solarflow-webhook.service`(:9999)로 라우팅 → HMAC-SHA256 서명 검증 → `cron-deploy.sh` 비동기 실행. 보통 push 후 수 초 안에 빌드 시작.
+
+- GitHub hook id: `615205825` (push 이벤트만)
+- Webhook receiver 소스: `scripts/webhook-deploy.py`
+- 비밀: `.webhook.env`의 `WEBHOOK_SECRET` (gitignore, chmod 600). GitHub repo의 webhook 설정값과 동일해야 함.
+
+**2차 백업 — crontab (매 10분):**
+
 ```
-*/10 * * * * cd /home/choiceoh/공개/solarflow-3 && /usr/bin/git pull --ff-only origin >> .sync.log 2>&1
+*/10 * * * * /home/choiceoh/공개/solarflow-3/scripts/cron-deploy.sh >> .sync.log 2>&1
 ```
 
-→ main 브랜치는 자동으로 최신화되지만 **빌드/재시작은 수동**. 코드 변경(Go/Rust)은 cron만으론 반영되지 않음.
+webhook이 일시적으로 빠지거나 GitHub이 못 닿아도 늦어도 10분 안에는 반영. cron-deploy.sh는 `git pull` 후 변경 컴포넌트만 빌드/재시작 (자세한 동작은 스크립트 헤더 주석 참조).
 
 ## Cloudflared 터널
 
