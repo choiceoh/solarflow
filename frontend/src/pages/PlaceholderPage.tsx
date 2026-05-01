@@ -1,5 +1,4 @@
 import { Construction } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
 
 interface PlaceholderPageProps {
   title: string;
@@ -8,14 +7,30 @@ interface PlaceholderPageProps {
 
 export default function PlaceholderPage({ title, stepNumber }: PlaceholderPageProps) {
   return (
-    <div className="flex items-center justify-center p-8">
-      <Card className="max-w-sm text-center">
-        <CardContent className="pt-6 space-y-3">
-          <Construction className="mx-auto h-10 w-10 text-muted-foreground" />
-          <h2 className="text-lg font-medium">{title}</h2>
-          <p className="text-sm text-muted-foreground">Step {stepNumber}에서 구현 예정</p>
-        </CardContent>
-      </Card>
+    <div className="sf-page flex min-h-[60vh] items-center justify-center">
+      <div
+        className="flex flex-col items-center gap-3 rounded-md px-8 py-10 text-center"
+        style={{
+          background: 'var(--sf-surface)',
+          border: '1px solid var(--sf-line)',
+          boxShadow: 'var(--sf-shadow-1)',
+          maxWidth: '360px',
+        }}
+      >
+        <div
+          className="flex h-12 w-12 items-center justify-center rounded-full"
+          style={{ background: 'var(--sf-solar-bg)', color: 'var(--sf-solar-3)' }}
+        >
+          <Construction className="h-5 w-5" strokeWidth={1.6} />
+        </div>
+        <div className="sf-eyebrow" style={{ color: 'var(--sf-solar-3)' }}>WORK IN PROGRESS</div>
+        <h2 className="text-base font-semibold" style={{ color: 'var(--sf-ink)', letterSpacing: '-0.012em' }}>
+          {title}
+        </h2>
+        <p className="sf-mono text-[11px]" style={{ color: 'var(--sf-ink-3)' }}>
+          Step {stepNumber}에서 구현 예정
+        </p>
+      </div>
     </div>
   );
 }

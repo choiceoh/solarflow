@@ -165,11 +165,13 @@ export default function BLDetailView({ blId, onBack }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onBack}>
+      <div className="sf-detail-header">
+        <button type="button" className="sf-detail-header-back" onClick={onBack} aria-label="목록으로">
           <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h2 className="text-base font-semibold flex-1">입고 {bl.bl_number}</h2>
+        </button>
+        <h2 className="flex-1 text-base font-semibold" style={{ letterSpacing: '-0.012em' }}>
+          입고 <span className="sf-mono">{bl.bl_number}</span>
+        </h2>
         <StatusChanger blId={blId} currentStatus={bl.status} inboundType={bl.inbound_type} onChanged={reloadBL} />
         <Button variant="outline" size="sm" onClick={() => setEditBLOpen(true)}>
           <Pencil className="mr-1 h-3.5 w-3.5" />수정

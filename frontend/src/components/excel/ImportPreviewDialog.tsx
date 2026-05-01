@@ -188,7 +188,7 @@ export default function ImportPreviewDialog({
   );
 }
 
-// 필터 버튼 컴포넌트
+// 필터 버튼 — mockup .pill 패턴 따라 작은 토글 칩
 function FilterButton({
   mode, current, onClick, label, className,
 }: {
@@ -198,12 +198,18 @@ function FilterButton({
   label: string;
   className?: string;
 }) {
+  const isActive = current === mode;
   return (
     <button
+      type="button"
       onClick={() => onClick(mode)}
-      className={`px-2 py-1 rounded border text-xs transition-colors ${
-        current === mode ? 'bg-primary/10 border-primary font-medium' : 'border-transparent hover:bg-muted'
-      } ${className ?? ''}`}
+      className={`rounded px-2 py-1 text-[11px] font-medium transition-colors ${className ?? ''}`}
+      style={{
+        background: isActive ? 'var(--sf-solar-bg)' : 'transparent',
+        color: isActive ? 'var(--sf-solar-3)' : 'var(--sf-ink-3)',
+        border: `1px solid ${isActive ? 'var(--sf-solar-2)' : 'transparent'}`,
+        fontWeight: isActive ? 600 : 500,
+      }}
     >
       {label}
     </button>
