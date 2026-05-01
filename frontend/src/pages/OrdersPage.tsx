@@ -2,7 +2,6 @@ import { Component, useState, useEffect, useMemo, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { PartnerCombobox } from '@/components/common/PartnerCombobox';
@@ -33,11 +32,7 @@ import { OUTBOUND_STATUS_LABEL, USAGE_CATEGORY_LABEL, type Outbound, type Outbou
 import type { Partner, Manufacturer } from '@/types/masters';
 import type { InventoryResponse } from '@/types/inventory';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
-import { CardB, FilterChips, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
-
-function FT({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
+import { CardB, FilterButton, FilterChips, RailBlock, Sparkline, TileB } from '@/components/command/MockupPrimitives';
 
 class OrderDetailErrorBoundary extends Component<
   { children: ReactNode; onBack: () => void },
@@ -797,35 +792,26 @@ export default function OrdersPage() {
         {/* 탭 1: 수주 관리 */}
         <TabsContent value="orders" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Select value={orderStatusFilter || 'all'} onValueChange={(v) => setOrderStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><FT text={orderStatusFilter ? (ORDER_STATUS_LABEL[orderStatusFilter as OrderStatus] ?? '') : '전체 상태'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 상태</SelectItem>
-                  {(Object.entries(ORDER_STATUS_LABEL) as [OrderStatus, string][]).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={orderCustomerFilter || 'all'} onValueChange={(v) => setOrderCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><FT text={orderCustomerFilter ? (partners.find(p => p.partner_id === orderCustomerFilter)?.partner_name ?? '') : '전체 거래처'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 거래처</SelectItem>
-                  {partners.map((p) => (
-                    <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={orderCategoryFilter || 'all'} onValueChange={(v) => setOrderCategoryFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-32 text-xs"><FT text={orderCategoryFilter ? (MANAGEMENT_CATEGORY_LABEL[orderCategoryFilter as ManagementCategory] ?? '') : '전체 구분'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 구분</SelectItem>
-                  {(Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterButton items={[
+              {
+                label: '상태',
+                value: orderStatusFilter,
+                onChange: setOrderStatusFilter,
+                options: (Object.entries(ORDER_STATUS_LABEL) as [OrderStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+              },
+              {
+                label: '거래처',
+                value: orderCustomerFilter,
+                onChange: setOrderCustomerFilter,
+                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+              },
+              {
+                label: '구분',
+                value: orderCategoryFilter,
+                onChange: setOrderCategoryFilter,
+                options: (Object.entries(MANAGEMENT_CATEGORY_LABEL) as [ManagementCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+              },
+            ]} />
             <div className="flex flex-wrap items-start justify-end gap-2">
               <ExcelToolbar type="order" />
               <Button size="sm" onClick={() => setOrderFormOpen(true)}>
@@ -870,29 +856,26 @@ export default function OrdersPage() {
           ) : (
             <>
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-wrap gap-2">
-                  <Select value={obStatusFilter || 'all'} onValueChange={(v) => setObStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-                    <SelectTrigger className="h-8 w-28 text-xs"><FT text={obStatusFilter ? (OUTBOUND_STATUS_LABEL[obStatusFilter as OutboundStatus] ?? obStatusFilter) : '전체 상태'} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체 상태</SelectItem>
-                      {(Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={obUsageFilter || 'all'} onValueChange={(v) => setObUsageFilter(v === 'all' ? '' : (v ?? ''))}>
-                    <SelectTrigger className="h-8 w-36 text-xs"><FT text={obUsageFilter ? ((USAGE_CATEGORY_LABEL as Record<string, string>)[obUsageFilter] ?? obUsageFilter) : '전체 용도'} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체 용도</SelectItem>
-                      {(Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <Select value={obMfgFilter || 'all'} onValueChange={(v) => setObMfgFilter(v === 'all' ? '' : (v ?? ''))}>
-                    <SelectTrigger className="h-8 w-32 text-xs"><FT text={obMfgFilter ? (manufacturers.find(m => m.manufacturer_id === obMfgFilter)?.name_kr ?? obMfgFilter) : '전체 제조사'} /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">전체 제조사</SelectItem>
-                      {manufacturers.map((m) => <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <FilterButton items={[
+                  {
+                    label: '상태',
+                    value: obStatusFilter,
+                    onChange: setObStatusFilter,
+                    options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+                  },
+                  {
+                    label: '용도',
+                    value: obUsageFilter,
+                    onChange: setObUsageFilter,
+                    options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+                  },
+                  {
+                    label: '제조사',
+                    value: obMfgFilter,
+                    onChange: setObMfgFilter,
+                    options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+                  },
+                ]} />
                 <div className="flex flex-wrap items-start justify-end gap-2">
                   <ExcelToolbar type="outbound" />
                   <Button size="sm" onClick={() => { setOutboundOrder(null); setObFormOpen(true); }}><Plus className="mr-1.5 h-4 w-4" />새로 등록</Button>
@@ -913,7 +896,7 @@ export default function OrdersPage() {
         {/* 탭 3: 판매 관리 */}
         <TabsContent value="sales" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-start gap-2">
               <div className="w-36">
                 <PartnerCombobox
                   partners={partners}
@@ -924,21 +907,23 @@ export default function OrdersPage() {
                   allLabel="전체 거래처"
                 />
               </div>
-              <Select value={saleMonthFilter || 'all'} onValueChange={(v) => setSaleMonthFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><FT text={saleMonthFilter || '전체 기간'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 기간</SelectItem>
-                  {months.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={saleInvoiceFilter || 'all'} onValueChange={(v) => setSaleInvoiceFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-32 text-xs"><FT text={saleInvoiceFilter === 'issued' ? '계산서 발행' : saleInvoiceFilter === 'pending' ? '미발행' : '전체'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체</SelectItem>
-                  <SelectItem value="issued">계산서 발행</SelectItem>
-                  <SelectItem value="pending">계산서 미발행</SelectItem>
-                </SelectContent>
-              </Select>
+              <FilterButton items={[
+                {
+                  label: '기간',
+                  value: saleMonthFilter,
+                  onChange: setSaleMonthFilter,
+                  options: months.map((m) => ({ value: m, label: m })),
+                },
+                {
+                  label: '계산서',
+                  value: saleInvoiceFilter,
+                  onChange: setSaleInvoiceFilter,
+                  options: [
+                    { value: 'issued', label: '발행' },
+                    { value: 'pending', label: '미발행' },
+                  ],
+                },
+              ]} />
             </div>
             <ExcelToolbar type="sale" />
           </div>
@@ -953,26 +938,20 @@ export default function OrdersPage() {
         {/* 탭 4: 수금 관리 */}
         <TabsContent value="receipts" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Select value={receiptCustomerFilter || 'all'} onValueChange={(v) => setReceiptCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><FT text={receiptCustomerFilter ? (partners.find(p => p.partner_id === receiptCustomerFilter)?.partner_name ?? '') : '전체 거래처'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 거래처</SelectItem>
-                  {partners.map((p) => (
-                    <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={receiptMonthFilter || 'all'} onValueChange={(v) => setReceiptMonthFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><FT text={receiptMonthFilter || '전체 기간'} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 기간</SelectItem>
-                  {months.map((m) => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <FilterButton items={[
+              {
+                label: '거래처',
+                value: receiptCustomerFilter,
+                onChange: setReceiptCustomerFilter,
+                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+              },
+              {
+                label: '기간',
+                value: receiptMonthFilter,
+                onChange: setReceiptMonthFilter,
+                options: months.map((m) => ({ value: m, label: m })),
+              },
+            ]} />
             <div className="flex flex-wrap items-start justify-end gap-2">
               <ExcelToolbar type="receipt" />
               <Button size="sm" onClick={() => setReceiptFormOpen(true)}>

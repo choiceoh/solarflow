@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { useAppStore } from '@/stores/appStore';
@@ -17,11 +16,7 @@ import ExchangeComparePanel from '@/components/customs/ExchangeComparePanel';
 import { EXPENSE_TYPE_LABEL, type ExpenseType, type Expense } from '@/types/customs';
 import type { BLShipment } from '@/types/inbound';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
-import { CardB, FilterChips, RailBlock, TileB } from '@/components/command/MockupPrimitives';
-
-function FT({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
+import { CardB, FilterButton, FilterChips, RailBlock, TileB } from '@/components/command/MockupPrimitives';
 
 function fmtEok(value: number) {
   if (!Number.isFinite(value) || value <= 0) return '0.00';
@@ -166,35 +161,26 @@ export default function CustomsPage() {
       {activeTab === 'expenses' ? (
         <>
           <div className="vr" style={{ height: 16 }} />
-          <div className="sf-card-filter-selects">
-            <Select value={expBlFilter || 'all'} onValueChange={(v) => setExpBlFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-[26px] w-36 text-[11.5px]"><FT text={expBlFilter ? (bls.find(b => b.bl_id === expBlFilter)?.bl_number ?? '') : '전체 B/L'} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 B/L</SelectItem>
-                {bls.map((bl) => (
-                  <SelectItem key={bl.bl_id} value={bl.bl_id}>{bl.bl_number}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={expMonthFilter || 'all'} onValueChange={(v) => setExpMonthFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-[26px] w-28 text-[11.5px]"><FT text={expMonthFilter || '전체 기간'} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 기간</SelectItem>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={expTypeFilter || 'all'} onValueChange={(v) => setExpTypeFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-[26px] w-32 text-[11.5px]"><FT text={expTypeFilter ? (EXPENSE_TYPE_LABEL[expTypeFilter as ExpenseType] ?? '') : '전체 유형'} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 유형</SelectItem>
-                {(Object.entries(EXPENSE_TYPE_LABEL) as [ExpenseType, string][]).map(([k, v]) => (
-                  <SelectItem key={k} value={k}>{v}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <FilterButton items={[
+            {
+              label: 'B/L',
+              value: expBlFilter,
+              onChange: setExpBlFilter,
+              options: bls.map((bl) => ({ value: bl.bl_id, label: bl.bl_number })),
+            },
+            {
+              label: '기간',
+              value: expMonthFilter,
+              onChange: setExpMonthFilter,
+              options: months.map((m) => ({ value: m, label: m })),
+            },
+            {
+              label: '유형',
+              value: expTypeFilter,
+              onChange: setExpTypeFilter,
+              options: (Object.entries(EXPENSE_TYPE_LABEL) as [ExpenseType, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+          ]} />
           <div className="vr" style={{ height: 16 }} />
           <ExcelToolbar type="expense" />
           <Button size="xs" className="btn xs solar" onClick={() => { setEditExpense(null); setExpFormOpen(true); }}>

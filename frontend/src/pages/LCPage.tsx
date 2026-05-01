@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { useAppStore } from '@/stores/appStore';
 import { useLCList } from '@/hooks/useProcurement';
 import { fetchWithAuth } from '@/lib/api';
@@ -11,14 +10,10 @@ import LCForm from '@/components/procurement/LCForm';
 import BLForm from '@/components/inbound/BLForm';
 import BLDetailView from '@/components/inbound/BLDetailView';
 import { MasterConsole } from '@/components/command/MasterConsole';
-import { RailBlock, Sparkline } from '@/components/command/MockupPrimitives';
+import { FilterButton, RailBlock, Sparkline } from '@/components/command/MockupPrimitives';
 import { LC_STATUS_LABEL, type LCRecord, type LCStatus } from '@/types/procurement';
 import type { Bank, Company } from '@/types/masters';
 import { saveBLShipmentWithLines } from '@/lib/blShipment';
-
-function FT({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
 
 export default function LCPage() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
@@ -122,11 +117,26 @@ export default function LCPage() {
           <Button size="sm" onClick={() => { setEditLC(null); setFormOpen(true); }}><Plus className="mr-1 h-4 w-4" />L/C 개설</Button>
         }
         toolbar={
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-28 text-xs"><FT text={statusLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 상태</SelectItem>{(Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select>
-            <Select value={bankFilter || 'all'} onValueChange={(v) => setBankFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={bankLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 은행</SelectItem>{banks.map((b) => <SelectItem key={b.bank_id} value={b.bank_id}>{b.bank_name}</SelectItem>)}</SelectContent></Select>
-            <Select value={companyFilter || 'all'} onValueChange={(v) => setCompanyFilter(v === 'all' ? '' : (v ?? ''))}><SelectTrigger className="h-8 w-32 text-xs"><FT text={companyLabel} /></SelectTrigger><SelectContent><SelectItem value="all">전체 법인</SelectItem>{companies.map((c) => <SelectItem key={c.company_id} value={c.company_id}>{c.company_name}</SelectItem>)}</SelectContent></Select>
-          </div>
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: (Object.entries(LC_STATUS_LABEL) as [LCStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '은행',
+              value: bankFilter,
+              onChange: setBankFilter,
+              options: banks.map((b) => ({ value: b.bank_id, label: b.bank_name })),
+            },
+            {
+              label: '법인',
+              value: companyFilter,
+              onChange: setCompanyFilter,
+              options: companies.map((c) => ({ value: c.company_id, label: c.company_name })),
+            },
+          ]} />
         }
         metrics={[
           { label: 'L/C 건수', value: filtered.length.toLocaleString(), sub: statusLabel, tone: 'solar', spark: [8, 10, 9, 12, filtered.length || 1] },

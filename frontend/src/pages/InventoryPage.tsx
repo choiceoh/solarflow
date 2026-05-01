@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -13,10 +12,6 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import AllocationForm, { type InventoryAllocation } from '@/components/inventory/AllocationForm';
-
-function FT({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAppStore } from '@/stores/appStore';
 import { useInventory } from '@/hooks/useInventory';
@@ -32,7 +27,7 @@ import AvailInventoryTable from '@/components/inventory/AvailInventoryTable';
 import IncomingTable from '@/components/inventory/IncomingTable';
 import ForecastTable from '@/components/inventory/ForecastTable';
 import ModuleDemandForecastPanel from '@/components/inventory/ModuleDemandForecastPanel';
-import { CardB, FilterChips, RailBlock, TileB } from '@/components/command/MockupPrimitives';
+import { CardB, FilterButton, FilterChips, RailBlock, TileB } from '@/components/command/MockupPrimitives';
 import type { InventorySummary, ProductForecast } from '@/types/inventory';
 
 function formatAutoKw(kw: number): string {
@@ -505,30 +500,21 @@ export default function InventoryPage() {
         ]}
       />
       <div className="vr" style={{ height: 16 }} />
-      <div className="sf-card-filter-selects">
-        <Select value={mfgFilter || 'all'} onValueChange={(v) => setMfgFilter(v === 'all' ? '' : (v ?? ''))}>
-          <SelectTrigger className="h-[26px] w-32 text-[11.5px]">
-            <FT text={mfgFilter ? (manufacturers.find(m => m.manufacturer_id === mfgFilter)?.name_kr ?? '') : '제조사'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">제조사 (전체)</SelectItem>
-            {manufacturers.map((m) => (
-              <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={wpFilter || 'all'} onValueChange={(v) => setWpFilter(v === 'all' ? '' : (v ?? ''))}>
-          <SelectTrigger className="h-[26px] w-24 text-[11.5px]" disabled={!mfgFilter}>
-            <FT text={wpFilter ? `${wpFilter}Wp` : '규격'} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">규격 (전체)</SelectItem>
-            {availableWps.map((wp) => (
-              <SelectItem key={wp} value={String(wp)}>{wp}Wp</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      <FilterButton items={[
+        {
+          label: '제조사',
+          value: mfgFilter,
+          onChange: setMfgFilter,
+          options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+        },
+        {
+          label: '규격',
+          value: wpFilter,
+          onChange: setWpFilter,
+          options: availableWps.map((wp) => ({ value: String(wp), label: `${wp}Wp` })),
+          disabled: !mfgFilter,
+        },
+      ]} />
     </div>
   );
 

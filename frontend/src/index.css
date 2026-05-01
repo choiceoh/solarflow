@@ -887,24 +887,13 @@ a:focus-visible,
   padding: 14px;
 }
 
-.sf-card-controls,
-.sf-card-filter-selects {
+.sf-card-controls {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.sf-card-controls {
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.sf-card-filter-selects [data-slot="select-trigger"] {
-  border-color: var(--sf-line);
-  border-radius: 4px;
-  background: var(--sf-surface);
-  font-weight: 500;
 }
 
 .sf-procurement-page [data-slot="tabs-content"] {

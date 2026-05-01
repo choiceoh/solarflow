@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAppStore } from '@/stores/appStore';
 import { useOutboundList, useSaleList } from '@/hooks/useOutbound';
@@ -14,17 +13,13 @@ import OutboundForm from '@/components/outbound/OutboundForm';
 import SaleListTable from '@/components/outbound/SaleListTable';
 import SaleSummaryCards from '@/components/outbound/SaleSummaryCards';
 import { MasterConsole } from '@/components/command/MasterConsole';
-import { FilterChips, RailBlock } from '@/components/command/MockupPrimitives';
+import { FilterButton, FilterChips, RailBlock } from '@/components/command/MockupPrimitives';
 import {
   OUTBOUND_STATUS_LABEL, USAGE_CATEGORY_LABEL,
   type OutboundStatus, type UsageCategory,
 } from '@/types/outbound';
 import type { Partner } from '@/types/masters';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
-
-function FilterText({ text }: { text: string }) {
-  return <span className="flex flex-1 text-left truncate" data-slot="select-value">{text}</span>;
-}
 
 export default function OutboundPage() {
   const selectedCompanyId = useAppStore((s) => s.selectedCompanyId);
@@ -103,8 +98,6 @@ export default function OutboundPage() {
   const statusLabel = statusFilter ? (OUTBOUND_STATUS_LABEL[statusFilter as OutboundStatus] ?? statusFilter) : '전체 상태';
   const usageLabel = usageFilter ? ((USAGE_CATEGORY_LABEL as Record<string, string>)[usageFilter] ?? usageFilter) : '전체 용도';
   const mfgLabel = mfgFilter ? (manufacturers.find(m => m.manufacturer_id === mfgFilter)?.name_kr ?? mfgFilter) : '전체 제조사';
-  const customerLabel = customerFilter ? (partners.find(p => p.partner_id === customerFilter)?.partner_name ?? customerFilter) : '전체 거래처';
-  const monthLabel = monthFilter || '전체 기간';
   const invoiceLabel = invoiceFilter === 'issued' ? '계산서 발행' : invoiceFilter === 'pending' ? '계산서 미발행' : '전체';
   const activeCount = outbounds.filter((outbound) => outbound.status === 'active').length;
   const cancelPendingCount = outbounds.filter((outbound) => outbound.status === 'cancel_pending').length;
@@ -169,37 +162,26 @@ export default function OutboundPage() {
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'outbound' | 'sales')}>
 
         <TabsContent value="outbound" className="space-y-4 mt-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              <Select value={statusFilter || 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-28 text-xs"><FilterText text={statusLabel} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 상태</SelectItem>
-                  {(Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={usageFilter || 'all'} onValueChange={(v) => setUsageFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-36 text-xs"><FilterText text={usageLabel} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 용도</SelectItem>
-                  {(Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => (
-                    <SelectItem key={k} value={k}>{v}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={mfgFilter || 'all'} onValueChange={(v) => setMfgFilter(v === 'all' ? '' : (v ?? ''))}>
-                <SelectTrigger className="h-8 w-32 text-xs"><FilterText text={mfgLabel} /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">전체 제조사</SelectItem>
-                  {manufacturers.map((m) => (
-                    <SelectItem key={m.manufacturer_id} value={m.manufacturer_id}>{m.name_kr}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          <FilterButton items={[
+            {
+              label: '상태',
+              value: statusFilter,
+              onChange: setStatusFilter,
+              options: (Object.entries(OUTBOUND_STATUS_LABEL) as [OutboundStatus, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '용도',
+              value: usageFilter,
+              onChange: setUsageFilter,
+              options: (Object.entries(USAGE_CATEGORY_LABEL) as [UsageCategory, string][]).map(([k, v]) => ({ value: k, label: v })),
+            },
+            {
+              label: '제조사',
+              value: mfgFilter,
+              onChange: setMfgFilter,
+              options: manufacturers.map((m) => ({ value: m.manufacturer_id, label: m.name_kr })),
+            },
+          ]} />
 
           {obLoading ? <LoadingSpinner /> : (
             <OutboundListTable
@@ -212,35 +194,30 @@ export default function OutboundPage() {
 
         <TabsContent value="sales" className="space-y-4 mt-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-            <Select value={customerFilter || 'all'} onValueChange={(v) => setCustomerFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-8 w-36 text-xs"><FilterText text={customerLabel} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 거래처</SelectItem>
-                {partners.map((p) => (
-                  <SelectItem key={p.partner_id} value={p.partner_id}>{p.partner_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={monthFilter || 'all'} onValueChange={(v) => setMonthFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-8 w-28 text-xs"><FilterText text={monthLabel} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체 기간</SelectItem>
-                {months.map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={invoiceFilter || 'all'} onValueChange={(v) => setInvoiceFilter(v === 'all' ? '' : (v ?? ''))}>
-              <SelectTrigger className="h-8 w-32 text-xs"><FilterText text={invoiceLabel} /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="issued">계산서 발행</SelectItem>
-                <SelectItem value="pending">계산서 미발행</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <ExcelToolbar type="sale" />
+            <FilterButton items={[
+              {
+                label: '거래처',
+                value: customerFilter,
+                onChange: setCustomerFilter,
+                options: partners.map((p) => ({ value: p.partner_id, label: p.partner_name })),
+              },
+              {
+                label: '기간',
+                value: monthFilter,
+                onChange: setMonthFilter,
+                options: months.map((m) => ({ value: m, label: m })),
+              },
+              {
+                label: '계산서',
+                value: invoiceFilter,
+                onChange: setInvoiceFilter,
+                options: [
+                  { value: 'issued', label: '발행' },
+                  { value: 'pending', label: '미발행' },
+                ],
+              },
+            ]} />
+            <ExcelToolbar type="sale" />
           </div>
 
           {saleLoading ? <LoadingSpinner /> : (
