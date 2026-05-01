@@ -135,11 +135,12 @@ export default function AssistantPage() {
   };
 
   // OCR 사전 호출 — 첨부 파일을 서버 OCR 엔드포인트로 보내 텍스트 추출.
+  // /api/v1/assistant/ocr/extract: AI 통합 네임스페이스 (기존 /api/v1/ocr/extract와 alias).
   const runOCR = async (files: File[]): Promise<OCRResult[]> => {
     const fd = new FormData();
     for (const f of files) fd.append('images', f);
     if (parseAsCustoms) fd.append('document_type', 'customs_declaration');
-    const res = await fetchWithAuth<OCRExtractResponse>('/api/v1/ocr/extract', {
+    const res = await fetchWithAuth<OCRExtractResponse>('/api/v1/assistant/ocr/extract', {
       method: 'POST',
       body: fd,
     });
