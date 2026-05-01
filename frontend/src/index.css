@@ -195,6 +195,23 @@ button,
   --sf-shadow-2: 0 1px 2px rgb(60 40 10 / 0.06), 0 1px 0 rgb(60 40 10 / 0.02);
   --sf-shadow-3: 0 6px 16px -8px rgb(60 40 10 / 0.12), 0 2px 4px -2px rgb(60 40 10 / 0.06);
   --sf-shadow-focus: 0 0 0 3px rgb(245 184 0 / 0.22);
+
+  /* Bare-name aliases — many components use these short names directly. */
+  --bg-2: var(--sf-bg-2);
+  --bg-3: var(--sf-bg-3);
+  --surface: var(--sf-surface);
+  --ink-3: var(--sf-ink-3);
+  --ink-4: var(--sf-ink-4);
+  --line: var(--sf-line);
+  --line-2: var(--sf-line-2);
+  --solar: var(--sf-solar);
+  --solar-3: var(--sf-solar-3);
+  --pos: var(--sf-pos);
+  --neg: var(--sf-neg);
+  --warn: var(--sf-warn);
+  --warn-bg: var(--sf-warn-bg);
+  --info: var(--sf-info);
+  --info-bg: var(--sf-info-bg);
 }
 
 body {

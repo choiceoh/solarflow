@@ -180,7 +180,7 @@ export default function CommandDashboard({
   ];
 
   return (
-    <div className="sf-dashboard-shell">
+    <div className="sf-command-surface sf-dashboard-shell">
       <div className="sf-dashboard-content">
         <div className="sf-command-kpis">
           {kpis.map((kpi, index) => (
