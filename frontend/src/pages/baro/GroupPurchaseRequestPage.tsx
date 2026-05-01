@@ -255,8 +255,8 @@ export default function GroupPurchaseRequestPage() {
               ))}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={openForm}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> 매입 요청
+          <Button size="xs" onClick={openForm}>
+            <Plus className="mr-1 h-3 w-3" />매입 요청
           </Button>
         </div>
       </div>
