@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import DataTable, { type Column } from '@/components/common/DataTable';
-import StatusBadge from '@/components/common/StatusBadge';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { fetchWithAuth } from '@/lib/api';
 
@@ -90,7 +90,9 @@ export default function MasterSection<T extends { is_active?: boolean }>({ confi
       render: (row) => (
         <div className="flex items-center gap-2">
           <Switch checked={!!row.is_active} onCheckedChange={() => setToggleTarget(row)} />
-          <StatusBadge isActive={!!row.is_active} />
+          <Badge variant={row.is_active ? 'default' : 'secondary'} className="text-[10px]">
+            {row.is_active ? '활성' : '비활성'}
+          </Badge>
         </div>
       ),
     };
