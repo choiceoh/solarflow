@@ -53,7 +53,7 @@ interface Props {
 
 function mw(value: number | undefined | null) {
   const n = value ?? 0;
-  return `${n.toLocaleString('ko-KR', { maximumFractionDigits: 2 })} MW`;
+  return `${n.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MW`;
 }
 
 function kwToMw(value: number | undefined | null) {
