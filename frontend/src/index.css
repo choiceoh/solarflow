@@ -647,14 +647,12 @@ a:focus-visible,
 
 .sf-table th {
   border-bottom: 1px solid var(--sf-line-2);
-  background: var(--sf-bg-2);
+  background: transparent;
   color: var(--sf-ink-3);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
   padding: 10px 12px;
   text-align: left;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
@@ -848,13 +846,11 @@ a:focus-visible,
 }
 .sf-avail-table thead th {
   padding: 12px 14px;
-  background: var(--sf-bg-2);
+  background: transparent;
   border-bottom: 1px solid var(--sf-line-2);
   color: var(--sf-ink-3);
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: 500;
   white-space: nowrap;
   text-align: left;
 }
@@ -986,14 +982,11 @@ a:focus-visible,
 .sf-command-surface table thead th {
   height: auto;
   border-bottom: 1px solid var(--sf-line-2);
-  border-top: 1px solid var(--sf-line);
-  background: var(--sf-bg-2);
+  background: transparent;
   color: var(--sf-ink-3);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 12px;
+  font-weight: 500;
   padding: 10px 12px;
-  text-transform: uppercase;
 }
 
 .sf-page [data-slot="table-cell"],
@@ -1044,7 +1037,7 @@ a:focus-visible,
 .sf-command-surface table thead,
 .sf-command-surface table thead .bg-muted\/50,
 .sf-command-surface table .bg-muted\/50 {
-  background-color: var(--sf-bg-2);
+  background-color: transparent;
 }
 
 .sf-exchange-summary {
@@ -1584,7 +1577,7 @@ textarea::placeholder {
   overflow: clip;
 }
 
-/* sticky thead — 긴 테이블 스크롤 시 헤더 고정 */
+/* sticky thead — 긴 테이블 스크롤 시 헤더 고정. 스크롤 시 자연스러운 lift를 위해 surface 배경 + soft shadow */
 .sf-page [data-slot="table-head"],
 .sf-page table thead th,
 .sf-command-surface [data-slot="table-head"],
@@ -1592,6 +1585,8 @@ textarea::placeholder {
   position: sticky;
   top: 0;
   z-index: 2;
+  background: var(--sf-surface);
+  box-shadow: 0 1px 0 var(--sf-line-2), 0 4px 6px -6px rgb(60 40 10 / 0.08);
 }
 
 /* 테이블 행 트랜지션 + 선택된 행 솔라 인셋 */
