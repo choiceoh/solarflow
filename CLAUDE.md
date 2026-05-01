@@ -44,7 +44,8 @@ cd backend && ./scripts/check_schema.sh
 
 ## 플랫폼별 운영 절차
 
-- **macOS** (프로덕션 워크스테이션): 아래 "Go 백엔드 변경 시 필수 절차" 따름. launchd 데몬 + codesign.
+- **Linux (현재 운영 서버)**: `harness/PRODUCTION.md` 참조. systemd user 유닛(`solarflow-go/engine`, `cloudflared-solarflow`) + cloudflared 터널 + Cloudflare Pages(프론트). `launchctl`/`codesign` 적용 안 됨.
+- **macOS** (과거 표기 — 일부 문서가 macOS 가정): 아래 "Go 백엔드 변경 시 필수 절차"는 *macOS 한정* 절차. 운영 적용 시 PRODUCTION.md의 systemd 절차 사용.
 - **Windows** (개발용): `harness/WINDOWS.md` 참조. launchctl/codesign 무관, 터미널 포그라운드 실행.
 
 ## Go 백엔드 변경 시 필수 절차 (macOS)
