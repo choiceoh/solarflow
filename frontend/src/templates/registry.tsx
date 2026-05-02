@@ -2,7 +2,7 @@
 // 메타데이터(config)에서 ID로 참조되는 모든 런타임 객체를 한 곳에 등록한다.
 // 새 도메인이 합류할 때 여기에만 등록하면 새 화면 config가 즉시 동작한다.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { fetchWithAuth } from '@/lib/api';
 import { formatDate, formatNumber, formatKw } from '@/lib/utils';
 import { useAppStore } from '@/stores/appStore';
@@ -10,6 +10,11 @@ import { Badge } from '@/components/ui/badge';
 import OutboundStatusBadge from '@/components/outbound/OutboundStatusBadge';
 import OutboundDetailView from '@/components/outbound/OutboundDetailView';
 import OutboundForm from '@/components/outbound/OutboundForm';
+import InboundStatusBadge from '@/components/inbound/InboundStatusBadge';
+import BLDetailView from '@/components/inbound/BLDetailView';
+import { useBLList } from '@/hooks/useInbound';
+import { INBOUND_TYPE_LABEL, BL_STATUS_LABEL } from '@/types/inbound';
+import type { BLShipment, BLLineItem, InboundType, BLStatus } from '@/types/inbound';
 import SaleSummaryCards from '@/components/outbound/SaleSummaryCards';
 import PartnerForm from '@/components/masters/PartnerForm';
 import MetaForm from './MetaForm';
@@ -35,7 +40,6 @@ import {
   type OutboundStatus, type UsageCategory, type Outbound, type SaleListItem,
 } from '@/types/outbound';
 import type { Partner, Bank, Warehouse, Manufacturer, Product, ConstructionSite } from '@/types/masters';
-import type { BLShipment } from '@/types/inbound';
 import type {
   CellRenderer, DataHook, DataHookResult, MetricComputer, ActionHandler,
   FormComponent, DetailComponent, RailBlock, ToolbarExtra,
@@ -134,6 +138,41 @@ export const cellRenderers: Record<string, CellRenderer> = {
     };
     return <Badge variant={variant[t] ?? 'secondary'}>{label[t] ?? t}</Badge>;
   },
+  // Inbound (Step 1): 입고 구분 / 상태
+  inbound_type_pill: (v) => (
+    <span className="sf-pill ghost">{INBOUND_TYPE_LABEL[v as InboundType] ?? (v as string)}</span>
+  ),
+  inbound_status_badge: (v) => <InboundStatusBadge status={v as BLStatus} />,
+  // Inbound: aggregated 컬럼 (useBLListWithAgg 가 row 에 합쳐주는 _agg 필드 사용)
+  bl_first_product: (_v, row) => {
+    const r = row as BLShipment & { _agg?: { firstName?: string; firstCode?: string; extraCount?: number } };
+    if (!r._agg?.firstName) return <span className="text-muted-foreground">—</span>;
+    return (
+      <div className="text-[11px]">
+        <div className="truncate max-w-[200px]">{r._agg.firstName}</div>
+        <div className="text-[10px] text-muted-foreground font-mono">
+          {r._agg.firstCode ?? '—'}{r._agg.extraCount ? ` 외 ${r._agg.extraCount}건` : ''}
+        </div>
+      </div>
+    );
+  },
+  bl_total_mw: (_v, row) => {
+    const r = row as BLShipment & { _agg?: { totalMw?: number } };
+    const mw = r._agg?.totalMw ?? 0;
+    return mw > 0 ? <span className="tabular-nums font-mono">{mw.toFixed(2)}</span> : <span>—</span>;
+  },
+  bl_avg_cents: (_v, row) => {
+    const r = row as BLShipment & { _agg?: { avgCentsPerWp?: number } };
+    const c = r._agg?.avgCentsPerWp ?? 0;
+    return c > 0 ? <span className="tabular-nums font-mono">{c.toFixed(2)}</span> : <span>—</span>;
+  },
+  // 법인명 lookup (companies store 에서)
+  bl_company_name: (_v, row) => {
+    const r = row as BLShipment;
+    const companies = useAppStore.getState().companies;
+    const name = companies.find((c) => c.company_id === r.company_id)?.company_name;
+    return <span>{name ?? '—'}</span>;
+  },
 };
 
 // 단순 리스트 fetch hook (서버 필터 없음 — 클라이언트 검색만)
@@ -180,6 +219,51 @@ export const dataHooks: Record<string, DataHook> = {
       ? `/api/v1/construction-sites?company_id=${companyId}`
       : '/api/v1/construction-sites';
     return useSimpleList<ConstructionSite>(url) as unknown as DataHookResult;
+  },
+  // Inbound (Step 1): BL list + 라인 합계 (totalMw / avgCentsPerWp / 첫 라인) 클라이언트 합산
+  // N+1 issue — BL 많으면 느려짐. follow-up 으로 server-side aggregation 검토.
+  useBLListWithAgg: (f) => {
+    const baseHook = useBLList({
+      inbound_type: f.inbound_type || undefined,
+      status: f.status || undefined,
+      manufacturer_id: f.manufacturer_id || undefined,
+    });
+    const [aggMap, setAggMap] = useState<Record<string, { firstName?: string; firstCode?: string; extraCount: number; avgCentsPerWp: number; totalMw: number }>>({});
+    useEffect(() => {
+      const items = baseHook.data;
+      if (!items || items.length === 0) { setAggMap({}); return; }
+      let cancelled = false;
+      (async () => {
+        const result: typeof aggMap = {};
+        await Promise.all(items.map(async (bl) => {
+          try {
+            const lines = await fetchWithAuth<BLLineItem[]>(`/api/v1/bls/${bl.bl_id}/lines`).catch(() => [] as BLLineItem[]);
+            const totalInvoice = (lines ?? []).reduce((s, l) => s + (l.invoice_amount_usd ?? 0), 0);
+            const totalWp = (lines ?? []).reduce((s, l) => s + (l.capacity_kw ?? 0) * 1000, 0);
+            const first = (lines ?? [])[0];
+            result[bl.bl_id] = {
+              firstName: first?.product_name ?? first?.products?.product_name,
+              firstCode: first?.product_code ?? first?.products?.product_code,
+              extraCount: Math.max(0, (lines?.length ?? 0) - 1),
+              avgCentsPerWp: totalWp > 0 ? (totalInvoice / totalWp) * 100 : 0,
+              totalMw: (lines ?? []).reduce((s, l) => s + (l.capacity_kw ?? 0), 0) / 1000,
+            };
+          } catch { /* skip */ }
+        }));
+        if (!cancelled) setAggMap(result);
+      })();
+      return () => { cancelled = true; };
+    }, [baseHook.data]);
+    // ETD 기간 필터: f.month (YYYY-MM) 가 있으면 client-side 추가 필터링
+    // useMemo 로 reference 안정화 — 매 render 새 배열 만들면 ListScreen 무한 루프
+    const monthFilter = f.month;
+    const enriched = useMemo(() => {
+      const items = monthFilter
+        ? baseHook.data.filter((bl) => bl.etd?.startsWith(monthFilter))
+        : baseHook.data;
+      return items.map((bl) => ({ ...bl, _agg: aggMap[bl.bl_id] }));
+    }, [baseHook.data, aggMap, monthFilter]);
+    return { data: enriched, loading: baseHook.loading, reload: baseHook.reload } as unknown as DataHookResult;
   },
 };
 
@@ -234,6 +318,13 @@ export const metricComputers: Record<string, MetricComputer> = {
   // Phase 4: 품번
   'count.product_active': (items) =>
     (items as Product[]).filter((p) => p.is_active).length.toLocaleString(),
+  // Inbound (Step 1)
+  'count.bl_import': (items) =>
+    (items as BLShipment[]).filter((b) => b.inbound_type === 'import').length.toLocaleString(),
+  'count.bl_completed': (items) =>
+    (items as BLShipment[]).filter((b) => b.status === 'completed').length.toLocaleString(),
+  'count.bl_pending': (items) =>
+    (items as BLShipment[]).filter((b) => b.status !== 'completed').length.toLocaleString(),
   // Phase 4: 발전소
   'count.site_active': (items) =>
     (items as ConstructionSite[]).filter((s) => s.is_active).length.toLocaleString(),
@@ -271,7 +362,16 @@ export const sparkComputers: Record<string, (items: unknown[]) => number[]> = {
 };
 
 // ─── Action handlers ───────────────────────────────────────────────────────
-export const actionHandlers: Record<string, ActionHandler> = {};
+export const actionHandlers: Record<string, ActionHandler> = {
+  // Inbound (Step 1): "새로 등록" — 페이지가 BLForm dialog 띄우도록 이벤트 발행
+  inbound_open_create: () => {
+    window.dispatchEvent(new CustomEvent('sf-inbound-open-create'));
+  },
+  // Inbound: 행 편집 — editData 와 함께 이벤트 발행
+  inbound_open_edit: (row) => {
+    window.dispatchEvent(new CustomEvent('sf-inbound-open-edit', { detail: row }));
+  },
+};
 
 // ─── Forms / Detail components ─────────────────────────────────────────────
 // 메타 폼 래퍼 — config를 클로저로 받아 FormComponent 시그니처에 맞춤
@@ -453,6 +553,8 @@ export const formComponents: Record<string, FormComponent> = {
 
 export const detailComponents: Record<string, DetailComponent> = {
   outbound: ((props) => <OutboundDetailView outboundId={props.id} onBack={props.onBack} />) as DetailComponent,
+  // Inbound (Step 1): BLDetailView 래퍼 — props {blId, onBack} → DetailComponent {id, onBack}
+  bl: ((props) => <BLDetailView blId={props.id} onBack={props.onBack} />) as DetailComponent,
 };
 
 // ─── Rail blocks ───────────────────────────────────────────────────────────
@@ -679,6 +781,9 @@ export const enumDictionaries: Record<string, Record<string, string>> = {
   OUTBOUND_STATUS_LABEL,
   USAGE_CATEGORY_LABEL: USAGE_CATEGORY_LABEL as Record<string, string>,
   INVOICE_STATUS_LABEL: { issued: '발행', pending: '미발행' },
+  // Inbound (Step 1)
+  INBOUND_TYPE_LABEL: INBOUND_TYPE_LABEL as Record<string, string>,
+  BL_STATUS_LABEL: BL_STATUS_LABEL as Record<string, string>,
 };
 
 // ─── Phase 4 보강: Computed formulas (계산 필드용) ─────────────────────────
