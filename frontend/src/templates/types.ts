@@ -299,6 +299,12 @@ export interface MasterOptionSource {
   // context: optionsDependsOn 으로 선언된 다른 필드들의 현재 값
   // 미사용 source 는 인자를 무시. 하위호환 — 기존 source 들은 그대로 작동
   load: (context?: Record<string, unknown>) => Promise<{ value: string; label: string }[]>;
+  // Phase 4 보강: 서버 측 검색 (대용량 옵션) — 정의되면 UI 가 combobox 모드로 전환
+  // 입력 변화 시 디바운스 호출. load 와 비슷하나 query 파라미터 추가
+  search?: (query: string, context?: Record<string, unknown>) => Promise<{ value: string; label: string }[]>;
+  // 단일 값 라벨 조회 — 편집 모드 prefill 시 또는 search 결과 밖의 값 표시용
+  // 미정의면 load() 결과에서 찾아 폴백
+  resolveLabel?: (value: string, context?: Record<string, unknown>) => Promise<string | null>;
 }
 
 export type FormComponent = (props: {

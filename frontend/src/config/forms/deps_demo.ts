@@ -1,12 +1,12 @@
-// Phase 4 보강: MetaForm 의존성·동적 옵션·다중선택·파일·동적정적옵션 시연 폼
-// (저장 없음 — UI 데모 전용)
-// 다섯 기능 동시 시연:
+// Phase 4 보강: MetaForm 메타 인프라 종합 시연 폼 (저장 없음 — UI 데모 전용)
+// 여섯 기능 동시 시연:
 //   1) visibleIf — has_warranty=true 시 warranty_months 노출
 //   2) optionsDependsOn — manufacturer_id 옵션이 domestic_filter 값에 따라 필터됨
 //      (manufacturers.byDomestic master 소스가 context 사용)
 //   3) multiselect — features 다중 체크박스
 //   4) file — product_image 파일 첨부
-//   5) staticOptionsIf — payment_options 옵션이 delivery_type 값에 따라 분기
+//   5) staticOptionsIf — delivery_slot 옵션이 delivery_type 값에 따라 분기
+//   6) masterSource.search — linked_product_id combobox (서버 검색, 디바운스 300ms)
 
 import type { MetaFormConfig } from '@/templates/types';
 
@@ -135,6 +135,20 @@ const depsDemo: MetaFormConfig = {
       fields: [
         // 파일 첨부 — File 객체 캡처. 실제 업로드는 페이지 책임.
         { key: 'product_image', label: '제품 이미지', type: 'file' },
+      ],
+    },
+    {
+      cols: 1,
+      fields: [
+        // 서버 측 검색 (combobox) — masterSource 에 search() 가 있으면 자동으로
+        // combobox UI 활성화. 디바운스 300ms, 최대 20개 결과.
+        // 편집 모드 prefill 은 resolveLabel(value) 사용.
+        {
+          key: 'linked_product_id', label: '연관 제품 (서버 검색)', type: 'select',
+          optionsFrom: 'master',
+          masterKey: 'products.search',
+          placeholder: '품번/품명/제조사 약칭으로 검색',
+        },
       ],
     },
   ],

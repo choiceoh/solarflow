@@ -43,6 +43,7 @@ export default function MetaFormDepsDemoPage() {
           <li><b>multiselect</b> — "제품 특성" 체크박스 다중 선택 (값은 string[])</li>
           <li><b>staticOptionsIf</b> — "배송 방식" 변경 시 "시간대" 옵션이 분기 (택배/픽업)</li>
           <li><b>file</b> — "제품 이미지" 파일 첨부 (File 객체 캡처)</li>
+          <li><b>masterSource.search</b> — "연관 제품" combobox (디바운스 300ms, 입력 시 백엔드 검색 호출 — 대용량 옵션 처리)</li>
         </ul>
         <p className="mt-2">제출은 콘솔 로그만 — 저장 없음.</p>
       </div>
