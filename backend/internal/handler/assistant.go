@@ -77,7 +77,7 @@ func (h *AssistantHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		provider = strings.ToLower(strings.TrimSpace(os.Getenv("ASSISTANT_PROVIDER")))
 	}
 	if provider == "" {
-		provider = "anthropic"
+		provider = "openai"
 	}
 
 	model := strings.TrimSpace(req.Model)
@@ -85,7 +85,7 @@ func (h *AssistantHandler) Chat(w http.ResponseWriter, r *http.Request) {
 		model = strings.TrimSpace(os.Getenv("ASSISTANT_MODEL"))
 	}
 	if model == "" {
-		model = "glm-5.1"
+		model = defaultModelForProvider(provider)
 	}
 
 	maxTokens := req.MaxTokens
@@ -102,20 +102,7 @@ func (h *AssistantHandler) Chat(w http.ResponseWriter, r *http.Request) {
 	// 이번 요청에서 생성된 쓰기 제안을 응답에 포함하기 위한 collector
 	ctx, collector := withProposalCollector(r.Context())
 
-	var (
-		content string
-		err     error
-	)
-	switch provider {
-	case "anthropic":
-		content, err = h.callAnthropic(ctx, model, system, req.Messages, maxTokens)
-	case "openai":
-		content, err = h.callOpenAI(ctx, model, system, req.Messages, maxTokens)
-	default:
-		response.RespondError(w, http.StatusBadRequest, fmt.Sprintf("지원하지 않는 provider: %s", provider))
-		return
-	}
-
+	content, usedProvider, usedModel, err := h.callWithFallback(ctx, provider, model, system, req.Messages, maxTokens, req.Provider != "")
 	if err != nil {
 		response.RespondError(w, http.StatusBadGateway, err.Error())
 		return
@@ -123,10 +110,85 @@ func (h *AssistantHandler) Chat(w http.ResponseWriter, r *http.Request) {
 
 	response.RespondJSON(w, http.StatusOK, assistantResponse{
 		Content:   content,
-		Model:     model,
-		Provider:  provider,
+		Model:     usedModel,
+		Provider:  usedProvider,
 		Proposals: collector.snapshot(),
 	})
+}
+
+// defaultModelForProvider — provider별 모델 기본값.
+func defaultModelForProvider(provider string) string {
+	switch provider {
+	case "openai":
+		return "qwen3.6-35b-a3b"
+	case "anthropic":
+		return "glm-5.1"
+	default:
+		return ""
+	}
+}
+
+// callWithFallback — primary provider 호출, 인프라성 실패(5xx/타임아웃/네트워크)면 fallback 시도.
+// 클라이언트가 명시적으로 provider를 지정한 경우(clientPinned=true)에는 fallback 비활성화.
+func (h *AssistantHandler) callWithFallback(ctx context.Context, provider, model, system string, messages []assistantMessage, maxTokens int, clientPinned bool) (string, string, string, error) {
+	content, err := h.dispatchProvider(ctx, provider, model, system, messages, maxTokens)
+	if err == nil {
+		return content, provider, model, nil
+	}
+
+	if clientPinned || !shouldFallback(err) {
+		return "", provider, model, err
+	}
+
+	fbProvider := strings.ToLower(strings.TrimSpace(os.Getenv("ASSISTANT_FALLBACK_PROVIDER")))
+	if fbProvider == "" || fbProvider == provider {
+		return "", provider, model, err
+	}
+
+	fbModel := strings.TrimSpace(os.Getenv("ASSISTANT_FALLBACK_MODEL"))
+	if fbModel == "" {
+		fbModel = defaultModelForProvider(fbProvider)
+	}
+
+	log.Printf("[assistant] primary=%s 실패(%v) → fallback=%s 시도", provider, err, fbProvider)
+
+	content, fbErr := h.dispatchProvider(ctx, fbProvider, fbModel, system, messages, maxTokens)
+	if fbErr != nil {
+		return "", fbProvider, fbModel, fmt.Errorf("primary(%s) 실패: %v / fallback(%s) 실패: %w", provider, err, fbProvider, fbErr)
+	}
+	return content, fbProvider, fbModel, nil
+}
+
+func (h *AssistantHandler) dispatchProvider(ctx context.Context, provider, model, system string, messages []assistantMessage, maxTokens int) (string, error) {
+	switch provider {
+	case "anthropic":
+		return h.callAnthropic(ctx, model, system, messages, maxTokens)
+	case "openai":
+		return h.callOpenAI(ctx, model, system, messages, maxTokens)
+	default:
+		return "", fmt.Errorf("지원하지 않는 provider: %s", provider)
+	}
+}
+
+// shouldFallback — 5xx/타임아웃/네트워크 오류만 fallback. 4xx(잘못된 요청)는 fallback 안 함.
+func shouldFallback(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "context deadline exceeded") || strings.Contains(msg, "timeout") {
+		return true
+	}
+	if strings.Contains(msg, "호출 실패") {
+		// httpClient.Do 자체가 실패한 경우 (네트워크/연결 거부 등)
+		return true
+	}
+	for _, code := range []string{" 500", " 502", " 503", " 504", " 522", " 524"} {
+		if strings.Contains(msg, code+":") {
+			return true
+		}
+	}
+	return false
 }
 
 // ConfirmProposal — POST /api/v1/assistant/proposals/{id}/confirm
@@ -660,23 +722,53 @@ func (h *AssistantHandler) callAnthropicOnce(ctx context.Context, baseURL, apiKe
 	return parsed, nil
 }
 
-// --- OpenAI Chat Completions API ---
+// --- OpenAI Chat Completions API (with tool use) ---
 // POST {baseURL}/chat/completions
 // Headers: Authorization: Bearer
+//
+// vLLM/Ollama 등 OpenAI 호환 엔드포인트도 동일 스펙으로 tool_calls 지원.
+// finish_reason="tool_calls" 인 동안 도구를 실행해 다음 요청에 결과를 첨부하는 루프.
+
+type openaiToolFunctionDef struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Parameters  json.RawMessage `json:"parameters"`
+}
+
+type openaiTool struct {
+	Type     string                `json:"type"`
+	Function openaiToolFunctionDef `json:"function"`
+}
+
+type openaiToolCallFunc struct {
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
+}
+
+type openaiToolCall struct {
+	ID       string             `json:"id"`
+	Type     string             `json:"type"`
+	Function openaiToolCallFunc `json:"function"`
+}
+
 type openaiMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content,omitempty"`
+	ToolCalls  []openaiToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
 }
 
 type openaiRequest struct {
 	Model     string          `json:"model"`
 	Messages  []openaiMessage `json:"messages"`
+	Tools     []openaiTool    `json:"tools,omitempty"`
 	MaxTokens int             `json:"max_tokens,omitempty"`
 }
 
 type openaiResponse struct {
 	Choices []struct {
-		Message openaiMessage `json:"message"`
+		Message      openaiMessage `json:"message"`
+		FinishReason string        `json:"finish_reason"`
 	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
@@ -686,12 +778,14 @@ type openaiResponse struct {
 
 func (h *AssistantHandler) callOpenAI(ctx context.Context, model, system string, messages []assistantMessage, maxTokens int) (string, error) {
 	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return "", errors.New("OPENAI_API_KEY 미설정")
-	}
 	baseURL := strings.TrimRight(os.Getenv("OPENAI_BASE_URL"), "/")
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
+	}
+	// vLLM 등 로컬 엔드포인트는 키가 필요 없는 경우가 있음 → 빈 키 허용
+	requireAuth := !isLocalBaseURL(baseURL)
+	if requireAuth && apiKey == "" {
+		return "", errors.New("OPENAI_API_KEY 미설정")
 	}
 
 	msgs := make([]openaiMessage, 0, len(messages)+1)
@@ -706,25 +800,80 @@ func (h *AssistantHandler) callOpenAI(ctx context.Context, model, system string,
 		msgs = append(msgs, openaiMessage{Role: role, Content: m.Content})
 	}
 
+	available := availableAssistantTools(ctx)
+	tools := make([]openaiTool, 0, len(available))
+	for _, t := range available {
+		tools = append(tools, openaiTool{
+			Type: "function",
+			Function: openaiToolFunctionDef{
+				Name:        t.name,
+				Description: t.description,
+				Parameters:  t.inputSchema,
+			},
+		})
+	}
+
+	for iter := 0; iter < maxAssistantToolIterations; iter++ {
+		resp, err := h.callOpenAIOnce(ctx, baseURL, apiKey, model, msgs, tools, maxTokens)
+		if err != nil {
+			return "", err
+		}
+		if len(resp.Choices) == 0 {
+			return "", errors.New("OpenAI 응답에 choices 없음")
+		}
+		choice := resp.Choices[0]
+
+		if choice.FinishReason != "tool_calls" || len(choice.Message.ToolCalls) == 0 {
+			return choice.Message.Content, nil
+		}
+
+		// assistant 메시지(tool_calls 포함)를 그대로 누적
+		msgs = append(msgs, choice.Message)
+
+		// 각 tool_call을 실행해 role=tool 메시지로 첨부
+		for _, tc := range choice.Message.ToolCalls {
+			args := json.RawMessage(tc.Function.Arguments)
+			if len(args) == 0 {
+				args = json.RawMessage("{}")
+			}
+			out, terr := dispatchAssistantTool(ctx, h.db, tc.Function.Name, args)
+			if terr != nil {
+				out = "ERROR: " + terr.Error()
+			}
+			msgs = append(msgs, openaiMessage{
+				Role:       "tool",
+				ToolCallID: tc.ID,
+				Content:    out,
+			})
+		}
+	}
+
+	return "", errors.New("도구 호출 반복 횟수 초과")
+}
+
+func (h *AssistantHandler) callOpenAIOnce(ctx context.Context, baseURL, apiKey, model string, msgs []openaiMessage, tools []openaiTool, maxTokens int) (openaiResponse, error) {
 	body, err := json.Marshal(openaiRequest{
 		Model:     model,
 		Messages:  msgs,
+		Tools:     tools,
 		MaxTokens: maxTokens,
 	})
 	if err != nil {
-		return "", err
+		return openaiResponse{}, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, baseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return openaiResponse{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+apiKey)
+	if apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+	}
 
 	res, err := h.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("OpenAI 호출 실패: %w", err)
+		return openaiResponse{}, fmt.Errorf("OpenAI 호출 실패: %w", err)
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
@@ -732,19 +881,21 @@ func (h *AssistantHandler) callOpenAI(ctx context.Context, model, system string,
 	if res.StatusCode >= 400 {
 		var parsed openaiResponse
 		if json.Unmarshal(raw, &parsed) == nil && parsed.Error != nil {
-			return "", fmt.Errorf("OpenAI %d: %s", res.StatusCode, parsed.Error.Message)
+			return openaiResponse{}, fmt.Errorf("OpenAI %d: %s", res.StatusCode, parsed.Error.Message)
 		}
-		return "", fmt.Errorf("OpenAI %d: %s", res.StatusCode, truncate(string(raw), 400))
+		return openaiResponse{}, fmt.Errorf("OpenAI %d: %s", res.StatusCode, truncate(string(raw), 400))
 	}
 
 	var parsed openaiResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return "", fmt.Errorf("OpenAI 응답 파싱 실패: %w", err)
+		return openaiResponse{}, fmt.Errorf("OpenAI 응답 파싱 실패: %w", err)
 	}
-	if len(parsed.Choices) == 0 {
-		return "", errors.New("OpenAI 응답에 choices 없음")
-	}
-	return parsed.Choices[0].Message.Content, nil
+	return parsed, nil
+}
+
+func isLocalBaseURL(u string) bool {
+	lu := strings.ToLower(u)
+	return strings.Contains(lu, "://localhost") || strings.Contains(lu, "://127.0.0.1") || strings.Contains(lu, "://0.0.0.0")
 }
 
 func truncate(s string, n int) string {
