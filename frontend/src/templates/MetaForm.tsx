@@ -713,9 +713,10 @@ function buildPayload(
 export default function MetaForm({ config: defaultConfig, open, onOpenChange, onSubmit, editData, extraContext }: MetaFormProps) {
   // Phase 4 PoC: tenant 오버레이 (계열사 포크)
   const tenantId = useTenantStore((s) => s.tenantId);
+  const runtimeVersion = useTenantStore((s) => s.runtimeVersion);
   const tenantConfig = useMemo(
     () => applyTenantToForm(defaultConfig, tenantId),
-    [defaultConfig, tenantId],
+    [defaultConfig, tenantId, runtimeVersion],
   );
   // Phase 3: localStorage override 우선, 없으면 (tenant 적용된) defaultConfig
   const config = useResolvedConfig(tenantConfig, 'form');

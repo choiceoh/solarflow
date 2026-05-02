@@ -52,18 +52,26 @@ function applyOverride<T>(
   return result as T;
 }
 
+// Runtime override 가 있으면 코드 overlay 위에 한 층 더 적용
+// 적용 흐름: base → 코드 overlay → runtime overlay → 결과
+import { loadRuntimeOverride } from './runtimeOverride';
+
 export function applyTenantToScreen(
   base: ListScreenConfig,
   tenantId: TenantId,
 ): ListScreenConfig {
-  const override = tenantOverrides[tenantId]?.screens?.[base.id];
-  return applyOverride(base, override as Partial<ListScreenConfig> | undefined, ['page']);
+  const codeOverride = tenantOverrides[tenantId]?.screens?.[base.id];
+  const afterCode = applyOverride(base, codeOverride as Partial<ListScreenConfig> | undefined, ['page']);
+  const runtimeOverride = loadRuntimeOverride<ScreenOverride>(tenantId, 'screen', base.id);
+  return applyOverride(afterCode, runtimeOverride as Partial<ListScreenConfig> | undefined, ['page']);
 }
 
 export function applyTenantToForm(
   base: MetaFormConfig,
   tenantId: TenantId,
 ): MetaFormConfig {
-  const override = tenantOverrides[tenantId]?.forms?.[base.id];
-  return applyOverride(base, override as Partial<MetaFormConfig> | undefined, ['title']);
+  const codeOverride = tenantOverrides[tenantId]?.forms?.[base.id];
+  const afterCode = applyOverride(base, codeOverride as Partial<MetaFormConfig> | undefined, ['title']);
+  const runtimeOverride = loadRuntimeOverride<FormOverride>(tenantId, 'form', base.id);
+  return applyOverride(afterCode, runtimeOverride as Partial<MetaFormConfig> | undefined, ['title']);
 }

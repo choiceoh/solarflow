@@ -12,8 +12,11 @@ export const TENANT_LABELS: Record<TenantId, string> = {
 
 interface TenantState {
   tenantId: TenantId;
+  // Phase 4 PoC: runtime override 버전 — 변경 시 ListScreen/MetaForm 재렌더 트리거
+  runtimeVersion: number;
   setTenantId: (id: TenantId) => void;
   initialize: () => void;
+  bumpRuntimeVersion: () => void;
 }
 
 const STORAGE_KEY = 'sf.tenantId';
@@ -35,11 +38,19 @@ function readInitial(): TenantId {
 
 export const useTenantStore = create<TenantState>((set) => ({
   tenantId: 'topworks',
+  runtimeVersion: 0,
   setTenantId: (id) => {
     set({ tenantId: id });
     if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, id);
   },
   initialize: () => {
     set({ tenantId: readInitial() });
+    // Runtime override 변경 이벤트 → version 증가
+    if (typeof window !== 'undefined') {
+      window.addEventListener('sf-tenant-runtime-changed', () => {
+        set((s) => ({ runtimeVersion: s.runtimeVersion + 1 }));
+      });
+    }
   },
+  bumpRuntimeVersion: () => set((s) => ({ runtimeVersion: s.runtimeVersion + 1 })),
 }));
