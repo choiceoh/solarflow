@@ -21,7 +21,6 @@ import {
   Tags,
   Truck,
   Wallet,
-  Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { detectTenantScope, type TenantScope } from '@/lib/tenantScope';
@@ -125,8 +124,6 @@ const NAV_GROUPS: CommandNavGroup[] = [
       { key: 'masters', label: '마스터', abbr: '기준', path: '/data', icon: Database, menu: 'masters' },
       { key: 'assistant', label: 'AI', abbr: 'AI', path: '/assistant', icon: Bot, menu: 'assistant' },
       { key: 'approval', label: '결재안', abbr: '결재', path: '/approval', icon: FileSignature, menu: 'approval', tenants: ['topsolar'] },
-      // admin 전용 — 메타 config 시각 편집 (DB 영구 저장, 모든 사용자 영향)
-      { key: 'ui-editor', label: 'UI 편집기', abbr: 'UI', path: '/ui-config-editor', icon: Wand2, menu: 'ui_editor' },
       { key: 'settings', label: '설정', abbr: '설정', path: '/settings', icon: Settings, menu: 'settings' },
     ],
   },
@@ -143,8 +140,10 @@ const ROUTE_LABELS: Record<string, { title: string; breadcrumb: string }> = {
   '/search': { title: '통합 검색', breadcrumb: '도구 / 검색' },
   '/approval': { title: '결재안', breadcrumb: '도구 / 결재 문안' },
   '/assistant': { title: 'AI', breadcrumb: '도구 / 채팅 어시스턴트' },
-  '/settings': { title: '설정', breadcrumb: '시스템 / 관리자' },
-  '/ui-config-editor': { title: 'UI 편집기', breadcrumb: '도구 / 화면·폼 시각 편집 (모든 사용자)' },
+  '/settings': { title: '설정', breadcrumb: '시스템 / 설정' },
+  '/settings/admin': { title: '관리자 설정', breadcrumb: '시스템 / 사용자 관리' },
+  '/settings/site': { title: '사이트 설정', breadcrumb: '시스템 / UI 메타 편집' },
+  '/settings/personal': { title: '개인 설정', breadcrumb: '시스템 / 내 계정' },
 };
 
 function routeMeta(pathname: string, search: string) {
@@ -179,6 +178,7 @@ function isItemActive(itemPath: string, pathname: string, search: string) {
     return pathname === base && !search;
   }
   if (base === '/data') return pathname === '/data' || pathname.startsWith('/data/');
+  if (base === '/settings') return pathname === '/settings' || pathname.startsWith('/settings/');
   return pathname === base;
 }
 

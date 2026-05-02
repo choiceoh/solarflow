@@ -525,6 +525,79 @@ func (h *UserHandler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	response.RespondJSON(w, http.StatusOK, statusOKResponse{Status: "ok"})
 }
 
+// UpdateMyProfile — 본인 프로필(이름·부서·전화) 수정 (인증된 모든 사용자)
+func (h *UserHandler) UpdateMyProfile(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		response.RespondError(w, http.StatusUnauthorized, "인증이 필요합니다")
+		return
+	}
+
+	var body UpdateProfileRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		response.RespondError(w, http.StatusBadRequest, "요청 형식 오류")
+		return
+	}
+
+	body.Name = strings.TrimSpace(body.Name)
+	if utf8.RuneCountInString(body.Name) < 2 || utf8.RuneCountInString(body.Name) > 50 {
+		response.RespondError(w, http.StatusBadRequest, "이름은 2~50자로 입력해 주세요")
+		return
+	}
+
+	payload := userProfileUpdate{
+		Name:       body.Name,
+		Department: cleanOptionalText(body.Department),
+		Phone:      cleanOptionalText(body.Phone),
+	}
+
+	_, _, err := h.DB.From("user_profiles").
+		Update(payload, "", "exact").
+		Eq("user_id", userID).
+		Execute()
+	if err != nil {
+		log.Printf("[users/me] 본인 정보 수정 실패: id=%s, err=%v", userID, err)
+		response.RespondError(w, http.StatusInternalServerError, "프로필 저장에 실패했습니다")
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, statusOKResponse{Status: "ok"})
+}
+
+// ChangeMyPasswordRequest — 본인 비밀번호 변경 요청
+type ChangeMyPasswordRequest struct {
+	Password string `json:"password"`
+}
+
+// ChangeMyPassword — 본인 비밀번호 변경 (인증된 모든 사용자)
+// TODO: 현재 비밀번호 재인증 추가 — 현재는 유효한 JWT 보유 자체로 인증 충분 가정.
+func (h *UserHandler) ChangeMyPassword(w http.ResponseWriter, r *http.Request) {
+	userID := middleware.GetUserID(r.Context())
+	if userID == "" {
+		response.RespondError(w, http.StatusUnauthorized, "인증이 필요합니다")
+		return
+	}
+
+	var body ChangeMyPasswordRequest
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		response.RespondError(w, http.StatusBadRequest, "요청 형식 오류")
+		return
+	}
+	if msg := validatePassword(body.Password); msg != "" {
+		response.RespondError(w, http.StatusBadRequest, msg)
+		return
+	}
+
+	_, status, message, err := callAuthAdmin(http.MethodPut, "/auth/v1/admin/users/"+userID, updateAuthUserPayload{
+		Password: body.Password,
+	})
+	if err != nil {
+		log.Printf("[users/me] 비밀번호 변경 실패: id=%s, status=%d, err=%v", userID, status, err)
+		response.RespondError(w, status, message)
+		return
+	}
+	response.RespondJSON(w, http.StatusOK, simpleStatusResponse{Status: "ok"})
+}
+
 // UpdateActive — 사용자 활성/비활성 변경 (admin 전용)
 func (h *UserHandler) UpdateActive(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(r) {

@@ -509,6 +509,8 @@ func (h *UIConfigHandler) RegisterRoutes(r chi.Router, g middleware.Gates) {
 // UserHandler — /users/me (모든 인증) + /users (admin 전용).
 func (h *UserHandler) RegisterRoutes(r chi.Router, g middleware.Gates) {
 	r.Get("/users/me", h.GetMe)
+	r.Put("/users/me", h.UpdateMyProfile)
+	r.Put("/users/me/password", h.ChangeMyPassword)
 	r.Route("/users", func(r chi.Router) {
 		r.Use(g.AdminOnly)
 		r.Get("/", h.ListUsers)

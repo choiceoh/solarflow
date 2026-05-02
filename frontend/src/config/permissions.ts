@@ -36,8 +36,7 @@ export type MenuKey =
   | 'approval'      // 결재안
   | 'assistant'     // AI 업무 도우미
   | 'crm_inbox'     // CRM: 내 미처리 문의
-  | 'settings'      // 설정 (admin 전용)
-  | 'ui_editor'     // UI 메타 config 편집기 (admin 전용)
+  | 'settings'      // 설정 (모든 역할 — 탭별 가시성으로 분리)
   // BARO 테넌트 전용 메뉴
   | 'baro_group_purchase'   // BARO: 그룹내 매입 요청 등록
   | 'baro_dispatch'         // BARO: 배차/일정 보드
@@ -78,7 +77,8 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
   operator: {
     menus: ['procurement','lc','inbound','inventory','orders','outbound','receipts',
             'banking','customs','masters','approval','assistant','crm_inbox',
-            'baro_group_purchase','baro_dispatch','baro_credit','baro_price_book','baro_inbox'],
+            'baro_group_purchase','baro_dispatch','baro_credit','baro_price_book','baro_inbox',
+            'settings'],
     features: {
       canEdit: true,
       showPrice: true,
@@ -92,7 +92,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
   },
   executive: {
     menus: ['inventory','orders','outbound','receipts','banking','customs','assistant','crm_inbox',
-            'baro_credit'],
+            'baro_credit','settings'],
     features: {
       canEdit: false,
       showPrice: true,
@@ -105,7 +105,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   manager: {
-    menus: ['inventory','assistant'],
+    menus: ['inventory','assistant','settings'],
     features: {
       canEdit: false,
       showPrice: false,          // 단가·재고금액 차단 (역산 방지)
@@ -118,7 +118,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   viewer: {
-    menus: ['inventory'],
+    menus: ['inventory','settings'],
     features: {
       canEdit: false,
       showPrice: false,

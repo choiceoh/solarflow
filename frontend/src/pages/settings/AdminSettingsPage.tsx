@@ -1,4 +1,4 @@
-// 설정 페이지 — 사용자 관리 (admin 전용)
+// 관리자 설정 — 사용자 관리 (admin 전용)
 import { useEffect, useState } from 'react';
 import { KeyRound, Pencil, Plus } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/api';
@@ -53,7 +53,7 @@ function Txt({ text, placeholder = '선택' }: { text: string; placeholder?: str
   return <span className={`flex flex-1 text-left truncate text-sm ${text ? '' : 'text-muted-foreground'}`} data-slot="select-value">{text || placeholder}</span>;
 }
 
-export default function SettingsPage() {
+export default function AdminSettingsPage() {
   const { manageUsers } = usePermission();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -268,8 +268,8 @@ export default function SettingsPage() {
   return (
     <>
       <MasterConsole
-        eyebrow="SYSTEM SETTINGS"
-        title="설정"
+        eyebrow="ADMIN SETTINGS"
+        title="관리자 설정"
         description="사용자 계정, 역할, 활성 상태, 임시 비밀번호 발급을 관리합니다."
         tableTitle="사용자 권한 관리"
         tableSub={`${users.length.toLocaleString()}명 · ${activeUsers.toLocaleString()}명 활성`}

@@ -37,7 +37,15 @@ const SalesAnalysisPage = lazy(() => import('@/pages/SalesAnalysisPage'));
 const BankingPage = lazy(() => import('@/pages/BankingPage'));
 const ApprovalPage = lazy(() => import('@/pages/ApprovalPage'));
 const SearchPage = lazy(() => import('@/pages/SearchPage'));
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
+const SettingsLayout = lazy(() => import('@/pages/settings/SettingsLayout'));
+const SettingsIndexRedirect = lazy(() =>
+  import('@/pages/settings/SettingsLayout').then((m) => ({ default: m.SettingsIndexRedirect })),
+);
+const SettingsLegacyRedirect = lazy(() =>
+  import('@/pages/settings/SettingsLayout').then((m) => ({ default: m.SettingsLegacyRedirect })),
+);
+const AdminSettingsPage = lazy(() => import('@/pages/settings/AdminSettingsPage'));
+const PersonalSettingsPage = lazy(() => import('@/pages/settings/PersonalSettingsPage'));
 const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
 const ConstructionSitesPage = lazy(() => import('@/pages/masters/ConstructionSitesPage'));
 const DataPage = lazy(() => import('@/pages/DataPage'));
@@ -117,7 +125,7 @@ export default function App() {
                 <Route path="/cost-meta-demo" element={<CostMetaDemoPage />} />
                 <Route path="/child-forms-meta-demo" element={<ChildFormsMetaDemoPage />} />
                 <Route path="/wizard-demo" element={<WizardDemoPage />} />
-                <Route path="/ui-config-editor" element={<RoleGuard allowedRoles={['admin']}><UIConfigEditorPage /></RoleGuard>} />
+                <Route path="/ui-config-editor" element={<SettingsLegacyRedirect adminTo="/settings/site/ui-config" />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/customs" element={<CustomsPage />} />
                 <Route path="/sales-analysis" element={<SalesAnalysisPage />} />
@@ -131,7 +139,12 @@ export default function App() {
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/approval" element={<ApprovalPage />} />
                 <Route path="/assistant" element={<AssistantPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/settings" element={<SettingsLayout />}>
+                  <Route index element={<SettingsIndexRedirect />} />
+                  <Route path="admin" element={<RoleGuard allowedRoles={['admin']}><AdminSettingsPage /></RoleGuard>} />
+                  <Route path="site" element={<RoleGuard allowedRoles={['admin']}><UIConfigEditorPage /></RoleGuard>} />
+                  <Route path="personal" element={<PersonalSettingsPage />} />
+                </Route>
               </Route>
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
