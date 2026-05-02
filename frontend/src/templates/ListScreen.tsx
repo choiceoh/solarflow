@@ -25,7 +25,7 @@ import type {
 import {
   cellRenderers, dataHooks, metricComputers, toneComputers, sparkComputers, subComputers,
   formComponents, detailComponents, railBlocks, toolbarExtras,
-  masterSources, enumDictionaries,
+  masterSources, enumDictionaries, actionHandlers,
   applyFormatter, getFieldValue, generateMonths,
 } from './registry';
 
@@ -504,6 +504,10 @@ export function makeRowActionHandler(actions: PageActions, reload: () => void) {
           reload();
         },
       });
+    } else if (action.kind === 'custom' && action.handlerId) {
+      const handler = actionHandlers[action.handlerId];
+      if (handler) handler(row);
+      else console.warn(`[ListScreen] actionHandler not registered: ${action.handlerId}`);
     }
   };
 }
@@ -597,7 +601,14 @@ export function HeaderActions({
           key={a.id}
           size="sm"
           variant={a.variant === 'destructive' ? 'destructive' : (a.variant === 'outline' ? 'outline' : 'default')}
-          onClick={() => { if (a.kind === 'open_form' && a.formId) openForm(a.formId); }}
+          onClick={() => {
+            if (a.kind === 'open_form' && a.formId) openForm(a.formId);
+            else if (a.kind === 'custom' && a.handlerId) {
+              const handler = actionHandlers[a.handlerId];
+              if (handler) handler();
+              else console.warn(`[ListScreen] actionHandler not registered: ${a.handlerId}`);
+            }
+          }}
         >
           {a.iconId ? <span className="mr-1.5">{ICONS[a.iconId]}</span> : null}
           {a.label}
@@ -623,6 +634,10 @@ export default function ListScreen({ config: defaultConfig }: { config: ListScre
   const requiresCompany = config.requiresCompany ?? true;
 
   const state = useTabState(config);
+  // 검색·정렬 모두 MetaTable 내부에서 (TanStack globalFilter + getSortedRowModel)
+  // 검색 적용 후 행 갯수 — MetaTable 의 onFilteredRowCountChange 콜백으로 받아옴.
+  // 주의: 모든 hook 은 early return 전에 호출되어야 React rules-of-hooks 위반 안 함.
+  const [filteredCount, setFilteredCount] = useState<number>(state.data.length);
 
   if (requiresCompany && !selectedCompanyId) {
     return (
@@ -642,10 +657,7 @@ export default function ListScreen({ config: defaultConfig }: { config: ListScre
     );
   }
 
-  // 검색·정렬 모두 MetaTable 내부에서 (TanStack globalFilter + getSortedRowModel)
   const displayItems = state.data;
-  // 검색 적용 후 행 갯수 — MetaTable 의 onFilteredRowCountChange 콜백으로 받아옴
-  const [filteredCount, setFilteredCount] = useState<number>(state.data.length);
 
   const onRowAction = makeRowActionHandler(pageActions, state.reload);
   const headerActions = config.actions?.filter((a) => a.trigger === 'header') ?? [];
