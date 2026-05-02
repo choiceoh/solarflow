@@ -1,9 +1,9 @@
-// 컬럼 탭 — 행별 인라인 편집 + ↑↓ 정렬 + 추가/삭제
+// 컬럼 탭 — 행별 인라인 편집 + collapse + 검색 + drag-drop + 검증
 
 import { useMemo } from 'react';
 import type { ColumnConfig, Formatter, ListScreenConfig } from '@/templates/types';
 import { cellRenderers } from '@/templates/registry';
-import { ArrayEditor, FieldInput, FieldSelect, moveInArray } from './ArrayEditor';
+import { ArrayEditor, FieldInput, FieldSelect, moveInArray, type ItemIssue } from './ArrayEditor';
 
 const FORMATTER_OPTIONS: { value: string; label: string }[] = [
   { value: 'date', label: 'date (날짜)' },
@@ -17,6 +17,29 @@ const ALIGN_OPTIONS = [
   { value: 'right', label: 'right' },
   { value: 'center', label: 'center' },
 ];
+
+// 컬럼 검증 — registry/key 충돌 즉시 감지
+function validateColumn(col: ColumnConfig, all: ColumnConfig[]): ItemIssue[] {
+  const issues: ItemIssue[] = [];
+  if (!col.key.trim()) issues.push({ level: 'error', msg: 'key 가 비어 있습니다' });
+  if (!col.label.trim()) issues.push({ level: 'error', msg: 'label 이 비어 있습니다' });
+  if (all.filter((c) => c.key === col.key).length > 1) {
+    issues.push({ level: 'error', msg: `key '${col.key}' 가 중복됩니다` });
+  }
+  if (col.rendererId && !(col.rendererId in cellRenderers)) {
+    issues.push({ level: 'error', msg: `rendererId '${col.rendererId}' 가 registry 에 없습니다` });
+  }
+  return issues;
+}
+
+// 새 컬럼 key 생성 — 충돌 안 나는 'col_N'
+function suggestColumnKey(existing: string[]): string {
+  for (let i = 1; i < 1000; i++) {
+    const candidate = `col_${i}`;
+    if (!existing.includes(candidate)) return candidate;
+  }
+  return 'new_column';
+}
 
 export function ColumnsTab({
   value, onChange,
@@ -40,9 +63,37 @@ export function ColumnsTab({
       addLabel="컬럼 추가"
       emptyMsg="컬럼이 없습니다"
       rowKey={(_, i) => `${i}-${cols[i].key}`}
-      onAdd={() => onChange({ ...value, columns: [...cols, { key: 'new_field', label: '새 컬럼' }] })}
+      onAdd={() => onChange({
+        ...value,
+        columns: [...cols, { key: suggestColumnKey(cols.map((c) => c.key)), label: '새 컬럼' }],
+      })}
       onMove={(idx, dir) => onChange({ ...value, columns: moveInArray(cols, idx, dir) })}
       onRemove={(idx) => onChange({ ...value, columns: cols.filter((_, i) => i !== idx) })}
+      onReorder={(next) => onChange({ ...value, columns: next })}
+      validate={validateColumn}
+      searchMatcher={(col, q) => {
+        const lc = q.toLowerCase();
+        return col.key.toLowerCase().includes(lc)
+          || col.label.toLowerCase().includes(lc)
+          || (col.formatter ?? '').toLowerCase().includes(lc)
+          || (col.rendererId ?? '').toLowerCase().includes(lc);
+      }}
+      renderSummary={(col) => (
+        <span className="flex items-center gap-2 min-w-0">
+          <span className="font-mono text-[11px] text-foreground/80 shrink-0">{col.key}</span>
+          <span className="text-foreground/60 shrink-0">·</span>
+          <span className="truncate">{col.label}</span>
+          {col.formatter && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-mono text-muted-foreground shrink-0">{col.formatter}</span>
+          )}
+          {col.rendererId && (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] text-amber-900 shrink-0">renderer</span>
+          )}
+          {col.align && col.align !== 'left' && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground shrink-0">{col.align}</span>
+          )}
+        </span>
+      )}
       renderRow={(col, idx) => (
         <div className="grid grid-cols-2 gap-2">
           <FieldInput label="key (데이터 경로)" value={col.key} mono
