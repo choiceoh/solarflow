@@ -2,7 +2,7 @@
 // FieldConfig 배열을 받아 react-hook-form + zod로 폼을 그린다.
 // 단순 검증/레이아웃/select·visibleIf 까지만 처리. 복잡 검증·계산·외부 컴포넌트는 코드 폼에 남길 것.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useResolvedConfig } from './configOverride';
 import { useForm, type FieldValues } from 'react-hook-form';
 import { z, type ZodTypeAny, type ZodObject, type ZodRawShape } from 'zod';
@@ -15,7 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { usePermission } from '@/hooks/usePermission';
-import type { FieldConfig, MetaFormConfig } from './types';
+import type { FieldConfig, MasterOptionSource, MetaFormConfig } from './types';
 import { enumDictionaries, masterSources } from './registry';
 
 type Options = { value: string; label: string }[];
@@ -176,6 +176,149 @@ function isReadOnly(field: FieldConfig, role: string | null): boolean {
   return false;
 }
 
+// ─── optionsDependsOn 컨텍스트 수집 ───────────────────────────────────────
+function collectContext(field: FieldConfig, watchedValues: Record<string, unknown>): Record<string, unknown> {
+  const ctx: Record<string, unknown> = {};
+  (field.optionsDependsOn ?? []).forEach((k) => { ctx[k] = watchedValues[k]; });
+  return ctx;
+}
+
+// ─── 서버 검색 combobox (대용량 옵션) ─────────────────────────────────────
+// masterSource.search 가 정의된 select 필드에서 사용. 디바운스(300ms) 후 호출.
+// 편집 모드 prefill: resolveLabel(value) 또는 load() 결과에서 label 폴백.
+interface MetaComboboxProps {
+  labelText: string;
+  value: string;
+  onChange: (next: string) => void;
+  source: MasterOptionSource;
+  context: Record<string, unknown>;
+  fallbackOptions: Options;
+  readOnly: boolean;
+  errorMsg?: string;
+  placeholder?: string;
+}
+
+function MetaCombobox({
+  labelText, value, onChange, source, context, fallbackOptions, readOnly, errorMsg, placeholder,
+}: MetaComboboxProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<Options>([]);
+  const [loading, setLoading] = useState(false);
+  const [resolvedLabel, setResolvedLabel] = useState<string>('');
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  // 의존성 컨텍스트 직렬화 (재호출 트리거)
+  const ctxKey = useMemo(() => JSON.stringify(context), [context]);
+
+  // 편집 모드 prefill — value 가 있는데 라벨 미해석 시 resolveLabel 호출
+  useEffect(() => {
+    if (!value) { setResolvedLabel(''); return; }
+    let cancelled = false;
+    (async () => {
+      // 1순위: resolveLabel
+      if (source.resolveLabel) {
+        const l = await source.resolveLabel(value, context);
+        if (!cancelled && l) { setResolvedLabel(l); return; }
+      }
+      // 2순위: fallback (이미 가진 옵션 매핑)
+      const inFallback = fallbackOptions.find((o) => o.value === value);
+      if (!cancelled && inFallback) { setResolvedLabel(inFallback.label); return; }
+      // 3순위: load() 호출 후 매칭
+      try {
+        const all = await source.load(context);
+        if (cancelled) return;
+        const found = all.find((o) => o.value === value);
+        setResolvedLabel(found?.label ?? value);
+      } catch { if (!cancelled) setResolvedLabel(value); }
+    })();
+    return () => { cancelled = true; };
+    // value 와 ctxKey 변경 시만 재실행
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, ctxKey]);
+
+  // 검색 — 디바운스 300ms
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    const handle = setTimeout(async () => {
+      try {
+        const list = await source.search!(query, context);
+        if (!cancelled) setResults(list);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 300);
+    return () => { cancelled = true; clearTimeout(handle); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, open, ctxKey]);
+
+  // 외부 클릭으로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    window.addEventListener('mousedown', onMouseDown);
+    return () => window.removeEventListener('mousedown', onMouseDown);
+  }, [open]);
+
+  const display = resolvedLabel || (value ? value : '');
+
+  return (
+    <div className="space-y-1.5" ref={wrapperRef}>
+      <Label>{labelText}</Label>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => !readOnly && setOpen((o) => !o)}
+          disabled={readOnly}
+          data-slot="select-trigger"
+          className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={`flex-1 text-left truncate ${display ? '' : 'text-muted-foreground'}`} data-slot="select-value">
+            {display || (placeholder ?? '검색하여 선택')}
+          </span>
+          <span className="text-xs text-muted-foreground ml-2">▼</span>
+        </button>
+        {open && !readOnly && (
+          <div className="absolute z-50 mt-1 w-full rounded-md border border-input bg-popover shadow-md">
+            <div className="p-2 border-b border-input">
+              <Input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="검색어 입력…"
+                className="h-8 text-sm"
+              />
+            </div>
+            <div className="max-h-64 overflow-auto py-1">
+              {loading ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">검색 중…</p>
+              ) : results.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-muted-foreground">{query ? '결과 없음' : '검색어를 입력하세요'}</p>
+              ) : (
+                results.map((o) => (
+                  <button
+                    type="button"
+                    key={o.value}
+                    onClick={() => { onChange(o.value); setResolvedLabel(o.label); setOpen(false); setQuery(''); }}
+                    className={`flex w-full items-center px-3 py-1.5 text-sm text-left hover:bg-accent ${o.value === value ? 'bg-accent/50 font-medium' : ''}`}
+                  >
+                    {o.label}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
+    </div>
+  );
+}
+
 // ─── 단일 필드 렌더 ────────────────────────────────────────────────────────
 interface FieldRenderProps {
   field: FieldConfig;
@@ -201,6 +344,23 @@ function FieldRender({ field, value, error, options, setValue, register, watched
   const errorMsg = error?.message;
 
   if (field.type === 'select') {
+    // Phase 4 보강: master 소스에 search() 가 있으면 combobox 모드 (서버 검색 + 디바운스)
+    const masterSrc = field.optionsFrom === 'master' && field.masterKey ? masterSources[field.masterKey] : null;
+    if (masterSrc?.search) {
+      return (
+        <MetaCombobox
+          labelText={labelText}
+          value={(value as string) ?? ''}
+          onChange={(next) => setValue(field.key, next ?? '')}
+          source={masterSrc}
+          context={collectContext(field, watchedValues)}
+          fallbackOptions={options ?? []}
+          readOnly={readOnly}
+          errorMsg={errorMsg}
+          placeholder={field.placeholder}
+        />
+      );
+    }
     const labelMap = Object.fromEntries((options ?? []).map((o) => [o.value, o.label]));
     const v = (value as string) ?? '';
     const display = labelMap[v] ?? '';

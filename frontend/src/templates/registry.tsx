@@ -502,6 +502,38 @@ export const masterSources: Record<string, MasterOptionSource> = {
       return useAppStore.getState().companies.map((c) => ({ value: c.company_id, label: c.company_name }));
     },
   },
+  // Phase 4 보강: 서버 측 검색 시연 — 대용량 옵션 처리 패턴
+  // search 가 정의돼 있어 MetaForm 이 combobox 모드로 전환됨.
+  // 실제 운영에서는 백엔드 query 파라미터로 검색 (예: /api/v1/products?search=jko)
+  // 현재 mock 은 전체 반환 → 클라이언트에서 필터 (대용량 데이터셋 시뮬레이션).
+  'products.search': {
+    load: async () => {
+      const list = await fetchWithAuth<Product[]>('/api/v1/products');
+      return list
+        .filter((p) => p.is_active)
+        .slice(0, 20)
+        .map((p) => ({ value: p.product_id, label: `${p.product_code} · ${p.product_name}` }));
+    },
+    search: async (query) => {
+      // 운영 백엔드 예시: `/api/v1/products?search=${encodeURIComponent(query)}&limit=20`
+      const list = await fetchWithAuth<Product[]>('/api/v1/products');
+      const lower = query.trim().toLowerCase();
+      return list
+        .filter((p) => p.is_active)
+        .filter((p) => !lower
+          || p.product_name.toLowerCase().includes(lower)
+          || p.product_code.toLowerCase().includes(lower)
+          || (p.manufacturers?.short_name ?? '').toLowerCase().includes(lower))
+        .slice(0, 20)
+        .map((p) => ({ value: p.product_id, label: `${p.product_code} · ${p.product_name}` }));
+    },
+    resolveLabel: async (value) => {
+      // 운영: `/api/v1/products/${value}` 단일 조회. mock 은 list 에서 검색.
+      const list = await fetchWithAuth<Product[]>('/api/v1/products');
+      const found = list.find((p) => p.product_id === value);
+      return found ? `${found.product_code} · ${found.product_name}` : null;
+    },
+  },
   'partners.customer': {
     load: async () => {
       const list = await fetchWithAuth<Partner[]>('/api/v1/partners');
