@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { fetchWithAuth, streamFetchWithAuth } from '@/lib/api';
 import { isDevMockApiActive } from '@/lib/devMockApi';
+import { MetaConfigPreview } from '@/components/assistant/MetaConfigPreview';
 import {
   toBackendMessages,
   extractProposals,
@@ -48,6 +49,7 @@ const PROPOSAL_KIND_LABEL: Record<string, string> = {
   delete_outbound: '출고 삭제',
   create_receipt: '수금 입력',
   create_declaration: '면장 등록',
+  propose_ui_config_update: '메타 화면/폼 변경',
 };
 
 interface OCRLineLite {
@@ -614,6 +616,10 @@ function ProposalCard({
         <span>{label}</span>
       </div>
       <div className="mt-2 whitespace-pre-wrap text-foreground/90">{proposal.summary}</div>
+
+      {proposal.kind === 'propose_ui_config_update' && (
+        <MetaConfigPreview payload={proposal.payload} />
+      )}
 
       {proposal.status === 'pending' && (
         <div className="mt-3 flex gap-2">
