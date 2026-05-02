@@ -1,15 +1,13 @@
-// Phase 3 PoC: 운영자용 UI Config 편집기
-// 등록된 모든 메타 config(화면·폼·상세)를 JSON으로 편집하고 localStorage에 저장한다.
-// "적용" 시 같은 ID의 화면이 즉시 override로 교체됨 (페이지 새로고침 불필요).
+// Phase 3: 운영자용 UI Config 편집기 — DB(`ui_configs`) 영구 저장
+// 등록된 모든 메타 config(화면·폼·상세)를 JSON으로 편집하고 PUT API로 저장한다.
+// "적용" 시 모든 사용자의 같은 화면이 즉시 override로 교체 (백엔드 API + localStorage 캐시).
 //
-// 운영 흐름 (PoC 단계):
-//   1. 좌측 목록에서 config 선택
+// 운영 흐름:
+//   1. 좌측 목록에서 config 선택 (활성 override는 회색 배지)
 //   2. 우측 JSON 편집기에서 수정
-//   3. "포맷" → JSON 정렬 / "검증" → JSON parse 확인 / "적용" → localStorage 저장
-//   4. 다른 탭에서 해당 화면(/masters/partners-v2 등) 열어서 즉시 변경 확인
-//   5. "기본값 복원" → localStorage 항목 삭제, 코드 default로 폴백
-//
-// 다음 단계(별도 PR): localStorage → DB 백엔드. configOverride.ts의 인터페이스만 보존.
+//   3. "포맷" → JSON 정렬 / "검증" → parse + id 일치 / "적용" → PUT /api/v1/ui-configs
+//   4. 다른 탭에서 해당 화면 열거나 새로고침 → 즉시 반영 (모든 사용자 영향)
+//   5. "기본값 복원" → DELETE → DB 행 제거, 코드 default로 폴백
 
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -52,17 +50,24 @@ export default function UIConfigEditorPage() {
     [selectedKey],
   );
 
-  const refreshOverrides = () => setActiveOverrides(listOverrides());
+  const refreshOverrides = async () => {
+    setActiveOverrides(await listOverrides());
+  };
 
   // 선택 변경 시 현재 override(있으면) 또는 default를 textarea로
   useEffect(() => {
-    const override = loadOverride<typeof selected.default>(selected.kind, selected.id);
-    const value = override ?? selected.default;
-    setDraft(JSON.stringify(value, null, 2));
-    setStatus(override ? { kind: 'info', msg: '현재 localStorage override 표시 중' } : { kind: 'info', msg: '코드 기본값 표시 중' });
+    let cancelled = false;
+    (async () => {
+      const override = await loadOverride<typeof selected.default>(selected.kind, selected.id);
+      if (cancelled) return;
+      const value = override ?? selected.default;
+      setDraft(JSON.stringify(value, null, 2));
+      setStatus(override ? { kind: 'info', msg: '현재 DB override 표시 중' } : { kind: 'info', msg: '코드 기본값 표시 중' });
+    })();
+    return () => { cancelled = true; };
   }, [selected.kind, selected.id, selected.default]);
 
-  useEffect(() => { refreshOverrides(); }, []);
+  useEffect(() => { void refreshOverrides(); }, []);
 
   if (role !== 'admin') {
     return (
@@ -101,26 +106,30 @@ export default function UIConfigEditorPage() {
     }
   };
 
-  const onApply = () => {
+  const onApply = async () => {
     try {
       const parsed = JSON.parse(draft) as { id?: string };
       if (parsed.id !== selected.id) {
         setStatus({ kind: 'err', msg: `id 불일치 — 적용 거부` });
         return;
       }
-      saveOverride(selected.kind, selected.id, parsed);
-      setStatus({ kind: 'ok', msg: '적용 완료 — 다른 탭에서 즉시 반영됨' });
-      refreshOverrides();
+      await saveOverride(selected.kind, selected.id, parsed);
+      setStatus({ kind: 'ok', msg: '적용 완료 — DB 저장 + 모든 사용자 영향' });
+      await refreshOverrides();
     } catch (e) {
       setStatus({ kind: 'err', msg: `적용 실패: ${e instanceof Error ? e.message : String(e)}` });
     }
   };
 
-  const onReset = () => {
-    clearOverride(selected.kind, selected.id);
-    setDraft(JSON.stringify(selected.default, null, 2));
-    setStatus({ kind: 'ok', msg: '기본값 복원 — localStorage 항목 삭제됨' });
-    refreshOverrides();
+  const onReset = async () => {
+    try {
+      await clearOverride(selected.kind, selected.id);
+      setDraft(JSON.stringify(selected.default, null, 2));
+      setStatus({ kind: 'ok', msg: '기본값 복원 — DB 행 삭제됨' });
+      await refreshOverrides();
+    } catch (e) {
+      setStatus({ kind: 'err', msg: `복원 실패: ${e instanceof Error ? e.message : String(e)}` });
+    }
   };
 
   const isOverridden = activeOverrides.some((o) => o.kind === selected.kind && o.id === selected.id);

@@ -451,6 +451,16 @@ func New(db *supa.Client, engineClient ...*engine.EngineClient) http.Handler {
 			r.Put("/{id}/active", userH.UpdateActive)
 			r.Put("/{id}/password", userH.ResetPassword)
 		})
+
+		// Phase 3: 운영자 GUI 메타 편집기 — 화면/폼/상세 config override 저장소
+		// 읽기는 모든 인증 사용자 (페이지 렌더링에 필요), 쓰기/삭제는 admin 전용
+		uiConfigH := handler.NewUIConfigHandler(db)
+		r.Route("/ui-configs", func(r chi.Router) {
+			r.Get("/", uiConfigH.List)
+			r.Get("/{scope}/{config_id}", uiConfigH.GetByScopeID)
+			r.With(adminOnly).Put("/{scope}/{config_id}", uiConfigH.Upsert)
+			r.With(adminOnly).Delete("/{scope}/{config_id}", uiConfigH.Delete)
+		})
 	})
 
 	// 비유: Rust 계산실 프록시 — 프론트→Go→Rust 중계
