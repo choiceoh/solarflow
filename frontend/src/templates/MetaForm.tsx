@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useResolvedConfig } from './configOverride';
-import { useForm, type FieldValues } from 'react-hook-form';
+import { useForm, useFieldArray, type Control, type FieldValues } from 'react-hook-form';
 import { z, type ZodTypeAny, type ZodObject, type ZodRawShape } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -63,6 +63,17 @@ function buildFieldSchema(field: FieldConfig): ZodTypeAny {
 
   // computed — 사용자 입력 없음, validation skip
   if (field.type === 'computed') return z.any().optional();
+
+  // child_array — 자식 행 배열, 각 행은 childFields 의 zod object
+  if (field.type === 'child_array') {
+    const shape: Record<string, ZodTypeAny> = {};
+    (field.childFields ?? []).forEach((cf) => { shape[cf.key] = buildFieldSchema(cf); });
+    let arr: ZodTypeAny = z.array(z.object(shape as ZodRawShape));
+    if (field.minItems != null) arr = (arr as z.ZodArray<ZodTypeAny>).min(field.minItems, `${subj} 최소 ${field.minItems}개 이상이어야 합니다`);
+    if (field.maxItems != null) arr = (arr as z.ZodArray<ZodTypeAny>).max(field.maxItems, `${subj} 최대 ${field.maxItems}개까지 가능합니다`);
+    if (!field.required) arr = arr.optional();
+    return arr;
+  }
 
   // text / select / textarea / date — 모두 string
   let s = z.string();
@@ -458,6 +469,151 @@ function evalCondition(
   return expected.includes(String(ref));
 }
 
+// ─── 자식 배열 필드 (child_array) ─────────────────────────────────────────
+// useFieldArray 사용 — 행 별 fields 가 리얼타임 register/validate.
+// MVP: text/number/select/date/textarea/switch 만 지원. computed/file 은 Step 3 follow-up.
+function ChildArrayField({
+  field, control, register, watchedValues,
+}: {
+  field: FieldConfig;
+  control: Control<FieldValues>;
+  register: ReturnType<typeof useForm>['register'];
+  watchedValues: Record<string, unknown>;
+}) {
+  const arrayName = field.key;
+  const { fields: rows, append, remove } = useFieldArray({ control, name: arrayName });
+  const childFields = field.childFields ?? [];
+  const cols = field.childCols ?? Math.min(childFields.length, 4);
+  const colsClass = cols === 2 ? 'grid grid-cols-2 gap-2'
+                  : cols === 3 ? 'grid grid-cols-3 gap-2'
+                  : cols === 4 ? 'grid grid-cols-4 gap-2'
+                  : 'space-y-2';
+
+  const addRow = () => {
+    const initial: Record<string, unknown> = {};
+    childFields.forEach((cf) => {
+      initial[cf.key] = cf.defaultValue ?? (cf.type === 'switch' ? false
+        : cf.type === 'multiselect' ? []
+        : cf.type === 'number' ? 0
+        : '');
+    });
+    append(initial);
+  };
+
+  return (
+    <div className="space-y-2 rounded border border-input bg-background/50 p-2">
+      {rows.length === 0 && (
+        <p className="text-center text-[11px] text-muted-foreground py-2">행이 없습니다 — "{field.addLabel ?? '+ 추가'}" 클릭해서 추가하세요</p>
+      )}
+      {rows.map((row, idx) => (
+        <div key={row.id} className="flex items-start gap-2 rounded border bg-card p-2">
+          <span className="text-[10px] text-muted-foreground font-mono pt-1.5 shrink-0">#{idx + 1}</span>
+          <div className={`flex-1 ${colsClass}`}>
+            {childFields.map((cf) => {
+              // 조건부 visible — 같은 행 내 다른 필드 값 기반
+              if (cf.visibleIf) {
+                // FIXME: 행별 visibleIf 평가 — watchedValues 의 array 인덱스 접근 필요
+                // 우선 글로벌 visibleIf 만 (행 인덱스 무시). 향후 행 컨텍스트 분리.
+                if (!evalCondition(cf.visibleIf, watchedValues)) return null;
+              }
+              return (
+                <ChildFieldInput
+                  key={cf.key}
+                  field={cf}
+                  fullName={`${arrayName}.${idx}.${cf.key}`}
+                  register={register}
+                />
+              );
+            })}
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
+            onClick={() => remove(idx)}
+            title="삭제"
+          >
+            ×
+          </Button>
+        </div>
+      ))}
+      <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={addRow}>
+        {field.addLabel ?? '+ 추가'}
+      </Button>
+    </div>
+  );
+}
+
+function ChildFieldInput({
+  field, fullName, register,
+}: {
+  field: FieldConfig;
+  fullName: string;
+  register: ReturnType<typeof useForm>['register'];
+}) {
+  const placeholder = field.placeholder;
+  if (field.type === 'select') {
+    // 정적 옵션만 MVP — enum/master 는 follow-up (registry 호출 + watchedValues 종속)
+    const opts = field.staticOptions ?? [];
+    return (
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+        <select
+          className="h-8 w-full rounded border border-input bg-background px-2 text-xs"
+          {...register(fullName)}
+        >
+          <option value="">— 선택 —</option>
+          {opts.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+    );
+  }
+  if (field.type === 'number') {
+    return (
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+        <Input type="number" placeholder={placeholder}
+          className="h-8 text-xs text-right tabular-nums"
+          {...register(fullName, { valueAsNumber: true })} />
+      </div>
+    );
+  }
+  if (field.type === 'textarea') {
+    return (
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+        <textarea placeholder={placeholder}
+          className="min-h-[40px] w-full rounded border border-input bg-background px-2 py-1 text-xs"
+          {...register(fullName)} />
+      </div>
+    );
+  }
+  if (field.type === 'switch') {
+    return (
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+        <input type="checkbox" className="h-4 w-4" {...register(fullName)} />
+      </div>
+    );
+  }
+  if (field.type === 'date') {
+    return (
+      <div className="space-y-1">
+        <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+        <Input type="date" className="h-8 text-xs" {...register(fullName)} />
+      </div>
+    );
+  }
+  // text 기본 (다른 타입은 MVP 에서 미지원 — child 행에서 file/computed 등은 드뭄)
+  return (
+    <div className="space-y-1">
+      <Label className="text-[10px] text-muted-foreground">{field.label}</Label>
+      <Input placeholder={placeholder} className="h-8 text-xs" {...register(fullName)} />
+    </div>
+  );
+}
+
 // ─── 단일 필드 렌더 ────────────────────────────────────────────────────────
 interface FieldRenderProps {
   field: FieldConfig;
@@ -471,9 +627,10 @@ interface FieldRenderProps {
   role: string | null;
   extraContext?: Record<string, unknown>;
   formId?: string; // GhostInput backend prompt 에 form 식별자 첨부
+  control?: Control<FieldValues>; // child_array 가 useFieldArray 호출 시 사용
 }
 
-function FieldRender({ field, value, error, options, setValue, register, watch, watchedValues, role, extraContext, formId }: FieldRenderProps) {
+function FieldRender({ field, value, error, options, setValue, register, watch, watchedValues, role, extraContext, formId, control }: FieldRenderProps) {
   // 조건부 표시 — visibleIf 평가 (source='field' 기본 / 'context' 옵션)
   if (field.visibleIf) {
     if (!evalCondition(field.visibleIf, watchedValues, extraContext)) return null;
@@ -640,6 +797,26 @@ function FieldRender({ field, value, error, options, setValue, register, watch, 
     );
   }
 
+  // child_array — 자식 행 배열 (useFieldArray 사용)
+  if (field.type === 'child_array') {
+    if (!control) {
+      console.warn(`[MetaForm] child_array '${field.key}': control prop required`);
+      return null;
+    }
+    return (
+      <div className="col-span-full space-y-1.5">
+        <Label>{labelText}</Label>
+        <ChildArrayField
+          field={field}
+          control={control}
+          register={register}
+          watchedValues={watchedValues}
+        />
+        {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
+      </div>
+    );
+  }
+
   // text / number / date
   // Phase 4 보강: number 타입에 numberFormat 이 지정되면 콤마 입력 사용
   // text 필드는 GhostInput 으로 분기 (자동완성). number/date/datetime/time 은 기존 Input.
@@ -766,7 +943,7 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
   const { role } = usePermission();
 
   const {
-    register, handleSubmit, reset, setValue, watch, trigger, formState: { errors, isSubmitting },
+    register, handleSubmit, reset, setValue, watch, trigger, control, formState: { errors, isSubmitting },
   } = useForm<FieldValues>({
     // schema 는 ZodObject 또는 ZodEffects (superRefine 적용 시) — 둘 다 zodResolver 호환
     resolver: zodResolver(schema as never),
@@ -921,6 +1098,7 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
                         role={role}
                         extraContext={extraContext}
                         formId={config.id}
+                        control={control}
                       />
                     ))}
                   </div>
