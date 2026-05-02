@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bot, Check, FileText, Inbox, Paperclip, Send, Trash2, User, X } from 'lucide-react';
+import { Bot, Check, FileText, Inbox, MessageSquarePlus, Paperclip, Send, Trash2, User, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -43,6 +43,27 @@ interface AssistantChatResponse {
   model: string;
   provider: Provider;
   proposals?: Proposal[];
+}
+
+interface SessionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SessionDetail extends SessionSummary {
+  messages: ChatMessage[];
+}
+
+const SESSION_TITLE_MAX = 30;
+
+function buildSessionTitle(messages: ChatMessage[]): string {
+  const firstUser = messages.find((m) => m.role === 'user');
+  const text = firstUser?.content?.trim() ?? '';
+  if (!text) return '새 대화';
+  const oneLine = text.replace(/\s+/g, ' ');
+  return oneLine.length > SESSION_TITLE_MAX ? oneLine.slice(0, SESSION_TITLE_MAX) + '…' : oneLine;
 }
 
 const PROPOSAL_KIND_LABEL: Record<string, string> = {
@@ -112,8 +133,37 @@ export default function AssistantPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedIdx, setHighlightedIdx] = useState<number | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessionLoadingId, setSessionLoadingId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 빠른 연속 send 시 setCurrentSessionId가 반영되기 전 두 번째 호출이 또 POST하지 않도록 ref로 동기 추적.
+  const sessionIdRef = useRef<string | null>(null);
+
+  const sessionsEnabled = !isDevMockApiActive();
+
+  useEffect(() => {
+    if (!sessionsEnabled) return;
+    fetchWithAuth<SessionSummary[]>('/api/v1/assistant/sessions')
+      .then((list) => setSessions(Array.isArray(list) ? list : []))
+      .catch(() => {});
+  }, [sessionsEnabled]);
+
+  const setCurrent = (id: string | null) => {
+    sessionIdRef.current = id;
+    setCurrentSessionId(id);
+  };
+
+  const upsertSession = (s: SessionSummary) => {
+    setSessions((prev) => {
+      const without = prev.filter((x) => x.id !== s.id);
+      return [
+        { id: s.id, title: s.title, created_at: s.created_at, updated_at: s.updated_at },
+        ...without,
+      ];
+    });
+  };
 
   const scrollToMessage = (idx: number) => {
     const el = document.getElementById(`assistant-msg-${idx}`);
@@ -219,11 +269,68 @@ export default function AssistantPage() {
         ...p,
         status: 'pending',
       }));
-      setMessages([...next, { role: 'assistant', content: data.content, proposals }]);
+      const finalMessages: ChatMessage[] = [...next, { role: 'assistant', content: data.content, proposals }];
+      setMessages(finalMessages);
+      void persistMessages(finalMessages);
     } catch (e) {
       setError(e instanceof Error ? e.message : '요청 실패');
     } finally {
       setBusy(false);
+    }
+  };
+
+  // 세션 저장 — 메시지 배열을 받아 현재 세션이 없으면 생성, 있으면 PATCH.
+  // sessionIdRef로 동기 추적해서 빠른 연속 send 시 중복 POST를 막는다.
+  const persistMessages = async (msgs: ChatMessage[]) => {
+    if (!sessionsEnabled || msgs.length === 0) return;
+    try {
+      if (!sessionIdRef.current) {
+        const created = await fetchWithAuth<SessionDetail>('/api/v1/assistant/sessions', {
+          method: 'POST',
+          body: JSON.stringify({ title: buildSessionTitle(msgs), messages: msgs }),
+        });
+        setCurrent(created.id);
+        upsertSession(created);
+      } else {
+        const updated = await fetchWithAuth<SessionDetail>(
+          `/api/v1/assistant/sessions/${sessionIdRef.current}`,
+          { method: 'PATCH', body: JSON.stringify({ messages: msgs }) },
+        );
+        upsertSession(updated);
+      }
+    } catch {
+      // 세션 저장 실패는 채팅 내용 자체에 영향 주지 않음
+    }
+  };
+
+  const newSession = () => {
+    setMessages([]);
+    setCurrent(null);
+    setError(null);
+  };
+
+  const loadSession = async (id: string) => {
+    if (id === currentSessionId || sessionLoadingId) return;
+    setSessionLoadingId(id);
+    setError(null);
+    try {
+      const detail = await fetchWithAuth<SessionDetail>(`/api/v1/assistant/sessions/${id}`);
+      setMessages(Array.isArray(detail.messages) ? detail.messages : []);
+      setCurrent(detail.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '세션 불러오기 실패');
+    } finally {
+      setSessionLoadingId(null);
+    }
+  };
+
+  const deleteSession = async (id: string) => {
+    try {
+      await fetchWithAuth(`/api/v1/assistant/sessions/${id}`, { method: 'DELETE' });
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+      if (sessionIdRef.current === id) newSession();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '세션 삭제 실패');
     }
   };
 
@@ -232,11 +339,6 @@ export default function AssistantPage() {
       e.preventDefault();
       send();
     }
-  };
-
-  const reset = () => {
-    setMessages([]);
-    setError(null);
   };
 
   const updateProposal = (msgIdx: number, propId: string, patch: Partial<ProposalState>) => {
@@ -316,8 +418,8 @@ export default function AssistantPage() {
             }
             className="h-9 w-[220px] text-sm"
           />
-          <Button variant="ghost" size="sm" onClick={reset} disabled={messages.length === 0}>
-            <Trash2 className="mr-1 h-4 w-4" />초기화
+          <Button variant="ghost" size="sm" onClick={newSession} disabled={messages.length === 0}>
+            <MessageSquarePlus className="mr-1 h-4 w-4" />새 대화
           </Button>
         </div>
       </header>
@@ -435,12 +537,23 @@ export default function AssistantPage() {
       </div>
       </div>
 
-      <PendingPanel
-        messages={messages}
-        onConfirm={onConfirm}
-        onReject={onReject}
-        onSelect={scrollToMessage}
-      />
+      <aside className="hidden w-[340px] shrink-0 flex-col border-l bg-muted/10 lg:flex">
+        <SessionsPanel
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          loadingId={sessionLoadingId}
+          enabled={sessionsEnabled}
+          onNew={newSession}
+          onLoad={loadSession}
+          onDelete={deleteSession}
+        />
+        <PendingPanel
+          messages={messages}
+          onConfirm={onConfirm}
+          onReject={onReject}
+          onSelect={scrollToMessage}
+        />
+      </aside>
     </div>
   );
 }
@@ -541,10 +654,10 @@ function PendingPanel({
   );
 
   return (
-    <aside className="hidden w-[340px] shrink-0 flex-col border-l bg-muted/10 lg:flex">
+    <section className="flex min-h-0 flex-1 flex-col">
       <header className="flex items-center gap-2 border-b px-4 py-3">
         <Inbox className="h-4 w-4 text-[var(--sf-solar)]" />
-        <h3 className="text-sm font-semibold">승인 대기</h3>
+        <h3 className="text-sm font-semibold">작업목록</h3>
         <span className="ml-auto rounded-full bg-[var(--sf-solar)]/15 px-2 py-0.5 text-xs font-medium text-[var(--sf-solar)]">
           {pending.length}건
         </span>
@@ -571,7 +684,112 @@ function PendingPanel({
           </div>
         )}
       </div>
-    </aside>
+    </section>
+  );
+}
+
+function SessionsPanel({
+  sessions,
+  currentSessionId,
+  loadingId,
+  enabled,
+  onNew,
+  onLoad,
+  onDelete,
+}: {
+  sessions: SessionSummary[];
+  currentSessionId: string | null;
+  loadingId: string | null;
+  enabled: boolean;
+  onNew: () => void;
+  onLoad: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  return (
+    <section className="flex min-h-0 flex-1 flex-col border-b">
+      <header className="flex items-center gap-2 border-b px-4 py-3">
+        <MessageSquarePlus className="h-4 w-4 text-[var(--sf-solar)]" />
+        <h3 className="text-sm font-semibold">세션목록</h3>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto h-7 px-2 text-xs"
+          onClick={onNew}
+          title="새 대화 시작"
+        >
+          + 새 대화
+        </Button>
+      </header>
+
+      <div className="flex-1 overflow-y-auto p-3">
+        {!enabled ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+            <div>목업 모드</div>
+            <div className="text-xs opacity-70">로그인 후 세션이 저장됩니다.</div>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
+            <MessageSquarePlus className="h-7 w-7 opacity-30" />
+            <div>저장된 대화가 없습니다.</div>
+            <div className="text-xs opacity-70">대화를 보내면 자동 저장됩니다.</div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            {sessions.map((s) => (
+              <SessionItem
+                key={s.id}
+                session={s}
+                active={s.id === currentSessionId}
+                loading={s.id === loadingId}
+                onLoad={() => onLoad(s.id)}
+                onDelete={() => onDelete(s.id)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function SessionItem({
+  session,
+  active,
+  loading,
+  onLoad,
+  onDelete,
+}: {
+  session: SessionSummary;
+  active: boolean;
+  loading: boolean;
+  onLoad: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <div
+      className={cn(
+        'group flex items-center gap-1 rounded-md border bg-background px-2 py-1.5 text-sm shadow-sm transition-colors hover:border-[var(--sf-solar)]/40',
+        active && 'border-[var(--sf-solar)]/60 bg-[var(--sf-solar)]/5',
+      )}
+    >
+      <button
+        type="button"
+        onClick={onLoad}
+        disabled={loading}
+        className="min-w-0 flex-1 truncate text-left"
+        title={session.title}
+      >
+        <span className="truncate">{session.title || '새 대화'}</span>
+      </button>
+      <button
+        type="button"
+        onClick={onDelete}
+        className="rounded p-1 text-muted-foreground opacity-0 hover:bg-muted hover:text-destructive group-hover:opacity-100"
+        title="삭제"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
   );
 }
 

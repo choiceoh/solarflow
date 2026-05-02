@@ -1,3 +1,4 @@
+DELETE  /api/v1/assistant/sessions/{id}
 DELETE  /api/v1/attachments/{id}
 DELETE  /api/v1/banks/{id}
 DELETE  /api/v1/baro/dispatch-routes/{id}
@@ -27,6 +28,8 @@ DELETE  /api/v1/tts/{id}
 DELETE  /api/v1/ui-configs/{scope}/{config_id}
 DELETE  /api/v1/warehouses/{id}
 GET     /api/v1/assistant/ocr/health
+GET     /api/v1/assistant/sessions
+GET     /api/v1/assistant/sessions/{id}
 GET     /api/v1/attachments/
 GET     /api/v1/attachments/{id}/access
 GET     /api/v1/attachments/{id}/download
@@ -110,6 +113,7 @@ GET     /api/v1/users/me
 GET     /api/v1/warehouses/
 GET     /api/v1/warehouses/{id}
 GET     /health
+PATCH   /api/v1/assistant/sessions/{id}
 PATCH   /api/v1/banks/{id}/status
 PATCH   /api/v1/companies/{id}/status
 PATCH   /api/v1/construction-sites/{id}/status
@@ -127,6 +131,7 @@ POST    /api/v1/assistant/match/receipts/auto
 POST    /api/v1/assistant/ocr/extract
 POST    /api/v1/assistant/proposals/{id}/confirm
 POST    /api/v1/assistant/proposals/{id}/reject
+POST    /api/v1/assistant/sessions
 POST    /api/v1/attachments/
 POST    /api/v1/banks/
 POST    /api/v1/baro/dispatch-routes/
