@@ -48,6 +48,7 @@ const PROPOSAL_KIND_LABEL: Record<string, string> = {
   delete_outbound: '출고 삭제',
   create_receipt: '수금 입력',
   create_declaration: '면장 등록',
+  propose_ui_config_update: '메타 화면/폼 변경',
 };
 
 interface OCRLineLite {

@@ -56,6 +56,8 @@ func assistantToolCatalog() []assistantTool {
 		toolSearchLC(),
 		toolSearchBL(),
 		toolSearchDeclarations(),
+		// 메타 config — 화면/폼/상세 단건 조회 (admin only)
+		toolReadUIConfig(),
 	}
 	proposes := []assistantTool{
 		// 쓰기 — 메모
@@ -74,6 +76,8 @@ func assistantToolCatalog() []assistantTool {
 		toolDeleteOutbound(),
 		toolCreateReceipt(),
 		toolCreateDeclaration(),
+		// 메타 config — 화면/폼/상세 통째 교체 제안 (admin only)
+		toolProposeUIConfigUpdate(),
 	}
 	out := make([]assistantTool, 0, len(reads)+len(proposes))
 	for _, t := range reads {
