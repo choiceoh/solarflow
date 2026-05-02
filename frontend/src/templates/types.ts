@@ -130,7 +130,8 @@ export type FieldType =
   | 'file'          // Phase 4 보강: 파일 업로드 (값은 File | null — 캡처만, 업로드는 페이지가 처리)
   | 'computed'      // Phase 4 보강: 계산 필드 (다른 필드 값에서 자동 계산, readonly 표시 + payload 포함)
   | 'datetime'      // Phase 4 보강 Tier 3: ISO 8601 datetime-local (값은 'YYYY-MM-DDTHH:MM')
-  | 'time';         // Phase 4 보강 Tier 3: 시간 (값은 'HH:MM')
+  | 'time'          // Phase 4 보강 Tier 3: 시간 (값은 'HH:MM')
+  | 'child_array';  // Phase 4 — Step 3 prep: 자식 행 배열 (BL lines, PO lines 등). childFields 로 구조 정의.
 
 export interface FieldConfig {
   key: string;                      // form 필드명 (zod 키 = react-hook-form 키)
@@ -211,6 +212,15 @@ export interface FieldConfig {
     value: string | string[];
     source?: 'field' | 'context';
   };
+
+  // Phase 4 — Step 3 prep: child_array 자식 행 정의
+  // type='child_array' 일 때 사용. 각 자식 행이 이 fields 로 구성됨.
+  // 값: 행별 { [key]: value } 객체의 배열 (e.g. lines: BLLineItem[])
+  childFields?: FieldConfig[];
+  addLabel?: string;                // 추가 버튼 라벨 (기본 "+ 추가")
+  minItems?: number;                // 최소 행 (validation)
+  maxItems?: number;                // 최대 행
+  childCols?: 1 | 2 | 3 | 4;        // 자식 행 grid 컬럼 (기본 4)
 }
 
 export interface FormSection {
