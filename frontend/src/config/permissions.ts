@@ -79,7 +79,8 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
   operator: {
     menus: ['procurement','lc','inbound','inventory','orders','outbound','receipts',
             'banking','customs','masters','approval','assistant','crm_inbox',
-            'baro_group_purchase','baro_dispatch','baro_credit','baro_price_book','baro_inbox'],
+            'baro_group_purchase','baro_dispatch','baro_credit','baro_price_book','baro_inbox',
+            'settings'],
     features: {
       canEdit: true,
       showPrice: true,
@@ -93,7 +94,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
   },
   executive: {
     menus: ['inventory','orders','outbound','receipts','banking','customs','assistant','crm_inbox',
-            'baro_credit'],
+            'baro_credit','settings'],
     features: {
       canEdit: false,
       showPrice: true,
@@ -106,7 +107,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   manager: {
-    menus: ['inventory','assistant'],
+    menus: ['inventory','assistant','settings'],
     features: {
       canEdit: false,
       showPrice: false,          // 단가·재고금액 차단 (역산 방지)
@@ -119,7 +120,7 @@ export const PERMISSIONS: Record<Role, RolePermission> = {
     },
   },
   viewer: {
-    menus: ['inventory'],
+    menus: ['inventory','settings'],
     features: {
       canEdit: false,
       showPrice: false,
