@@ -1,7 +1,10 @@
-// Phase 4 보강: MetaForm 의존성·동적 옵션 데모 페이지
-// 두 기능 동시 시연:
-//   1) visibleIf — 의존성 필드 (has_warranty 체크 시 warranty_months 노출)
-//   2) optionsDependsOn — 동적 옵션 (domestic_filter 값에 따라 manufacturer_id 옵션 변경)
+// Phase 4 보강: MetaForm 의존성·동적 옵션·다중선택·파일·동적정적옵션 데모 페이지
+// 다섯 기능 동시 시연:
+//   1) visibleIf — has_warranty 체크 시 warranty_months 노출
+//   2) optionsDependsOn — domestic_filter 값에 따라 manufacturer_id 옵션 변경
+//   3) multiselect — features 체크박스 다중 선택
+//   4) file — product_image 파일 첨부
+//   5) staticOptionsIf — delivery_type 값에 따라 delivery_slot 옵션 분기
 //
 // 저장 흐름은 콘솔 로그로만 — 실 데이터 저장 없음 (UI 데모 전용).
 
@@ -17,7 +20,13 @@ export default function MetaFormDepsDemoPage() {
   const [submitted, setSubmitted] = useState<Record<string, unknown> | null>(null);
 
   const handleSubmit = async (data: Record<string, unknown>) => {
-    setSubmitted(data);
+    // File 객체는 직접 직렬화 안 됨 — 표시용으로 메타정보만 추출
+    const display: Record<string, unknown> = {};
+    Object.entries(data).forEach(([k, v]) => {
+      if (v instanceof File) display[k] = `File(${v.name}, ${v.size}B)`;
+      else display[k] = v;
+    });
+    setSubmitted(display);
     console.log('[deps-demo] submit', data);
   };
 
@@ -30,8 +39,10 @@ export default function MetaFormDepsDemoPage() {
         </p>
         <ul className="mt-2 list-disc pl-4 space-y-1">
           <li><b>visibleIf</b> — "보증 포함" 스위치 ON 시 "보증 개월 수" 필드 노출</li>
-          <li><b>optionsDependsOn</b> — "제조사 범위" 변경 시 "제조사" 셀렉트 옵션이 즉시 필터됨
-            (master 소스 <code>manufacturers.byDomestic</code> 가 context.domestic_foreign 으로 분기)</li>
+          <li><b>optionsDependsOn</b> — "제조사 범위" 변경 시 "제조사" 셀렉트 옵션이 즉시 필터됨</li>
+          <li><b>multiselect</b> — "제품 특성" 체크박스 다중 선택 (값은 string[])</li>
+          <li><b>staticOptionsIf</b> — "배송 방식" 변경 시 "시간대" 옵션이 분기 (택배/픽업)</li>
+          <li><b>file</b> — "제품 이미지" 파일 첨부 (File 객체 캡처)</li>
         </ul>
         <p className="mt-2">제출은 콘솔 로그만 — 저장 없음.</p>
       </div>

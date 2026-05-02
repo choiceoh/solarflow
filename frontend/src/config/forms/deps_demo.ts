@@ -1,9 +1,12 @@
-// Phase 4 보강: MetaForm 의존성·동적 옵션 시연 폼 (저장 없음 — UI 데모 전용)
-// 두 기능 동시 시연:
+// Phase 4 보강: MetaForm 의존성·동적 옵션·다중선택·파일·동적정적옵션 시연 폼
+// (저장 없음 — UI 데모 전용)
+// 다섯 기능 동시 시연:
 //   1) visibleIf — has_warranty=true 시 warranty_months 노출
-//      domestic_filter !== '전체' 시 manufacturer_id 노출
 //   2) optionsDependsOn — manufacturer_id 옵션이 domestic_filter 값에 따라 필터됨
-//      (manufacturers.byDomestic master 소스가 context.domestic_foreign 사용)
+//      (manufacturers.byDomestic master 소스가 context 사용)
+//   3) multiselect — features 다중 체크박스
+//   4) file — product_image 파일 첨부
+//   5) staticOptionsIf — payment_options 옵션이 delivery_type 값에 따라 분기
 
 import type { MetaFormConfig } from '@/templates/types';
 
@@ -60,6 +63,78 @@ const depsDemo: MetaFormConfig = {
           key: 'warranty_months', label: '보증 개월 수', type: 'number', minValue: 1, maxValue: 240,
           visibleIf: { field: 'has_warranty', value: 'true' },
         },
+      ],
+    },
+    {
+      cols: 1,
+      fields: [
+        // 다중 선택 — 체크박스 리스트
+        {
+          key: 'features', label: '제품 특성 (복수 선택)', type: 'multiselect',
+          optionsFrom: 'static',
+          staticOptions: [
+            { value: 'bifacial', label: '양면형(Bifacial)' },
+            { value: 'half_cell', label: '하프셀' },
+            { value: 'mbb', label: 'MBB(다중 바스바)' },
+            { value: 'topcon', label: 'TOPCon' },
+            { value: 'perc', label: 'PERC' },
+          ],
+        },
+      ],
+    },
+    {
+      cols: 1,
+      fields: [
+        // 동적 정적옵션 — delivery_type 분기
+        {
+          key: 'delivery_type', label: '배송 방식', type: 'select', required: true,
+          optionsFrom: 'static',
+          staticOptions: [
+            { value: 'shipping', label: '택배 배송' },
+            { value: 'pickup', label: '직접 픽업' },
+          ],
+          defaultValue: 'shipping',
+        },
+      ],
+    },
+    {
+      cols: 1,
+      fields: [
+        // staticOptionsIf — delivery_type 값에 따라 옵션 분기
+        {
+          key: 'delivery_slot', label: '시간대',
+          type: 'select',
+          optionsFrom: 'static',
+          // staticOptionsIf 가 staticOptions 보다 우선
+          staticOptionsIf: {
+            field: 'delivery_type',
+            cases: [
+              {
+                value: 'shipping',
+                options: [
+                  { value: 'standard', label: '일반(2~3일)' },
+                  { value: 'express', label: '익일' },
+                  { value: 'economy', label: '경제(4~5일)' },
+                ],
+              },
+              {
+                value: 'pickup',
+                options: [
+                  { value: 'pickup_morning', label: '오전 (10~12시)' },
+                  { value: 'pickup_afternoon', label: '오후 (14~17시)' },
+                ],
+              },
+            ],
+            fallback: [{ value: '', label: '먼저 배송 방식 선택' }],
+          },
+        },
+      ],
+    },
+    {
+      cols: 1,
+      fields: [
+        // 파일 첨부 — File 객체 캡처. 실제 업로드는 페이지 책임.
+        { key: 'product_image', label: '제품 이미지', type: 'file' },
       ],
     },
   ],

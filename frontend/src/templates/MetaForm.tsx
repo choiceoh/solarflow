@@ -39,6 +39,18 @@ function buildFieldSchema(field: FieldConfig): ZodTypeAny {
   }
   if (field.type === 'switch') return z.boolean().optional();
 
+  if (field.type === 'multiselect') {
+    const arr = z.array(z.string());
+    return field.required ? arr.min(1, `${subj} 1개 이상 선택해야 합니다`) : arr.optional();
+  }
+
+  if (field.type === 'file') {
+    // File 객체 또는 null. zod validation 은 최소화 — 페이지가 업로드 처리.
+    return field.required
+      ? z.any().refine((v) => v instanceof File, { message: `${subj} 파일을 선택해야 합니다` })
+      : z.any().optional();
+  }
+
   // text / select / textarea / date — 모두 string
   let s = z.string();
   if (field.minLength) s = s.min(field.minLength, `${subj} 최소 ${field.minLength}자 이상이어야 합니다`);
@@ -64,20 +76,46 @@ export function buildZodSchema(config: MetaFormConfig): ZodObject<ZodRawShape> {
 function useFieldOptions(fields: FieldConfig[], watchedValues: Record<string, unknown>): Record<string, Options> {
   const [options, setOptions] = useState<Record<string, Options>>({});
 
-  // 정적/enum 옵션 — fields 변경 시 한 번만
+  // 정적/enum 옵션 — staticOptionsIf 가 있으면 의존 필드 값에 따라 분기
+  // staticDepKey: staticOptionsIf 의 모든 의존 필드 값 직렬화
+  const staticDepKey = useMemo(() => {
+    const parts: string[] = [];
+    fields.forEach((f) => {
+      if (!f.staticOptionsIf) return;
+      parts.push(`${f.key}:${f.staticOptionsIf.field}=${String(watchedValues[f.staticOptionsIf.field] ?? '')}`);
+    });
+    return parts.join('|');
+  }, [fields, watchedValues]);
+
   useEffect(() => {
     const next: Record<string, Options> = {};
     fields.forEach((f) => {
-      if (f.type !== 'select') return;
+      if (f.type !== 'select' && f.type !== 'multiselect') return;
+      // 1순위: staticOptionsIf — 의존 필드 값 매칭되는 case 의 options
+      if (f.staticOptionsIf) {
+        const refValue = String(watchedValues[f.staticOptionsIf.field] ?? '');
+        const matched = f.staticOptionsIf.cases.find((c) => {
+          const expected = Array.isArray(c.value) ? c.value : [c.value];
+          return expected.includes(refValue);
+        });
+        if (matched) { next[f.key] = matched.options; return; }
+        if (f.staticOptionsIf.fallback) { next[f.key] = f.staticOptionsIf.fallback; return; }
+        // 매칭 실패 + fallback 없음 → staticOptions 로 폴백 또는 빈 배열
+      }
       if (f.optionsFrom === 'enum' && f.enumKey) {
         const dict = enumDictionaries[f.enumKey];
         if (dict) next[f.key] = Object.entries(dict).map(([value, label]) => ({ value, label }));
       } else if (f.optionsFrom === 'static' && f.staticOptions) {
         next[f.key] = f.staticOptions;
+      } else if (f.staticOptions) {
+        // multiselect 또는 staticOptionsIf 매칭 실패 시 staticOptions 폴백
+        next[f.key] = f.staticOptions;
       }
     });
     setOptions((prev) => ({ ...prev, ...next }));
-  }, [fields]);
+    // staticDepKey 가 staticOptionsIf 의존 필드 값을 포함 — 변경 시 재계산
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields, staticDepKey]);
 
   // master 옵션 — 의존 필드 값 변경 시 재로드. 의존성이 없으면 mount 시 1회만.
   // depKey: 의존 필드 값들의 직렬화 — useEffect dep 로 안정적으로 비교
@@ -121,6 +159,8 @@ function buildDefaults(
     if (v != null) out[f.key] = v;
     else if (f.defaultValue != null) out[f.key] = f.defaultValue;
     else if (f.type === 'switch') out[f.key] = false;
+    else if (f.type === 'multiselect') out[f.key] = [];
+    else if (f.type === 'file') out[f.key] = null;
     else if (f.type === 'number') out[f.key] = undefined;
     else out[f.key] = '';
   });
@@ -199,6 +239,61 @@ function FieldRender({ field, value, error, options, setValue, register, watched
       <div className="flex items-center gap-2">
         <Switch checked={!!value} onCheckedChange={(c: boolean) => setValue(field.key, c)} disabled={readOnly} />
         <Label>{labelText}</Label>
+        {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
+      </div>
+    );
+  }
+
+  if (field.type === 'multiselect') {
+    // 체크박스 리스트 — 단순·접근성 우선. 값은 string[].
+    const arr = Array.isArray(value) ? (value as string[]) : [];
+    const toggle = (optValue: string) => {
+      if (readOnly) return;
+      const next = arr.includes(optValue) ? arr.filter((x) => x !== optValue) : [...arr, optValue];
+      setValue(field.key, next);
+    };
+    return (
+      <div className="space-y-1.5">
+        <Label>{labelText}</Label>
+        <div className="rounded-md border border-input p-2 space-y-1.5">
+          {(options ?? []).length === 0 ? (
+            <p className="text-xs text-muted-foreground">{field.placeholder ?? '선택지가 없습니다'}</p>
+          ) : (
+            (options ?? []).map((o) => (
+              <label key={o.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={arr.includes(o.value)}
+                  onChange={() => toggle(o.value)}
+                  disabled={readOnly}
+                  className="h-3.5 w-3.5"
+                />
+                <span>{o.label}</span>
+              </label>
+            ))
+          )}
+        </div>
+        {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
+      </div>
+    );
+  }
+
+  if (field.type === 'file') {
+    const file = value as File | null | undefined;
+    return (
+      <div className="space-y-1.5">
+        <Label>{labelText}</Label>
+        <input
+          type="file"
+          onChange={(e) => setValue(field.key, e.target.files?.[0] ?? null)}
+          disabled={readOnly}
+          className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-sm file:font-medium hover:file:bg-secondary/80"
+        />
+        {file && (
+          <p className="text-xs text-muted-foreground">
+            {file.name} · {(file.size / 1024).toFixed(1)} KB
+          </p>
+        )}
         {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
       </div>
     );
