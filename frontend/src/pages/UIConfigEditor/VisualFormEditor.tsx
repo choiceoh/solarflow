@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, GripVertical } from 'lucide-react';
 import type { FieldConfig, FieldType, FormSection, MetaFormConfig, Tone } from '@/templates/types';
 import { enumDictionaries, masterSources, computedFormulas } from '@/templates/registry';
 import { FieldInput, FieldSelect, TabButton, moveInArray } from './ArrayEditor';
@@ -265,6 +265,22 @@ function SectionCard({
   onMoveDown: () => void;
   onRemove: () => void;
 }) {
+  // 드래그 상태 — 섹션 내 필드 재정렬 (section-local)
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
+  const onDragStart = (fIdx: number) => setDragIdx(fIdx);
+  const onDragEnd = () => { setDragIdx(null); setOverIdx(null); };
+  const onDragOver = (fIdx: number) => { if (fIdx !== dragIdx) setOverIdx(fIdx); };
+  const onDrop = (fIdx: number) => {
+    if (dragIdx === null || dragIdx === fIdx) { onDragEnd(); return; }
+    const next = [...(section.fields ?? [])];
+    const [moved] = next.splice(dragIdx, 1);
+    next.splice(fIdx, 0, moved);
+    onUpdate({ ...section, fields: next });
+    onDragEnd();
+  };
+
   const updateField = (fIdx: number, next: FieldConfig) =>
     onUpdate({ ...section, fields: (section.fields ?? []).map((f, i) => (i === fIdx ? next : f)) });
 
@@ -318,19 +334,33 @@ function SectionCard({
           if (filteredSet && !filteredSet.has(k)) return null;
           // 검색 매칭 또는 사용자가 직접 펼친 경우 expanded
           const isExpanded = expandedSet.has(k) || (filter !== '' && filteredSet?.has(k) === true);
+          const isDragging = dragIdx === fIdx;
+          const isDragOver = overIdx === fIdx && dragIdx !== fIdx;
           return (
-            <FieldRow
+            <div
               key={fIdx}
-              field={field}
-              index={fIdx}
-              total={(section.fields ?? []).length}
-              expanded={isExpanded}
-              onToggleExpand={() => onToggleField(fIdx)}
-              onUpdate={(next) => updateField(fIdx, next)}
-              onMoveUp={() => moveField(fIdx, -1)}
-              onMoveDown={() => moveField(fIdx, 1)}
-              onRemove={() => removeField(fIdx)}
-            />
+              draggable={!isExpanded /* 펼쳐진 행은 input 편집 위해 drag 비활성 */}
+              onDragStart={(e) => {
+                e.dataTransfer.effectAllowed = 'move';
+                onDragStart(fIdx);
+              }}
+              onDragOver={(e) => { e.preventDefault(); onDragOver(fIdx); }}
+              onDragEnd={onDragEnd}
+              onDrop={(e) => { e.preventDefault(); onDrop(fIdx); }}
+              className={`${isDragging ? 'opacity-40' : ''} ${isDragOver ? 'border-t-2 border-t-foreground' : ''} transition-opacity`}
+            >
+              <FieldRow
+                field={field}
+                index={fIdx}
+                total={(section.fields ?? []).length}
+                expanded={isExpanded}
+                onToggleExpand={() => onToggleField(fIdx)}
+                onUpdate={(next) => updateField(fIdx, next)}
+                onMoveUp={() => moveField(fIdx, -1)}
+                onMoveDown={() => moveField(fIdx, 1)}
+                onRemove={() => removeField(fIdx)}
+              />
+            </div>
           );
         })}
         {(section.fields ?? []).length === 0 && (
@@ -391,6 +421,8 @@ function FieldRow({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleExpand(); } }}
       >
         <div className="flex items-center gap-2 px-2 py-1.5 text-xs">
+          <GripVertical className="h-3 w-3 text-muted-foreground/40 group-hover:text-muted-foreground shrink-0 cursor-grab active:cursor-grabbing"
+            onClick={(e) => e.stopPropagation()} />
           <span className="text-[9px] text-muted-foreground mono w-6 text-right shrink-0">#{index + 1}</span>
           <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
           <span className="font-mono text-[11px] text-foreground/80 shrink-0">{field.key}</span>
