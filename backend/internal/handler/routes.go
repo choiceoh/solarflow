@@ -36,6 +36,12 @@ func (h *AssistantHandler) RegisterRoutes(r chi.Router, g middleware.Gates) {
 		r.Post("/chat", h.Chat)
 		r.Post("/proposals/{id}/confirm", h.ConfirmProposal)
 		r.Post("/proposals/{id}/reject", h.RejectProposal)
+		// 대화 세션 영구 저장소 — 우측상단 세션목록이 사용
+		r.Get("/sessions", h.ListSessions)
+		r.With(g.Write).Post("/sessions", h.CreateSession)
+		r.Get("/sessions/{id}", h.GetSession)
+		r.With(g.Write).Patch("/sessions/{id}", h.UpdateSession)
+		r.With(g.Write).Delete("/sessions/{id}", h.DeleteSession)
 		// alias of /api/v1/ocr/* — AI 통합 입구로도 노출
 		if h.ocrH != nil {
 			r.Get("/ocr/health", h.ocrH.Health)
