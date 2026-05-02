@@ -113,7 +113,7 @@ export default function ChildFormsMetaDemoPage() {
         open={openForm === 'bl_line'}
         onOpenChange={(o) => { if (!o) setOpenForm(null); }}
         onSubmit={handleSubmit}
-        extraContext={{ bl_id: DEMO_BL_ID }}
+        extraContext={{ bl_id: DEMO_BL_ID, currency: 'USD' }}
       />
       <MetaForm
         config={receiptConfig}

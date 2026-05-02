@@ -73,6 +73,10 @@ const blLineForm: MetaFormConfig = {
         {
           key: 'invoice_amount_usd', label: 'Invoice 금액 (USD)', type: 'number', minValue: 0,
           description: 'USD 통화 BL 일 때 입력. 무상 시 비워두기.',
+          // Phase 4 보강: visibleIfContext — 페이지가 주입한 currency='USD' 일 때만 노출
+          visibleIf: { source: 'context', field: 'currency', value: 'USD' },
+          // payment_type=free 시 readonly (조건부)
+          readOnlyIf: { field: 'payment_type', value: 'free' },
         },
       ],
     },
@@ -81,11 +85,15 @@ const blLineForm: MetaFormConfig = {
       fields: [
         {
           key: 'unit_price_usd_wp', label: '단가 (USD/Wp)', type: 'number', minValue: 0,
-          description: 'USD 통화 BL.',
+          description: 'USD 통화 BL — 무상 시 입력 불가.',
+          visibleIf: { source: 'context', field: 'currency', value: 'USD' },
+          readOnlyIf: { field: 'payment_type', value: 'free' },
         },
         {
           key: 'unit_price_krw_wp', label: '단가 (KRW/Wp)', type: 'number', minValue: 0,
-          description: 'KRW 통화 BL.',
+          description: 'KRW 통화 BL — 무상 시 입력 불가.',
+          visibleIf: { source: 'context', field: 'currency', value: 'KRW' },
+          readOnlyIf: { field: 'payment_type', value: 'free' },
         },
       ],
     },
