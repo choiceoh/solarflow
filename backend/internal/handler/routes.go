@@ -34,6 +34,7 @@ import (
 func (h *AssistantHandler) RegisterRoutes(r chi.Router, g middleware.Gates) {
 	r.Route("/assistant", func(r chi.Router) {
 		r.Post("/chat", h.ChatStream)
+		r.Post("/completion", h.Completion)
 		r.Post("/proposals/{id}/confirm", h.ConfirmProposal)
 		r.Post("/proposals/{id}/reject", h.RejectProposal)
 		// 대화 세션 영구 저장소 — 우측상단 세션목록이 사용
