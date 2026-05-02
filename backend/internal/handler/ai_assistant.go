@@ -449,6 +449,50 @@ func (h *AssistantHandler) ConfirmProposal(w http.ResponseWriter, r *http.Reques
 		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
 		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
 
+	case "propose_ui_config_update":
+		// 메타 config 통째 교체. sys_ui_config.go Upsert 와 동일 정책.
+		var args struct {
+			Scope    string                 `json:"scope"`
+			ConfigID string                 `json:"config_id"`
+			Config   map[string]interface{} `json:"config"`
+			Summary  string                 `json:"summary"`
+		}
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			log.Printf("[assistant write/confirm] ui_config payload 파싱 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		if !validScope(args.Scope) {
+			response.RespondError(w, http.StatusBadRequest, "잘못된 scope 값입니다")
+			return
+		}
+		if args.ConfigID == "" || len(args.Config) == 0 {
+			response.RespondError(w, http.StatusBadRequest, "config_id 와 config 는 필수입니다")
+			return
+		}
+		payload := map[string]interface{}{
+			"scope":     args.Scope,
+			"config_id": args.ConfigID,
+			"config":    args.Config,
+		}
+		_, _, err := h.db.From("ui_configs").
+			Upsert(payload, "scope,config_id", "minimal", "").
+			Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] ui_configs upsert 실패 id=%s scope=%s config_id=%s err=%v",
+				id, args.Scope, args.ConfigID, err)
+			response.RespondError(w, http.StatusInternalServerError, "UI Config 저장에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s scope=%s config_id=%s ok",
+			role, userID, p.Kind, id, args.Scope, args.ConfigID)
+		response.RespondJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"kind":      p.Kind,
+			"scope":     args.Scope,
+			"config_id": args.ConfigID,
+		})
+
 	default:
 		response.RespondError(w, http.StatusBadRequest, "지원하지 않는 제안 종류: "+p.Kind)
 	}
