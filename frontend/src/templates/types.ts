@@ -119,7 +119,9 @@ export interface FormConfig {
 
 // ── 메타 폼 (Phase 2)
 export type FieldType =
-  | 'text' | 'select' | 'number' | 'textarea' | 'switch' | 'date';
+  | 'text' | 'select' | 'number' | 'textarea' | 'switch' | 'date'
+  | 'multiselect'   // Phase 4 보강: 다중 선택 (값은 string[])
+  | 'file';         // Phase 4 보강: 파일 업로드 (값은 File | null — 캡처만, 업로드는 페이지가 처리)
 
 export interface FieldConfig {
   key: string;                      // form 필드명 (zod 키 = react-hook-form 키)
@@ -145,6 +147,16 @@ export interface FieldConfig {
   // 예) optionsDependsOn: ['domestic_foreign'] + masterKey: 'manufacturers.byDomestic'
   //     → 사용자가 '국내' 선택 시 manufacturers.byDomestic.load({domestic_foreign: '국내'}) 호출
   optionsDependsOn?: string[];
+  // 조건부 정적 옵션 — 다른 필드 값에 따라 staticOptions 자체가 바뀜 (master 소스 불필요)
+  // 예) staticOptionsIf: { field: 'delivery_type',
+  //                        cases: [{ value: 'shipping', options: [...] }, ...],
+  //                        fallback: [...] }
+  // staticOptions 와 함께 쓰면 staticOptionsIf 가 우선 (매칭되면 case 옵션, 아니면 fallback → staticOptions)
+  staticOptionsIf?: {
+    field: string;
+    cases: { value: string | string[]; options: { value: string; label: string }[] }[];
+    fallback?: { value: string; label: string }[];
+  };
 
   // 권한별 readonly (PoC: 단순 boolean)
   readOnly?: boolean;
