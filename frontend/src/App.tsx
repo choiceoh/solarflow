@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAuthStore } from '@/stores/authStore';
-import { useTenantStore } from '@/stores/tenantStore';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import RoleGuard from '@/components/auth/RoleGuard';
 import AppLayout from '@/components/layout/AppLayout';
@@ -20,11 +19,9 @@ const OutboundFormMetaDemoPage = lazy(() => import('@/pages/OutboundFormMetaDemo
 const OutboundDetailMetaDemoPage = lazy(() => import('@/pages/OutboundDetailMetaDemoPage'));
 const DeclarationDetailMetaDemoPage = lazy(() => import('@/pages/DeclarationDetailMetaDemoPage'));
 const MetaFormDepsDemoPage = lazy(() => import('@/pages/MetaFormDepsDemoPage'));
-const TenantForkDemoPage = lazy(() => import('@/pages/TenantForkDemoPage'));
 const POLineMetaDemoPage = lazy(() => import('@/pages/POLineMetaDemoPage'));
 const CostMetaDemoPage = lazy(() => import('@/pages/CostMetaDemoPage'));
 const ChildFormsMetaDemoPage = lazy(() => import('@/pages/ChildFormsMetaDemoPage'));
-const TenantOverrideEditorPage = lazy(() => import('@/pages/TenantOverrideEditorPage'));
 const WizardDemoPage = lazy(() => import('@/pages/WizardDemoPage'));
 const PartnerV2Page = lazy(() => import('@/pages/PartnerV2Page'));
 const CompaniesV2Page = lazy(() => import('@/pages/CompaniesV2Page'));
@@ -47,7 +44,6 @@ const SettingsIndexRedirect = lazy(() =>
 const SettingsLegacyRedirect = lazy(() =>
   import('@/pages/settings/SettingsLayout').then((m) => ({ default: m.SettingsLegacyRedirect })),
 );
-const SiteSettingsLayout = lazy(() => import('@/pages/settings/SiteSettingsLayout'));
 const AdminSettingsPage = lazy(() => import('@/pages/settings/AdminSettingsPage'));
 const PersonalSettingsPage = lazy(() => import('@/pages/settings/PersonalSettingsPage'));
 const AssistantPage = lazy(() => import('@/pages/AssistantPage'));
@@ -78,12 +74,10 @@ function Fallback() {
 
 export default function App() {
   const initialize = useAuthStore((s) => s.initialize);
-  const initTenant = useTenantStore((s) => s.initialize);
 
   useEffect(() => {
     initialize();
-    initTenant();
-  }, [initialize, initTenant]);
+  }, [initialize]);
 
   return (
     <MobileBlock>
@@ -127,11 +121,9 @@ export default function App() {
                 <Route path="/outbound-detail-meta-demo" element={<OutboundDetailMetaDemoPage />} />
                 <Route path="/declaration-detail-meta-demo" element={<DeclarationDetailMetaDemoPage />} />
                 <Route path="/meta-form-deps-demo" element={<MetaFormDepsDemoPage />} />
-                <Route path="/tenant-fork-demo" element={<TenantForkDemoPage />} />
                 <Route path="/po-line-meta-demo" element={<POLineMetaDemoPage />} />
                 <Route path="/cost-meta-demo" element={<CostMetaDemoPage />} />
                 <Route path="/child-forms-meta-demo" element={<ChildFormsMetaDemoPage />} />
-                <Route path="/tenant-config-editor" element={<SettingsLegacyRedirect adminTo="/settings/site/tenant-override" />} />
                 <Route path="/wizard-demo" element={<WizardDemoPage />} />
                 <Route path="/ui-config-editor" element={<SettingsLegacyRedirect adminTo="/settings/site/ui-config" />} />
                 <Route path="/orders" element={<OrdersPage />} />
@@ -150,11 +142,7 @@ export default function App() {
                 <Route path="/settings" element={<SettingsLayout />}>
                   <Route index element={<SettingsIndexRedirect />} />
                   <Route path="admin" element={<RoleGuard allowedRoles={['admin']}><AdminSettingsPage /></RoleGuard>} />
-                  <Route path="site" element={<RoleGuard allowedRoles={['admin']}><SiteSettingsLayout /></RoleGuard>}>
-                    <Route index element={<Navigate to="/settings/site/tenant-override" replace />} />
-                    <Route path="tenant-override" element={<TenantOverrideEditorPage />} />
-                    <Route path="ui-config" element={<UIConfigEditorPage />} />
-                  </Route>
+                  <Route path="site" element={<RoleGuard allowedRoles={['admin']}><UIConfigEditorPage /></RoleGuard>} />
                   <Route path="personal" element={<PersonalSettingsPage />} />
                 </Route>
               </Route>

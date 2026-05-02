@@ -3,8 +3,6 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useResolvedConfig } from './configOverride';
-import { applyTenantToScreen } from '@/config/tenants';
-import { useTenantStore } from '@/stores/tenantStore';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,9 +25,10 @@ import type {
 import {
   cellRenderers, dataHooks, metricComputers, toneComputers, sparkComputers, subComputers,
   formComponents, detailComponents, railBlocks, toolbarExtras,
-  masterSources, enumDictionaries,
+  masterSources, enumDictionaries, actionHandlers, formSubmitters,
   applyFormatter, getFieldValue, generateMonths,
 } from './registry';
+import { autoSpark } from './autoSpark';
 
 type Options = { value: string; label: string }[];
 
@@ -97,7 +96,10 @@ export function buildMetric(
     if (fc) sub = filterLabel(fc, filters[m.subFromFilter] ?? '', filterOptions[m.subFromFilter] ?? []);
   }
 
-  const spark = m.spark === 'auto' ? sparkComputers['spark.outbound_count']?.(items) : undefined;
+  // 메트릭별 sparkComputer가 등록돼 있으면 그것을 쓰고, 없으면 라벨 해시 기반 generic 시드.
+  const spark = m.spark === 'auto'
+    ? (sparkComputers[`spark.${m.computerId}`]?.(items) ?? autoSpark(m.label))
+    : undefined;
 
   return { label: m.label, value, unit: m.unit, sub, tone, spark };
 }
@@ -506,6 +508,10 @@ export function makeRowActionHandler(actions: PageActions, reload: () => void) {
           reload();
         },
       });
+    } else if (action.kind === 'custom' && action.handlerId) {
+      const handler = actionHandlers[action.handlerId];
+      if (handler) handler(row);
+      else console.warn(`[ListScreen] actionHandler not registered: ${action.handlerId}`);
     }
   };
 }
@@ -530,7 +536,15 @@ export function FormsMounted({
             open={actions.formOpenId === f.id}
             onOpenChange={(o: boolean) => { if (!o) actions.closeForm(f.id); }}
             onSubmit={async (formData: Record<string, unknown>) => {
-              if (editData && f.editEndpoint && f.editIdField) {
+              // Phase 4: submitterId 가 있으면 registry.formSubmitters 호출 (multi-step 저장)
+              if (f.submitterId) {
+                const submitter = formSubmitters[f.submitterId];
+                if (!submitter) {
+                  console.error(`[ListScreen] formSubmitter not registered: ${f.submitterId}`);
+                  return;
+                }
+                await submitter(formData, editData ?? null);
+              } else if (editData && f.editEndpoint && f.editIdField) {
                 const id = (editData as Record<string, unknown>)[f.editIdField];
                 const url = f.editEndpoint.replace(':id', String(id));
                 await fetchWithAuth(url, { method: 'PUT', body: JSON.stringify(formData) });
@@ -599,7 +613,14 @@ export function HeaderActions({
           key={a.id}
           size="sm"
           variant={a.variant === 'destructive' ? 'destructive' : (a.variant === 'outline' ? 'outline' : 'default')}
-          onClick={() => { if (a.kind === 'open_form' && a.formId) openForm(a.formId); }}
+          onClick={() => {
+            if (a.kind === 'open_form' && a.formId) openForm(a.formId);
+            else if (a.kind === 'custom' && a.handlerId) {
+              const handler = actionHandlers[a.handlerId];
+              if (handler) handler();
+              else console.warn(`[ListScreen] actionHandler not registered: ${a.handlerId}`);
+            }
+          }}
         >
           {a.iconId ? <span className="mr-1.5">{ICONS[a.iconId]}</span> : null}
           {a.label}
@@ -611,16 +632,8 @@ export function HeaderActions({
 
 // ─── 단일 리스트 페이지 ────────────────────────────────────────────────────
 export default function ListScreen({ config: defaultConfig }: { config: ListScreenConfig }) {
-  // Phase 4 PoC: tenant 오버레이 (계열사 포크) — base 에 tenant override 먼저 적용
-  const tenantId = useTenantStore((s) => s.tenantId);
-  // runtimeVersion 변경 시 재계산 (admin GUI 로 runtime override 편집 시)
-  const runtimeVersion = useTenantStore((s) => s.runtimeVersion);
-  const tenantConfig = useMemo(
-    () => applyTenantToScreen(defaultConfig, tenantId),
-    [defaultConfig, tenantId, runtimeVersion],
-  );
-  // Phase 3: localStorage override 우선, 없으면 (tenant 적용된) defaultConfig
-  const config = useResolvedConfig(tenantConfig, 'screen');
+  // Phase 3: localStorage override 우선, 없으면 defaultConfig
+  const config = useResolvedConfig(defaultConfig, 'screen');
   const [selected, setSelected] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   // 멀티 선택 + 컬럼 가시성. (정렬은 MetaTable 이 자체 영속 — 더 이상 ListScreen 상태로 보유 안 함)
@@ -633,6 +646,10 @@ export default function ListScreen({ config: defaultConfig }: { config: ListScre
   const requiresCompany = config.requiresCompany ?? true;
 
   const state = useTabState(config);
+  // 검색·정렬 모두 MetaTable 내부에서 (TanStack globalFilter + getSortedRowModel)
+  // 검색 적용 후 행 갯수 — MetaTable 의 onFilteredRowCountChange 콜백으로 받아옴.
+  // 주의: 모든 hook 은 early return 전에 호출되어야 React rules-of-hooks 위반 안 함.
+  const [filteredCount, setFilteredCount] = useState<number>(state.data.length);
 
   if (requiresCompany && !selectedCompanyId) {
     return (
@@ -652,13 +669,11 @@ export default function ListScreen({ config: defaultConfig }: { config: ListScre
     );
   }
 
-  // 검색·정렬 모두 MetaTable 내부에서 (TanStack globalFilter + getSortedRowModel)
   const displayItems = state.data;
-  // 검색 적용 후 행 갯수 — MetaTable 의 onFilteredRowCountChange 콜백으로 받아옴
-  const [filteredCount, setFilteredCount] = useState<number>(state.data.length);
 
   const onRowAction = makeRowActionHandler(pageActions, state.reload);
-  const headerActions = config.actions?.filter((a) => a.trigger === 'header') ?? [];
+  // 'toolbar' 는 'header' alias — 옛 outbound config 호환
+  const headerActions = config.actions?.filter((a) => a.trigger === 'header' || a.trigger === 'toolbar') ?? [];
   const bulkActions = config.actions?.filter((a) => a.trigger === 'bulk') ?? [];
   const hasHideable = config.columns.some((c) => c.hideable);
 

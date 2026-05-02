@@ -28,8 +28,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import GlobalSearchBar from '@/components/search/GlobalSearchBar';
 import AlertBell from '@/components/layout/AlertBell';
 import QuickRegister from '@/components/layout/QuickRegister';
-import TenantSwitcher from '@/components/layout/TenantSwitcher';
 import FloatingMwEaCalculator from '@/components/common/FloatingMwEaCalculator';
+import { FloatingAssistantButton } from '@/components/assistant/FloatingAssistantButton';
 import {
   EditModeBadge,
   EditModeToggleButton,
@@ -142,9 +142,7 @@ const ROUTE_LABELS: Record<string, { title: string; breadcrumb: string }> = {
   '/assistant': { title: 'AI', breadcrumb: '도구 / 채팅 어시스턴트' },
   '/settings': { title: '설정', breadcrumb: '시스템 / 설정' },
   '/settings/admin': { title: '관리자 설정', breadcrumb: '시스템 / 사용자 관리' },
-  '/settings/site': { title: '사이트 설정', breadcrumb: '시스템 / 사이트 단위 설정' },
-  '/settings/site/tenant-override': { title: '계열사 화면 조정', breadcrumb: '시스템 / 사이트 / Tenant Override' },
-  '/settings/site/ui-config': { title: 'UI 메타 편집', breadcrumb: '시스템 / 사이트 / UI Config' },
+  '/settings/site': { title: '사이트 설정', breadcrumb: '시스템 / UI 메타 편집' },
   '/settings/personal': { title: '개인 설정', breadcrumb: '시스템 / 내 계정' },
 };
 
@@ -270,9 +268,6 @@ export default function CommandShell() {
           </Select>
         </div>
 
-        {/* Phase 4 PoC: 계열사 포크 — tenant 전환 (사이드바 인디케이터) */}
-        <TenantSwitcher />
-
         <nav className="sf-sidebar-nav" aria-label="주요 메뉴 목록">
           {NAV_GROUPS.map((group) => {
             const visibleItems = group.items.filter(
@@ -361,6 +356,7 @@ export default function CommandShell() {
       <InspectorOverlay />
       <EditModeBadge />
       <InspectorPanel />
+      <FloatingAssistantButton />
     </div>
   );
 }

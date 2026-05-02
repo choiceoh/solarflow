@@ -142,6 +142,24 @@ func (h *AssistantHandler) ConfirmProposal(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// 옵션: 사용자가 폼 미리보기에서 수정한 payload override.
+	// store 의 kind/user_id 는 그대로 보존 (소유 검증 통과 후), payload 만 교체.
+	// 각 kind 분기의 JWT user_id 재강제 + Validate() 가 그대로 동작하므로 변조 위험 차단.
+	if r.ContentLength > 0 {
+		var override struct {
+			Payload json.RawMessage `json:"payload,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&override); err != nil {
+			response.RespondError(w, http.StatusBadRequest, "요청 본문이 올바른 JSON이 아닙니다")
+			return
+		}
+		if len(override.Payload) > 0 {
+			log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s override payload=%dB",
+				role, userID, p.Kind, id, len(override.Payload))
+			p.Payload = override.Payload
+		}
+	}
+
 	switch p.Kind {
 	case "create_note":
 		var args model.CreateNoteRequest
@@ -448,6 +466,50 @@ func (h *AssistantHandler) ConfirmProposal(w http.ResponseWriter, r *http.Reques
 		}
 		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s ok", role, userID, p.Kind, id)
 		response.RespondJSON(w, http.StatusOK, map[string]any{"ok": true, "kind": p.Kind, "data": json.RawMessage(data)})
+
+	case "propose_ui_config_update":
+		// 메타 config 통째 교체. sys_ui_config.go Upsert 와 동일 정책.
+		var args struct {
+			Scope    string                 `json:"scope"`
+			ConfigID string                 `json:"config_id"`
+			Config   map[string]interface{} `json:"config"`
+			Summary  string                 `json:"summary"`
+		}
+		if err := json.Unmarshal(p.Payload, &args); err != nil {
+			log.Printf("[assistant write/confirm] ui_config payload 파싱 실패 id=%s err=%v", id, err)
+			response.RespondError(w, http.StatusInternalServerError, "제안 페이로드 파싱 실패")
+			return
+		}
+		if !validScope(args.Scope) {
+			response.RespondError(w, http.StatusBadRequest, "잘못된 scope 값입니다")
+			return
+		}
+		if args.ConfigID == "" || len(args.Config) == 0 {
+			response.RespondError(w, http.StatusBadRequest, "config_id 와 config 는 필수입니다")
+			return
+		}
+		payload := map[string]interface{}{
+			"scope":     args.Scope,
+			"config_id": args.ConfigID,
+			"config":    args.Config,
+		}
+		_, _, err := h.db.From("ui_configs").
+			Upsert(payload, "scope,config_id", "minimal", "").
+			Execute()
+		if err != nil {
+			log.Printf("[assistant write/confirm] ui_configs upsert 실패 id=%s scope=%s config_id=%s err=%v",
+				id, args.Scope, args.ConfigID, err)
+			response.RespondError(w, http.StatusInternalServerError, "UI Config 저장에 실패했습니다")
+			return
+		}
+		log.Printf("[assistant write/confirm] role=%s user=%s kind=%s id=%s scope=%s config_id=%s ok",
+			role, userID, p.Kind, id, args.Scope, args.ConfigID)
+		response.RespondJSON(w, http.StatusOK, map[string]any{
+			"ok":        true,
+			"kind":      p.Kind,
+			"scope":     args.Scope,
+			"config_id": args.ConfigID,
+		})
 
 	default:
 		response.RespondError(w, http.StatusBadRequest, "지원하지 않는 제안 종류: "+p.Kind)

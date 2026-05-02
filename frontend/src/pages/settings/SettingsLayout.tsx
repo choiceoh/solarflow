@@ -34,7 +34,7 @@ export default function SettingsLayout() {
                   : 'text-muted-foreground hover:text-foreground',
               )
             }
-            end={t.to === '/settings/personal' || t.to === '/settings/admin'}
+            end
           >
             {t.label}
           </NavLink>
