@@ -446,6 +446,20 @@ function MetaNumberFmtInput({ field, value, onChange, readOnly }: MetaNumberFmtI
   );
 }
 
+// Phase 4 보강: visibleIf / readOnlyIf 공통 평가 — source 'field' (default) | 'context'
+function evalCondition(
+  cond: { field: string; value: string | string[]; source?: 'field' | 'context' } | undefined,
+  watchedValues: Record<string, unknown>,
+  extraContext: Record<string, unknown> | undefined,
+): boolean {
+  if (!cond) return false;
+  const ref = cond.source === 'context'
+    ? (extraContext?.[cond.field])
+    : watchedValues[cond.field];
+  const expected = Array.isArray(cond.value) ? cond.value : [cond.value];
+  return expected.includes(String(ref));
+}
+
 // ─── 단일 필드 렌더 ────────────────────────────────────────────────────────
 interface FieldRenderProps {
   field: FieldConfig;
@@ -456,18 +470,21 @@ interface FieldRenderProps {
   register: ReturnType<typeof useForm>['register'];
   watchedValues: Record<string, unknown>;
   role: string | null;
+  extraContext?: Record<string, unknown>;
 }
 
-function FieldRender({ field, value, error, options, setValue, register, watchedValues, role }: FieldRenderProps) {
-  // 조건부 표시 — boolean(switch) 값도 비교되도록 양쪽 string 변환
+function FieldRender({ field, value, error, options, setValue, register, watchedValues, role, extraContext }: FieldRenderProps) {
+  // 조건부 표시 — visibleIf 평가 (source='field' 기본 / 'context' 옵션)
   if (field.visibleIf) {
-    const refValue = watchedValues[field.visibleIf.field];
-    const expected = Array.isArray(field.visibleIf.value) ? field.visibleIf.value : [field.visibleIf.value];
-    if (!expected.includes(String(refValue))) return null;
+    if (!evalCondition(field.visibleIf, watchedValues, extraContext)) return null;
   }
 
-  const readOnly = isReadOnly(field, role);
-  const labelText = `${field.label}${field.required ? ' *' : ''}${readOnly && field.editableByRoles ? ' (읽기전용)' : ''}`;
+  // Phase 4 보강: readOnlyIf — 조건부 readonly (editableByRoles 와 합산)
+  const conditionalReadOnly = field.readOnlyIf
+    ? evalCondition(field.readOnlyIf, watchedValues, extraContext)
+    : false;
+  const readOnly = isReadOnly(field, role) || conditionalReadOnly;
+  const labelText = `${field.label}${field.required ? ' *' : ''}${readOnly && (field.editableByRoles || field.readOnlyIf) ? ' (읽기전용)' : ''}`;
   const errorMsg = error?.message;
 
   if (field.type === 'select') {
@@ -725,7 +742,7 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
   const { role } = usePermission();
 
   const {
-    register, handleSubmit, reset, setValue, watch, formState: { errors, isSubmitting },
+    register, handleSubmit, reset, setValue, watch, trigger, formState: { errors, isSubmitting },
   } = useForm<FieldValues>({
     // schema 는 ZodObject 또는 ZodEffects (superRefine 적용 시) — 둘 다 zodResolver 호환
     resolver: zodResolver(schema as never),
@@ -789,6 +806,27 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
     setDraftRestored(false);
   };
 
+  // Phase 4 보강: 다단계 wizard 모드 — 한 step 씩 노출 + 진행률 표시
+  const wizardEnabled = !!config.wizard && config.sections.length > 1;
+  const [currentStep, setCurrentStep] = useState(0);
+  // 다이얼로그 재오픈 시 첫 step 으로 복귀
+  useEffect(() => { if (open) setCurrentStep(0); }, [open]);
+
+  const visibleSections = wizardEnabled
+    ? config.sections.slice(currentStep, currentStep + 1)
+    : config.sections;
+  const isLastStep = !wizardEnabled || currentStep >= config.sections.length - 1;
+  const isFirstStep = !wizardEnabled || currentStep === 0;
+
+  // 다음 step 으로 이동 — 현재 step 의 필드만 검증
+  const goNextStep = async () => {
+    if (!wizardEnabled) return;
+    const stepFieldKeys = config.sections[currentStep].fields.map((f) => f.key);
+    const ok = await trigger(stepFieldKeys as never);
+    if (ok) setCurrentStep((s) => Math.min(s + 1, config.sections.length - 1));
+  };
+  const goPrevStep = () => setCurrentStep((s) => Math.max(s - 1, 0));
+
   const sizeClass = DIALOG_SIZE_CLASS[config.dialogSize ?? 'md'] ?? 'max-w-md';
 
   return (
@@ -806,13 +844,27 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
           </div>
         ) : null}
         <form onSubmit={handleSubmit(handle)} className="space-y-3">
-          {config.sections.map((sec, idx) => {
+          {wizardEnabled ? (
+            <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">단계 {currentStep + 1} / {config.sections.length}</span>
+                <span className="text-muted-foreground">{config.sections[currentStep]?.title ?? ''}</span>
+              </div>
+              <div className="mt-1.5 h-1 rounded-full bg-slate-200 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all"
+                  style={{ width: `${((currentStep + 1) / config.sections.length) * 100}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
+          {visibleSections.map((sec, idx) => {
             const colsClass = sec.cols === 2 ? 'grid grid-cols-2 gap-3'
                             : sec.cols === 3 ? 'grid grid-cols-3 gap-3'
                             : 'space-y-3';
             return (
-              <div key={idx} className="space-y-2">
-                {sec.title ? (
+              <div key={`${currentStep}-${idx}`} className="space-y-2">
+                {sec.title && !wizardEnabled ? (
                   <p className={`text-xs font-semibold ${TONE_TEXT_CLASS[sec.tone ?? 'ink']}`}>{sec.title}</p>
                 ) : null}
                 <div className={colsClass}>
@@ -827,6 +879,7 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
                       register={register}
                       watchedValues={watchedValues}
                       role={role}
+                      extraContext={extraContext}
                     />
                   ))}
                 </div>
@@ -835,7 +888,14 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
           })}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>취소</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>
+            {wizardEnabled && !isFirstStep ? (
+              <Button type="button" variant="outline" onClick={goPrevStep}>이전</Button>
+            ) : null}
+            {wizardEnabled && !isLastStep ? (
+              <Button type="button" onClick={goNextStep}>다음</Button>
+            ) : (
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? '저장 중...' : '저장'}</Button>
+            )}
           </DialogFooter>
         </form>
       </DialogContent>

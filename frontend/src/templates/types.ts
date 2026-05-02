@@ -194,7 +194,20 @@ export interface FieldConfig {
   editableByRoles?: string[];
 
   // 조건부 표시 — 다른 필드 값에 따라 노출/숨김
-  visibleIf?: { field: string; value: string | string[] };
+  // source 'field' (기본) — 같은 폼의 다른 필드 watchedValues 비교
+  // source 'context' — MetaForm props.extraContext 의 값 비교 (페이지가 주입한 부모 컨텍스트)
+  visibleIf?: {
+    field: string;
+    value: string | string[];
+    source?: 'field' | 'context';
+  };
+  // Phase 4 보강: 조건부 readOnly — 다른 필드 값/컨텍스트 값에 따라 readonly 처리
+  // (editableByRoles 와 함께 동작 — 둘 중 하나라도 readonly 면 readonly)
+  readOnlyIf?: {
+    field: string;
+    value: string | string[];
+    source?: 'field' | 'context';
+  };
 }
 
 export interface FormSection {
@@ -247,6 +260,10 @@ export interface MetaFormConfig {
   // Phase 4 보강 Tier 3: 초안 localStorage 자동 저장 (debounced 500ms)
   // 신규 등록 모드에만 적용 — 편집 모드는 editData 가 진실 소스.
   draftAutoSave?: boolean;
+  // Phase 4 보강: 다단계 wizard — 각 section.title 이 step 라벨이 됨.
+  // 활성 시 한 step 씩 렌더 + 이전/다음/저장 버튼 + 진행률 표시.
+  // 'previous' → 단순 이동 / 'next' → 현 step 내 필드 검증 후 이동 / 'submit' → 마지막 step 만 노출.
+  wizard?: boolean;
 }
 
 // ── 메타 상세화면 (Phase 2.5)
