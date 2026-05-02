@@ -11,6 +11,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { streamFetchWithAuth } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { trimGhostToFit } from './ghostInputHelpers';
+
+export { trimGhostToFit };
 
 interface GhostInputProps {
   fieldKey: string;
@@ -45,12 +48,18 @@ export function GhostInput({
   const aborterRef = useRef<AbortController | null>(null);
   const debounceRef = useRef<number | null>(null);
 
+  // 빈 값일 때는 자동 호출 스킵 — 사용자가 첫 글자라도 입력한 후부터 작동.
+  // (빈 폼 열기만 해도 분당 백엔드 호출 누적되는 것 방지.)
+  // 또 maxLength 초과 시점에도 더 호출하지 않음.
+  const shouldCall = !disabled && value.length > 0 && (!maxLength || value.length < maxLength);
+
   // value 변경 시 — 진행 중 호출 abort + ghost 클리어 + 새 debounce 예약.
   useEffect(() => {
-    if (disabled) return;
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
     aborterRef.current?.abort();
     setGhost('');
+
+    if (!shouldCall) return;
 
     debounceRef.current = window.setTimeout(() => {
       const ac = new AbortController();
@@ -62,7 +71,7 @@ export function GhostInput({
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, disabled]);
+  }, [value, shouldCall]);
 
   // 컴포넌트 unmount 시 진행 중 호출 abort.
   useEffect(
@@ -98,7 +107,8 @@ export function GhostInput({
         if (done) break;
         acc += decoder.decode(chunk, { stream: true });
         if (ac.signal.aborted) return;
-        setGhost(acc);
+        // maxLength 초과분은 trim — 모델이 길게 응답해도 폼 검증 실패 방지.
+        setGhost(trimGhostToFit(value, acc, maxLength));
       }
     } catch (err) {
       if ((err as Error).name === 'AbortError') return;
@@ -110,7 +120,8 @@ export function GhostInput({
     if (!ghost) return;
     if (e.key === 'Tab' && !e.shiftKey) {
       e.preventDefault();
-      setValue(fieldKey, value + ghost, { shouldDirty: true, shouldValidate: true });
+      const accepted = trimGhostToFit(value, ghost, maxLength);
+      setValue(fieldKey, value + accepted, { shouldDirty: true, shouldValidate: true });
       setGhost('');
       aborterRef.current?.abort();
     } else if (e.key === 'Escape') {
@@ -123,6 +134,10 @@ export function GhostInput({
 
   const reg = register(fieldKey);
 
+  // shadcn Input/Textarea 의 패딩에 맞춰 ghost overlay 정렬.
+  // Input: px-3 py-1 (h-9). Textarea: px-3 py-2 (min-h-[60px]).
+  const overlayPadding = multiline ? 'px-3 py-2' : 'px-3 py-1';
+
   return (
     <div className="relative">
       {multiline ? (
@@ -131,7 +146,7 @@ export function GhostInput({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="font-sans"
+          maxLength={maxLength}
         />
       ) : (
         <Input
@@ -139,14 +154,16 @@ export function GhostInput({
           onKeyDown={onKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          className="font-sans"
+          maxLength={maxLength}
         />
       )}
       {ghost && !disabled && (
         <div
           aria-hidden
+          data-testid="ghost-overlay"
           className={cn(
-            'pointer-events-none absolute inset-0 overflow-hidden rounded-md px-3 py-2 text-base text-muted-foreground/50',
+            'pointer-events-none absolute inset-0 overflow-hidden rounded-md text-base text-muted-foreground/50',
+            overlayPadding,
             multiline ? 'whitespace-pre-wrap break-words' : 'whitespace-nowrap',
           )}
         >
