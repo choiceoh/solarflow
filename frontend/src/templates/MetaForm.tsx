@@ -540,6 +540,7 @@ function FieldRender({ field, value, error, options, setValue, register, watch, 
           placeholder={field.placeholder}
           disabled={readOnly}
           formId={formId}
+          maxLength={field.maxLength}
           register={register}
           watch={watch}
           setValue={setValue as never}
@@ -653,6 +654,7 @@ function FieldRender({ field, value, error, options, setValue, register, watch, 
           placeholder={field.placeholder}
           disabled={readOnly}
           formId={formId}
+          maxLength={field.maxLength}
           register={register}
           watch={watch}
           setValue={setValue as never}
