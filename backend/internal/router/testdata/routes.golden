@@ -127,6 +127,7 @@ PATCH   /api/v1/partners/{id}/status
 PATCH   /api/v1/products/{id}/status
 PATCH   /api/v1/warehouses/{id}/status
 POST    /api/v1/assistant/chat
+POST    /api/v1/assistant/completion
 POST    /api/v1/assistant/match/receipts/auto
 POST    /api/v1/assistant/ocr/extract
 POST    /api/v1/assistant/proposals/{id}/confirm

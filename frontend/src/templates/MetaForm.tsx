@@ -11,11 +11,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { usePermission } from '@/hooks/usePermission';
 import type { FieldConfig, MasterOptionSource, MetaFormConfig } from './types';
+import { GhostInput } from '@/components/forms/GhostInput';
 import {
   applyFormatter, computedFormulas, enumDictionaries, formRefinements, masterSources,
 } from './registry';
@@ -466,12 +466,14 @@ interface FieldRenderProps {
   options?: Options;
   setValue: (key: string, value: unknown) => void;
   register: ReturnType<typeof useForm>['register'];
+  watch: ReturnType<typeof useForm>['watch']; // GhostInput 자동완성 — fetch 시점 최신값 조회
   watchedValues: Record<string, unknown>;
   role: string | null;
   extraContext?: Record<string, unknown>;
+  formId?: string; // GhostInput backend prompt 에 form 식별자 첨부
 }
 
-function FieldRender({ field, value, error, options, setValue, register, watchedValues, role, extraContext }: FieldRenderProps) {
+function FieldRender({ field, value, error, options, setValue, register, watch, watchedValues, role, extraContext, formId }: FieldRenderProps) {
   // 조건부 표시 — visibleIf 평가 (source='field' 기본 / 'context' 옵션)
   if (field.visibleIf) {
     if (!evalCondition(field.visibleIf, watchedValues, extraContext)) return null;
@@ -531,7 +533,17 @@ function FieldRender({ field, value, error, options, setValue, register, watched
     return (
       <div className="space-y-1.5">
         <Label>{labelText}</Label>
-        <Textarea {...register(field.key)} placeholder={field.placeholder} disabled={readOnly} />
+        <GhostInput
+          fieldKey={field.key}
+          fieldLabel={field.label}
+          multiline
+          placeholder={field.placeholder}
+          disabled={readOnly}
+          formId={formId}
+          register={register}
+          watch={watch}
+          setValue={setValue as never}
+        />
         {field.description ? <p className="text-xs text-muted-foreground">{field.description}</p> : null}
         {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
       </div>
@@ -630,6 +642,27 @@ function FieldRender({ field, value, error, options, setValue, register, watched
 
   // text / number / date
   // Phase 4 보강: number 타입에 numberFormat 이 지정되면 콤마 입력 사용
+  // text 필드는 GhostInput 으로 분기 (자동완성). number/date/datetime/time 은 기존 Input.
+  if (field.type === 'text') {
+    return (
+      <div className="space-y-1.5">
+        <Label>{labelText}</Label>
+        <GhostInput
+          fieldKey={field.key}
+          fieldLabel={field.label}
+          placeholder={field.placeholder}
+          disabled={readOnly}
+          formId={formId}
+          register={register}
+          watch={watch}
+          setValue={setValue as never}
+        />
+        {field.description ? <p className="text-xs text-muted-foreground">{field.description}</p> : null}
+        {errorMsg ? <p className="text-xs text-destructive">{errorMsg}</p> : null}
+      </div>
+    );
+  }
+
   const useFmtNumber = field.type === 'number' && field.numberFormat && field.numberFormat !== 'plain';
   return (
     <div className="space-y-1.5">
@@ -868,9 +901,11 @@ export default function MetaForm({ config: defaultConfig, open, onOpenChange, on
                       options={fieldOptions[f.key]}
                       setValue={(k, v) => setValue(k, v as never)}
                       register={register}
+                      watch={watch}
                       watchedValues={watchedValues}
                       role={role}
                       extraContext={extraContext}
+                      formId={config.id}
                     />
                   ))}
                 </div>
