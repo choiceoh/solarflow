@@ -613,9 +613,11 @@ export function HeaderActions({
 export default function ListScreen({ config: defaultConfig }: { config: ListScreenConfig }) {
   // Phase 4 PoC: tenant 오버레이 (계열사 포크) — base 에 tenant override 먼저 적용
   const tenantId = useTenantStore((s) => s.tenantId);
+  // runtimeVersion 변경 시 재계산 (admin GUI 로 runtime override 편집 시)
+  const runtimeVersion = useTenantStore((s) => s.runtimeVersion);
   const tenantConfig = useMemo(
     () => applyTenantToScreen(defaultConfig, tenantId),
-    [defaultConfig, tenantId],
+    [defaultConfig, tenantId, runtimeVersion],
   );
   // Phase 3: localStorage override 우선, 없으면 (tenant 적용된) defaultConfig
   const config = useResolvedConfig(tenantConfig, 'screen');
