@@ -913,7 +913,8 @@ a:focus-visible,
   border-color: var(--solar-3) !important;
 }
 
-.sf-procurement-page [data-slot="tabs-content"] {
+.sf-procurement-page [data-slot="tabs-content"],
+.sf-sales-page [data-slot="tabs-content"] {
   margin-top: 0;
 }
 
