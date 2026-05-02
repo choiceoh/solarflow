@@ -22,6 +22,7 @@ import manufacturerFormConfig from '@/config/forms/manufacturers';
 import productFormConfig from '@/config/forms/products';
 import constructionSiteFormConfig from '@/config/forms/construction_sites';
 import poLineFormConfig from '@/config/forms/po_line';
+import costFormConfig from '@/config/forms/cost';
 import depsDemoFormConfig from '@/config/forms/deps_demo';
 import ExcelToolbar from '@/components/excel/ExcelToolbar';
 import { useOutboundList, useSaleList, useOutboundDetail } from '@/hooks/useOutbound';
@@ -370,6 +371,18 @@ const POLineFormV2: FormComponent = (props) => (
   />
 );
 
+// Phase 4 보강: 면장 원가 메타 폼 (CostForm 변환 — 17 필드, 4 computed, 3 stage)
+const CostFormV2: FormComponent = (props) => (
+  <MetaForm
+    config={costFormConfig}
+    open={props.open}
+    onOpenChange={props.onOpenChange}
+    onSubmit={props.onSubmit}
+    editData={props.editData}
+    extraContext={(props as { extraContext?: Record<string, unknown> }).extraContext}
+  />
+);
+
 // Phase 4 보강: 의존성·동적 옵션 시연 폼 (UI 데모 전용 — 저장 안 함)
 const DepsDemoForm: FormComponent = (props) => (
   <MetaForm
@@ -393,6 +406,7 @@ export const formComponents: Record<string, FormComponent> = {
   product_form_v2: ProductFormV2,              // Phase 4: 품번 마스터 메타 폼 (13 필드)
   construction_site_form_v2: ConstructionSiteFormV2, // Phase 4: 발전소 메타 폼 (마지막 마스터)
   po_line_form_v2: POLineFormV2,               // Phase 4 보강: PO 라인 (child 라인 폼 첫 변환)
+  cost_form_v2: CostFormV2,                    // Phase 4 보강: 면장 원가 (가장 복잡한 child 라인 폼)
   deps_demo: DepsDemoForm,                     // Phase 4 보강: 의존성·동적 옵션 데모
 };
 
@@ -641,6 +655,48 @@ export const computedFormulas: Record<string, ComputedFormula> = {
     const product = productCacheById.get(productId);
     if (!product) return undefined;
     return Math.round(q * product.spec_wp * u * 100) / 100;
+  },
+  // 면장 원가 — 용량 kW (= 수량 * spec_wp / 1000)
+  'cost_capacity_kw': (values) => {
+    const q = Number(values.quantity);
+    const productId = String(values.product_id ?? '');
+    if (!Number.isFinite(q) || !productId) return undefined;
+    const product = productCacheById.get(productId);
+    if (!product) return undefined;
+    return Math.round(q * product.spec_wp / 10) / 100; // 소수점 2자리 (kW)
+  },
+  // 면장 원가 — CIF Wp 단가 (KRW / Wp) = cif_total_krw / (수량 * spec_wp)
+  'cost_cif_wp_krw': (values) => {
+    const q = Number(values.quantity);
+    const cif = Number(values.cif_total_krw);
+    const productId = String(values.product_id ?? '');
+    if (!Number.isFinite(q) || !Number.isFinite(cif) || q <= 0 || !productId) return undefined;
+    const product = productCacheById.get(productId);
+    if (!product || product.spec_wp <= 0) return undefined;
+    return Math.round((cif / (q * product.spec_wp)) * 100) / 100;
+  },
+  // 면장 원가 — Landed 합계 KRW = cif_total + tariff + customs_fee + incidental
+  'cost_landed_total_krw': (values) => {
+    const cif = Number(values.cif_total_krw) || 0;
+    const tariff = Number(values.tariff_amount) || 0;
+    const customs = Number(values.customs_fee) || 0;
+    const incidental = Number(values.incidental_cost) || 0;
+    const total = cif + tariff + customs + incidental;
+    return total > 0 ? total : undefined;
+  },
+  // 면장 원가 — Landed Wp 단가 (KRW / Wp) = landed_total / (수량 * spec_wp)
+  'cost_landed_wp_krw': (values) => {
+    const q = Number(values.quantity);
+    const productId = String(values.product_id ?? '');
+    if (!Number.isFinite(q) || q <= 0 || !productId) return undefined;
+    const product = productCacheById.get(productId);
+    if (!product || product.spec_wp <= 0) return undefined;
+    const landed = (Number(values.cif_total_krw) || 0)
+      + (Number(values.tariff_amount) || 0)
+      + (Number(values.customs_fee) || 0)
+      + (Number(values.incidental_cost) || 0);
+    if (landed <= 0) return undefined;
+    return Math.round((landed / (q * product.spec_wp)) * 100) / 100;
   },
 };
 
